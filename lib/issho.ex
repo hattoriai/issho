@@ -26,6 +26,8 @@ defmodule Issho do
     * `:ttl`: how long, in milliseconds, an unused document stays open
       (30 seconds).
     * `:awareness_interval`: milliseconds between awareness frames (50).
+    * `:awareness_max_bytes`: the largest awareness state of a session, as
+      JSON (64 KB).
     * `:max_document_bytes` (16 MB), `:max_message_bytes` (1 MB) and
       `:token_max_age` (300 seconds).
 
@@ -103,7 +105,7 @@ defmodule Issho do
     Phoenix.PubSub.broadcast(
       Config.get(instance).pubsub,
       Session.room_topic(room),
-      {Issho, :revoke, key}
+      {Issho, :revoke, room, key}
     )
   end
 

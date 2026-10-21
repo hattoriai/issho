@@ -54,13 +54,13 @@ defmodule Issho.Session do
   @spec people(t()) :: map()
   def people(%__MODULE__{room: room}), do: Presence.list(Presence.topic(room))
 
-  @spec open(t(), String.t(), [String.t()]) :: {:ok, map(), t()} | {:error, term()}
-  def open(%__MODULE__{} = session, document_id, pending \\ []) do
+  @spec open(t(), String.t(), [String.t()], keyword()) :: {:ok, map(), t()} | {:error, term()}
+  def open(%__MODULE__{} = session, document_id, pending \\ [], opts \\ []) do
     config = Config.get(session.instance)
 
     with true <- Documents.in_room?(document_id, session.room) || {:error, :other_room},
          :ok <- Policy.authorize(config.policy, session.identity, session.room, :read),
-         {:ok, pid} <- Documents.open(session.instance, document_id, session.identity),
+         {:ok, pid} <- Documents.open(session.instance, document_id, session.identity, opts),
          {:ok, snapshot, engine} <- Authority.join(pid, self()) do
       unless Map.has_key?(session.documents, document_id),
         do: :ok = Phoenix.PubSub.subscribe(config.pubsub, Authority.topic(document_id))
@@ -102,7 +102,8 @@ defmodule Issho.Session do
     validator = &Map.get(session.places, &1)
     locks = Map.get(state, "locks", [])
 
-    with true <- byte_size(JSON.encode!(state)) <= 16_384 || {:error, :too_large},
+    with true <-
+           byte_size(JSON.encode!(state)) <= config.awareness_max_bytes || {:error, :too_large},
          :ok <- Place.check(state["place"], session.room, validator),
          true <- (is_list(locks) and length(locks) <= 32) || {:error, :invalid_locks},
          :ok <- check_all(locks, &Place.check(&1, session.room, validator)),
@@ -157,7 +158,8 @@ defmodule Issho.Session do
     end
   end
 
-  def handle(%__MODULE__{identity: %{key: key}}, {Issho, :revoke, key}), do: {:stop, :revoked}
+  def handle(%__MODULE__{identity: %{key: key}, room: room}, {Issho, :revoke, room, key}),
+    do: {:stop, :revoked}
 
   def handle(session, %Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}),
     do: {:push, "presence_diff", diff, session}

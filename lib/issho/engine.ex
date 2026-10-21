@@ -10,8 +10,10 @@ defmodule Issho.Engine do
   to a NIF or to WebAssembly unchanged.
 
   Its state is a map of strings, numbers, booleans, `nil`, lists and maps
-  with string keys (JSON), because the store saves it and browsers receive
-  it.
+  with string keys (JSON) when browsers hold the document (they receive
+  it, and run the engine's twin) or the store saves JSON. A document only
+  LiveViews and agents hold, kept by no store or a store of terms, can be
+  any Erlang term: a struct of your own.
 
   Everything outside the engine treats operations as opaque: the authority,
   the store, receipts, the journal and the offline queue see only a

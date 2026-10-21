@@ -21,23 +21,42 @@ defmodule Issho.Documents do
   def init(:ok), do: DynamicSupervisor.init(strategy: :one_for_one)
 
   @doc """
-  The authority of a document, started if it is not running anywhere. The
-  first open on a node asks the policy what the document is
-  (`c:Issho.Policy.document/2`), with the identity of whoever opens it.
+  The authority of a document, started if it is not running anywhere.
+
+  What the document is (its spec) comes from the first open: the policy's
+  `c:Issho.Policy.document/2`, asked with the identity of whoever opens
+  it, or a `:spec` given by your server's own code, such as a component
+  that holds the document's initial content and its hook. A browser never
+  gives a spec.
+
+  A spec is a map:
+
+    * `:engine` (required): the document's `Issho.Engine` or binding.
+    * `:initial`: the initial content, when the store has nothing.
+    * `:opts`: the engine's options.
+    * `:store`: `{module, context}`, or `:none` for a document that lasts
+      as long as its authority (`Issho.Store.None`); the instance's store
+      unless given.
+    * `:on_transaction`: a function of the operations and a context
+      (`:document`, `:author`, `:revision`, and the state `:before` and
+      `:after`), run once for each accepted transaction, after the engine
+      and before it is saved and confirmed. It answers `:ok` (or `{:ok,
+      anything}`), or `{:error, reason}` to refuse the transaction: the
+      place to save each change in your own tables.
   """
-  @spec open(atom(), String.t(), Identity.t() | nil) :: {:ok, pid()} | {:error, term()}
-  def open(instance, document_id, identity \\ nil) when is_binary(document_id) do
+  @spec open(atom(), String.t(), Identity.t() | nil, keyword()) :: {:ok, pid()} | {:error, term()}
+  def open(instance, document_id, identity \\ nil, opts \\ []) when is_binary(document_id) do
     config = Config.get(instance)
     name = name(config, document_id)
 
     case GenServer.whereis(name) do
       pid when is_pid(pid) -> {:ok, pid}
-      _ -> start(config, document_id, name, identity)
+      _ -> start(config, document_id, name, identity, opts[:spec])
     end
   end
 
-  defp start(config, document_id, name, identity) do
-    with {:ok, spec} <- spec(config.policy, identity, document_id) do
+  defp start(config, document_id, name, identity, given) do
+    with {:ok, spec} <- given_or_policy(given, config.policy, identity, document_id) do
       child = {Authority, instance: config.name, document_id: document_id, spec: spec, name: name}
 
       case DynamicSupervisor.start_child(Config.child_name(config.name, Documents), child) do
@@ -47,6 +66,12 @@ defmodule Issho.Documents do
       end
     end
   end
+
+  defp given_or_policy(%{engine: engine} = spec, _policy, _identity, _id) when is_atom(engine),
+    do: {:ok, spec}
+
+  defp given_or_policy(nil, policy, identity, document_id),
+    do: spec(policy, identity, document_id)
 
   defp spec(policy, identity, document_id) do
     Code.ensure_loaded(policy)

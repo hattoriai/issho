@@ -47,7 +47,10 @@ defmodule Issho.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:esbuild, "~> 0.10", only: :dev, runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:lazy_html, "~> 0.1", only: :test},
       {:phoenix, "~> 1.7.14 or ~> 1.8"},
+      # Issho.Live, for apps with LiveView.
+      {:phoenix_live_view, "~> 1.1", optional: true},
       {:phoenix_pubsub, "~> 2.1"},
       {:stream_data, "~> 1.1", only: :test},
       {:telemetry, "~> 1.0"}

@@ -19,6 +19,7 @@ defmodule Issho.Config do
     awareness_full_every: 100,
     max_document_bytes: 16_000_000,
     max_message_bytes: 1_000_000,
+    awareness_max_bytes: 65_536,
     token_max_age: 300
   ]
 

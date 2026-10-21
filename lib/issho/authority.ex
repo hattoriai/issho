@@ -89,7 +89,7 @@ defmodule Issho.Authority do
     spec = Keyword.fetch!(opts, :spec)
     engine = Map.fetch!(spec, :engine)
     engine_opts = Map.get(spec, :opts, [])
-    {store, context} = config.store || raise ArgumentError, "Issho needs a :store for documents"
+    {store, context} = store(Map.get(spec, :store), config.store)
 
     with {:ok, stored} <- store.load(context, id),
          {:ok, document} <- document(stored, engine, spec, engine_opts),
@@ -103,6 +103,7 @@ defmodule Issho.Authority do
          opts: engine_opts,
          store: store,
          context: context,
+         hook: Map.get(spec, :on_transaction),
          document: document,
          content: content,
          members: %{},
@@ -136,6 +137,14 @@ defmodule Issho.Authority do
   end
 
   defp document(_stored, _engine, _spec, _opts), do: {:error, :unsupported_document}
+
+  defp store(:none, _default), do: {Issho.Store.None, nil}
+  defp store({module, _context} = store, _default) when is_atom(module), do: store
+  defp store(nil, {module, _context} = store) when is_atom(module), do: store
+
+  defp store(nil, nil),
+    do:
+      raise(ArgumentError, "Issho needs a :store for documents, or `store: :none` in their spec")
 
   defp first_save(nil, store, context, id, document, content),
     do: store.save(context, id, nil, document, content)
@@ -201,9 +210,9 @@ defmodule Issho.Authority do
            state.engine.apply(document["state"], transaction["ops"], [
              {:author, author} | state.opts
            ]),
-         {:ok, content} <- Engine.validate(state.engine, engine_state, state.opts) do
-      revision = document["revision"] + 1
-
+         {:ok, content} <- Engine.validate(state.engine, engine_state, state.opts),
+         revision = document["revision"] + 1,
+         :ok <- hook(state, transaction, author, engine_state, revision) do
       event =
         transaction
         |> Map.take(["id", "epoch", "base_revision", "ops"])
@@ -229,6 +238,35 @@ defmodule Issho.Authority do
     end
   end
 
+  # The document's transaction hook, once per accepted transaction, before
+  # it is saved: the app can save it in its own tables, or refuse it.
+  defp hook(%{hook: nil}, _transaction, _author, _after, _revision), do: :ok
+
+  defp hook(state, transaction, author, after_state, revision) do
+    context = %{
+      document: state.id,
+      author: author,
+      revision: revision,
+      before: state.document["state"],
+      after: after_state
+    }
+
+    case state.hook.(transaction["ops"], context) do
+      :ok -> :ok
+      {:ok, _result} -> :ok
+      {:error, reason} -> {:error, reason}
+      other -> raise ArgumentError, "an :on_transaction hook returned #{inspect(other)}"
+    end
+  rescue
+    error ->
+      Logger.error(
+        "Issho: the :on_transaction hook of #{state.id} raised: " <>
+          Exception.format(:error, error, __STACKTRACE__)
+      )
+
+      {:error, :hook_failed}
+  end
+
   defp receipt(document, id, digest) do
     case document["receipts"][id] do
       nil -> :new
@@ -241,7 +279,7 @@ defmodule Issho.Authority do
     expected = {state.document["epoch"], state.document["revision"]}
 
     result =
-      if byte_size(JSON.encode!(next)) <= state.config.max_document_bytes,
+      if :erlang.external_size(next) <= state.config.max_document_bytes,
         do: state.store.save(state.context, state.id, expected, next, content),
         else: {:error, :document_too_large}
 
