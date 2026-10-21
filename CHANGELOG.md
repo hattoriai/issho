@@ -16,6 +16,9 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   makes changes close together one transaction, while it has not been
   sent. `SharedDocument#hold()` and `release()` keep transactions from
   going while a person composes text; `flush()` sends the batch now.
+- TypeScript declarations in the package (`priv/static/types`), named by
+  `package.json`'s `types`: a component library's TypeScript imports
+  `issho` with its types.
 
 ## [0.1.0] - 2026-10-21
 

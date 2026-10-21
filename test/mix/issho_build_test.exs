@@ -4,6 +4,8 @@ defmodule Mix.Tasks.Issho.BuildTest do
   # so it runs only with `mix test --include build`.
   use ExUnit.Case, async: false
 
+  alias Mix.Tasks.Issho.ReleaseCheck
+
   @root Path.expand("../..", __DIR__)
   @static Path.join(@root, "priv/static")
   @files ~w(issho.esm.js issho.cjs.js)
@@ -48,8 +50,15 @@ defmodule Mix.Tasks.Issho.BuildTest do
     end
   end
 
-  test "priv/static holds only the two files of the package" do
-    assert @static |> File.ls!() |> Enum.sort() == Enum.sort(@files)
+  test "priv/static holds only the files of the package" do
+    assert @static |> File.ls!() |> Enum.sort() == Enum.sort(["types" | @files])
+    assert File.regular?(Path.join(@static, "types/index.d.ts"))
+
+    assert ReleaseCheck.check(
+             @static,
+             Path.join(@root, "package.json"),
+             Mix.Project.config()[:version]
+           ) == :ok
   end
 
   test "the ESM bundle exports the client" do
@@ -87,8 +96,14 @@ defmodule Mix.Tasks.Issho.BuildTest do
         assert "priv/static/#{file}" in files, "the package has no priv/static/#{file}"
       end
 
-      assert files |> Enum.filter(&String.starts_with?(&1, "priv/")) |> Enum.sort() ==
-               @files |> Enum.map(&"priv/static/#{&1}") |> Enum.sort()
+      {types, bundles} =
+        files
+        |> Enum.filter(&String.starts_with?(&1, "priv/"))
+        |> Enum.split_with(&String.starts_with?(&1, "priv/static/types/"))
+
+      assert Enum.sort(bundles) == @files |> Enum.map(&"priv/static/#{&1}") |> Enum.sort()
+      assert "priv/static/types/index.d.ts" in types
+      assert Enum.all?(types, &String.ends_with?(&1, ".d.ts"))
 
       guides =
         @root

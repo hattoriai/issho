@@ -19,9 +19,11 @@ defmodule Mix.Tasks.Issho.Build do
        build.
     3. Runs esbuild (the `esbuild` Mix package) with the `:issho_esm` and
        `:issho_cjs` profiles.
+    4. Writes the TypeScript declarations into `priv/static/types`, with
+       `assets/tsconfig.types.json`.
 
-  After the task, `priv/static` holds exactly the two bundles, which are
-  the files of the Hex package. It needs `npm` on the path and the
+  After the task, `priv/static` holds exactly the two bundles and the
+  declarations, which are the files of the Hex package. It needs `npm` on the path and the
   `:esbuild` dependency, which is available in the `:dev` environment.
   """
 
@@ -52,6 +54,7 @@ defmodule Mix.Tasks.Issho.Build do
     File.rm_rf!(@static)
     File.mkdir_p!(@static)
     Enum.each(@profiles, &bundle/1)
+    declarations()
 
     Mix.shell().info("Issho assets are in #{@static}/")
   end
@@ -84,6 +87,18 @@ defmodule Mix.Tasks.Issho.Build do
         {_output, 0} -> File.write!(stamp, hash)
         {_output, status} -> Mix.raise("npm ci exited with status #{status}")
       end
+    end
+  end
+
+  defp declarations do
+    tsc = Path.expand(Path.join(@assets, "node_modules/.bin/tsc"))
+
+    case System.cmd(tsc, ["-p", Path.join(@assets, "tsconfig.types.json")],
+           into: IO.stream(),
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} -> :ok
+      {_output, status} -> Mix.raise("tsc exited with status #{status}")
     end
   end
 

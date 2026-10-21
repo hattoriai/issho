@@ -5,13 +5,15 @@
   "license": "MIT",
   "module": "./priv/static/issho.esm.js",
   "main": "./priv/static/issho.cjs.js",
+  "types": "./priv/static/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./priv/static/types/index.d.ts",
       "import": "./priv/static/issho.esm.js",
       "require": "./priv/static/issho.cjs.js"
     }
   },
-  "files": ["priv/static/issho.esm.js", "priv/static/issho.cjs.js", "README.md", "LICENSE"],
+  "files": ["priv/static/issho.esm.js", "priv/static/issho.cjs.js", "priv/static/types", "README.md", "LICENSE"],
   "peerDependencies": {
     "phoenix": "^1.7.14 || ^1.8.0"
   }

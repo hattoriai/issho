@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Issho.ReleaseCheck do
-  @shortdoc "Checks that priv/static holds the two bundle files and nothing else"
+  @shortdoc "Checks that priv/static holds the two bundles and the declarations, and nothing else"
 
   @moduledoc """
   Checks the built files before a release of Issho.
@@ -12,6 +12,8 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
 
     * one of the two bundle files (`issho.esm.js` and `issho.cjs.js`) is
       missing from `priv/static`, or is empty;
+    * `priv/static/types` has no `index.d.ts`, or holds a file that is not
+      a declaration (`.d.ts`);
     * `priv/static` holds any other file or directory;
     * the `version` of `package.json` is not the version of `mix.exs`.
   """
@@ -20,6 +22,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
 
   @static "priv/static"
   @files ~w(issho.esm.js issho.cjs.js)
+  @types "types"
 
   @impl Mix.Task
   def run(_args) do
@@ -30,7 +33,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
     case check(@static, "package.json", version) do
       :ok ->
         Mix.shell().info(
-          "#{@static} holds the two bundle files, and nothing else, and package.json has version #{version}"
+          "#{@static} holds the two bundle files and the declarations, and nothing else, and package.json has version #{version}"
         )
 
       {:error, problems} ->
@@ -68,7 +71,11 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
 
     problems =
       Enum.flat_map(@files, &bundle_problems(static, &1, entries)) ++
-        Enum.map(Enum.sort(entries -- @files), &"#{static}/#{&1} is not a bundle file") ++
+        types_problems(Path.join(static, @types)) ++
+        Enum.map(
+          Enum.sort(entries -- [@types | @files]),
+          &"#{static}/#{&1} is not a bundle file"
+        ) ++
         version_problems(package_json, version)
 
     if problems == [], do: :ok, else: {:error, problems}
@@ -83,6 +90,24 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
       File.stat!(path).size == 0 -> ["#{path} is empty"]
       true -> []
     end
+  end
+
+  defp types_problems(types) do
+    files =
+      types
+      |> Path.join("**")
+      |> Path.wildcard()
+      |> Enum.filter(&File.regular?/1)
+
+    missing =
+      if File.regular?(Path.join(types, "index.d.ts")),
+        do: [],
+        else: ["#{types}/index.d.ts is missing"]
+
+    missing ++
+      for file <- Enum.sort(files),
+          not String.ends_with?(file, ".d.ts"),
+          do: "#{file} is not a declaration"
   end
 
   defp version_problems(package_json, version) do

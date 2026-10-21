@@ -11,6 +11,9 @@ defmodule Mix.Tasks.Issho.ReleaseCheckTest do
     static = Path.join(tmp_dir, "priv/static")
     File.mkdir_p!(static)
     for file <- @files, do: File.write!(Path.join(static, file), "built")
+    File.mkdir_p!(Path.join(static, "types/engines"))
+    File.write!(Path.join(static, "types/index.d.ts"), "export {};")
+    File.write!(Path.join(static, "types/engines/map.d.ts"), "export {};")
     package = Path.join(tmp_dir, "package.json")
     File.write!(package, ~s({"name": "issho", "version": "1.2.3"}))
     %{static: static, package: package}
@@ -33,6 +36,18 @@ defmodule Mix.Tasks.Issho.ReleaseCheckTest do
     assert "#{static}/chunks is not a bundle file" in problems
   end
 
+  test "fails without the declarations, or for another file among them", %{
+    static: static,
+    package: package
+  } do
+    File.write!(Path.join(static, "types/engines/map.js"), "")
+    File.rm!(Path.join(static, "types/index.d.ts"))
+
+    assert {:error, problems} = ReleaseCheck.check(static, package, "1.2.3")
+    assert "#{static}/types/index.d.ts is missing" in problems
+    assert "#{static}/types/engines/map.js is not a declaration" in problems
+  end
+
   test "fails for a missing or an empty bundle file", %{static: static, package: package} do
     File.rm!(Path.join(static, "issho.cjs.js"))
     File.write!(Path.join(static, "issho.esm.js"), "")
@@ -45,7 +60,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheckTest do
   test "fails when there is no priv/static", %{tmp_dir: tmp_dir, package: package} do
     static = Path.join(tmp_dir, "none")
     assert {:error, problems} = ReleaseCheck.check(static, package, "1.2.3")
-    assert length(problems) == length(@files)
+    assert length(problems) == length(@files) + 1
   end
 
   test "fails when package.json has another version", %{static: static, package: package} do

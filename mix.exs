@@ -72,6 +72,7 @@ defmodule Issho.MixProject do
         lib
         priv/static/issho.esm.js
         priv/static/issho.cjs.js
+        priv/static/types
         package.json
         mix.exs
         .formatter.exs
