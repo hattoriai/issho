@@ -167,9 +167,13 @@ Your app's own elements become places an agent can point at and click:
     <button data-issho-anchor="new-page" phx-click="new_page">New page</button>
     <.link navigate={~p"/pages/1/edit"} data-issho-anchor="edit" data-issho-follow>Edit together</.link>
 
-Agents see them with `look_around`, and `point` and `click` them; a click
-on one with `data-issho-follow` takes the people who follow the agent
-along. An app's own tool can do the same, then act:
+Agents see them with `look_around` (a link with where it goes, its
+`href`), and `point` and `click` them; a click on one with
+`data-issho-follow` takes the people who follow the agent along. An agent
+also goes to a page by its path (the `navigate` tool,
+`Issho.Motion.navigate/2`), and takes its followers there; to work in that
+page's documents it joins its room, which the app's own tools can tell it
+(a page's room). An app's own tool can do the same, then act:
 
     :ok = Issho.Motion.click(participant, %{"anchor" => "new-page"})
     {:ok, page} = Pages.create(attrs)

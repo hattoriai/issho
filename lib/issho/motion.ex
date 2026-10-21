@@ -46,13 +46,13 @@ defmodule Issho.Motion do
 
   alias Issho.Participant
 
-  @gestures ~w(move press drag release click)
+  @gestures ~w(move press drag release click navigate)
 
   @typedoc "Where a gesture goes: a place of a document, or an element of the page."
   @type target :: %{required(String.t()) => term()}
 
-  @typedoc "A gesture: `:move` to go there, `:press` and `:release` around a `:drag`, `:click`."
-  @type gesture :: :move | :press | :drag | :release | :click
+  @typedoc "A gesture: `:move` to go there, `:press` and `:release` around a `:drag`, `:click`, and `:navigate` (`navigate/2`)."
+  @type gesture :: :move | :press | :drag | :release | :click | :navigate
 
   @doc """
   Goes to a target. Options: `:gesture` (`:move`), `:place` (whether a
@@ -93,6 +93,26 @@ defmodule Issho.Motion do
   @spec click(GenServer.server(), target(), keyword()) :: :ok | {:error, term()}
   def click(participant, target, opts \\ []),
     do: go(participant, target, Keyword.put(opts, :gesture, :click))
+
+  @doc """
+  Goes to another page of the app, by its path (`"/pages/2"`): the people
+  who follow the agent go there too, their browsers as if they had
+  followed a link. It does not change the rooms the agent is in: to work
+  in the documents of that page, it joins its room. Only a path of the app
+  (starting with a single `/`) goes.
+  """
+  @spec navigate(GenServer.server(), String.t()) :: :ok | {:error, term()}
+  def navigate(participant, "/" <> rest = path) do
+    if String.starts_with?(rest, "/") do
+      {:error, :invalid_path}
+    else
+      seq = (get_in(Participant.awareness(participant), ["motion", "seq"]) || 0) + 1
+      motion = %{"to" => %{"path" => path}, "gesture" => "navigate", "ms" => 0, "seq" => seq}
+      Participant.aware(participant, %{"motion" => motion, "path" => path})
+    end
+  end
+
+  def navigate(_participant, _path), do: {:error, :invalid_path}
 
   @doc """
   Selects as a drag does: pressed at `from`, let go at `to` (a range of

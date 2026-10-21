@@ -44,3 +44,67 @@ jobs:
       - run: mix format --check-formatted
       - run: mix credo --strict
       - run: mix test
+
+  # The page layer in a browser (e2e/): pointers across pages, following,
+  # an agent's pointer and its clicks. One job for each engine.
+  e2e:
+    name: ${{ matrix.browser == 'chromium' && 'e2e' || format('e2e ({0})', matrix.browser) }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+          cache-dependency-path: |
+            assets/package-lock.json
+            e2e/package-lock.json
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: mix-e2e-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-e2e-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - run: mix deps.get
+
+      - run: npm ci
+        working-directory: assets
+
+      - run: npm ci
+        working-directory: e2e
+
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+        working-directory: e2e
+
+      # The Playwright web server builds the page's script from the sources
+      # and starts e2e/server.exs (MIX_ENV=test).
+      - run: npm test
+        working-directory: e2e
+        env:
+          CI: "true"
+          E2E_BROWSERS: ${{ matrix.browser }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: |
+            e2e/test-results
+            e2e/playwright-report
+          retention-days: 7

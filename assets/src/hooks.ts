@@ -109,9 +109,44 @@ const IsshoPointers = {
         const offFollowing = onFollow(grant.room, (key) => {
           if (followed && key === null && room.presence.everyone.some((person) => person.key === followed)) declined.add(followed);
           followed = key;
+          frame();
         });
+        // The one followed goes to another page (an agent's `navigate`):
+        // this page goes there too. A gesture seen when the page came is
+        // where they already were; only a path of this app is followed.
+        const went = new Map<string, number>();
+        const goAlong = (): void => {
+          const key = following(grant.room);
+          for (const peer of room.awareness.peers) {
+            const gesture = (peer.state as { motion?: { seq?: unknown; gesture?: unknown; to?: { path?: unknown } } }).motion;
+            if (!gesture || typeof gesture.seq !== "number") continue;
+            const seen = went.get(peer.key);
+            went.set(peer.key, gesture.seq);
+            if (seen === undefined || seen === gesture.seq || gesture.gesture !== "navigate" || peer.key !== key) continue;
+            const path = gesture.to?.path;
+            if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) continue;
+            if (path === location.pathname + location.search) continue;
+            const js = (this as unknown as { js?: () => { navigate: (href: string) => void } }).js;
+            if (js) js.call(this).navigate(path);
+            else location.assign(path);
+          }
+        };
+        // Following someone of the room: the page has a frame of their
+        // colour, whether their pointer is on it or not.
+        const frame = (): void => {
+          const key = following(grant.room);
+          const person = key ? room.presence.everyone.find((one) => one.key === key) : undefined;
+          if (person) {
+            this.el.dataset.following = "";
+            this.el.style.setProperty("--issho-follow-color", person.color ?? `var(--issho-person-${person.palette})`);
+          } else {
+            delete this.el.dataset.following;
+          }
+        };
         const draw = (): void => {
           followMine();
+          goAlong();
+          frame();
           layer.draw(pointing(room.awareness.peers, room.presence.everyone, grant.self));
         };
         const offPresence = room.presence.on(draw);

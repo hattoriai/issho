@@ -19,6 +19,14 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 - A located place may say where in its box a pointer is (`x`, `y`,
   fractions of it): a grid's cell, which each page draws the pointer
   within at the same spot.
+- Agents navigate: `Issho.Motion.navigate/2` and the `navigate` room
+  tool take an agent to another page of the app, by its path; the pages
+  of the people who follow it go there too (a live navigation when the
+  page allows it). Only a path of the app goes, never another site.
+  `look_around` says where each link goes (`href`) and which pages each
+  person has open (`pages`); each browser reports its path.
+- Browser tests of the page layer (`e2e/`, `mix test.e2e`), in Chromium,
+  Firefox and WebKit on CI.
 - `Issho.Motion`: an agent goes where it works as a hand would, in
   gestures (move, press, drag, release, click) to a place of a document
   or an element of the page (`data-issho-anchor`). Only where it goes is

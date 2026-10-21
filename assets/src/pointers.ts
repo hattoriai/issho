@@ -252,15 +252,28 @@ function docElement(doc: string): Element | null {
 }
 
 /** The elements of the page an agent may point at and click: their anchor, label, and whether they take followers along. */
-function anchors(): { name: string; label: string; follow?: true }[] {
-  const found: { name: string; label: string; follow?: true }[] = [];
+function anchors(): { name: string; label: string; follow?: true; href?: string }[] {
+  const found: { name: string; label: string; follow?: true; href?: string }[] = [];
   for (const element of document.querySelectorAll<HTMLElement>("[data-issho-anchor]")) {
     if (found.length >= 50 || element.closest("[data-issho-private]")) continue;
     const name = element.dataset.isshoAnchor!;
     const label = (element.getAttribute("aria-label") || element.title || element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
-    found.push({ name, label, ...(element.closest("[data-issho-follow]") ? { follow: true as const } : {}) });
+    const href = linkOf(element);
+    found.push({ name, label, ...(element.closest("[data-issho-follow]") ? { follow: true as const } : {}), ...(href ? { href } : {}) });
   }
   return found;
+}
+
+// Where a link goes: a path of this app, or another site's address.
+function linkOf(element: HTMLElement): string | null {
+  const link = element.closest<HTMLAnchorElement>("a[href]");
+  if (!link) return null;
+  try {
+    const url = new URL(link.href, location.href);
+    return url.origin === location.origin ? url.pathname + url.search + url.hash : url.href;
+  } catch {
+    return null;
+  }
 }
 
 function boxOf(element: Element): Box {
@@ -409,6 +422,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     if (!room) return;
     const view = {
       page: document.visibilityState === "visible",
+      path: location.pathname + location.search,
       docs: [...shown].sort(),
       motion: motionPreference(),
       follow: following(room),
@@ -429,6 +443,11 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     schedule();
   };
   document.addEventListener("issho:following", onFollowing);
+  // The page this browser is on, again after a live navigation or a step
+  // back: where each person is, for the agents.
+  const onPath = (): void => report();
+  window.addEventListener("phx:navigate", onPath);
+  window.addEventListener("popstate", onPath);
   watch();
 
   function render(): void {
@@ -478,14 +497,6 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
         seenClicks.set(one.key, click);
       }
       if (followed === one.key) keepInView(one, spot, viewport);
-    }
-    // Following someone here: the page has a frame of their colour.
-    const frame = followed ? people.find((one) => one.key === followed && keep.has(one.key)) : undefined;
-    if (frame) {
-      layer.dataset.following = "";
-      layer.style.setProperty("--issho-follow-color", frame.color);
-    } else {
-      delete layer.dataset.following;
     }
     for (const [key, mark] of marks) {
       if (!keep.has(key)) {
@@ -633,6 +644,8 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       changes.disconnect();
       offMotion();
       document.removeEventListener("issho:following", onFollowing);
+      window.removeEventListener("phx:navigate", onPath);
+      window.removeEventListener("popstate", onPath);
       for (const mark of marks.values()) mark.remove();
       marks.clear();
     },
