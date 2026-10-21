@@ -149,9 +149,11 @@ defmodule Issho.Session do
     with {:ok, session} <- recheck(session) do
       frame = %{frame | "states" => Map.delete(frame["states"], session.session_id)}
 
-      if frame["states"] == %{} and frame["gone"] == [],
+      # A full frame always goes: even empty, it says which sessions the
+      # node no longer has.
+      if frame["states"] == %{} and frame["gone"] == [] and not frame["full"],
         do: {:skip, session},
-        else: {:push, "aware", Map.delete(frame, "node"), session}
+        else: {:push, "aware", frame, session}
     end
   end
 

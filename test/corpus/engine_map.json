@@ -1,0 +1,88 @@
+[
+  {
+    "name": "sets values, making the maps on the way",
+    "initial": {"a": 1},
+    "steps": [
+      {"ops": [{"op": "set", "path": ["plan", "title"], "value": "Q3"}]},
+      {"ops": [{"op": "set", "path": ["plan", "owners"], "value": ["ada", "ken"]}]}
+    ],
+    "expected": {"a": 1, "plan": {"title": "Q3", "owners": ["ada", "ken"]}}
+  },
+  {
+    "name": "a later set of the same path wins",
+    "initial": null,
+    "steps": [
+      {"ops": [{"op": "set", "path": ["t"], "value": "one"}]},
+      {"ops": [{"op": "set", "path": ["t"], "value": "two"}]}
+    ],
+    "expected": {"t": "two"}
+  },
+  {
+    "name": "increments add up, starting from zero",
+    "initial": {},
+    "steps": [
+      {"ops": [{"op": "increment", "path": ["votes", "yes"], "by": 2}]},
+      {"ops": [{"op": "increment", "path": ["votes", "yes"], "by": 3}, {"op": "increment", "path": ["votes", "no"], "by": -1}]}
+    ],
+    "expected": {"votes": {"yes": 5, "no": -1}}
+  },
+  {
+    "name": "deletes keys; a missing key or a path through a value changes nothing",
+    "initial": {"a": {"b": 1, "c": 2}, "s": "text"},
+    "steps": [
+      {"ops": [{"op": "delete", "path": ["a", "b"]}]},
+      {"ops": [{"op": "delete", "path": ["a", "x", "y"]}, {"op": "delete", "path": ["s", "deep"]}]}
+    ],
+    "expected": {"a": {"c": 2}, "s": "text"}
+  },
+  {
+    "name": "a transaction is all or none",
+    "initial": {"n": 1},
+    "steps": [
+      {"ops": [{"op": "set", "path": ["n"], "value": 2}, {"op": "set", "path": [], "value": 3}], "error": "invalid_path"}
+    ],
+    "expected": {"n": 1}
+  },
+  {
+    "name": "refuses paths through values and null",
+    "initial": {"s": "text", "z": null, "l": [1]},
+    "steps": [
+      {"ops": [{"op": "set", "path": ["s", "deep"], "value": 1}], "error": "invalid_path"},
+      {"ops": [{"op": "set", "path": ["z", "deep"], "value": 1}], "error": "invalid_path"},
+      {"ops": [{"op": "increment", "path": ["l", "x"], "by": 1}], "error": "invalid_path"},
+      {"ops": [{"op": "increment", "path": ["z", "x"], "by": 1}], "error": "invalid_path"}
+    ],
+    "expected": {"s": "text", "z": null, "l": [1]}
+  },
+  {
+    "name": "refuses increments of what is not a number",
+    "initial": {"s": "text"},
+    "steps": [
+      {"ops": [{"op": "increment", "path": ["s"], "by": 1}], "error": "not_a_number"},
+      {"ops": [{"op": "increment", "path": ["s"], "by": "1"}], "error": "invalid_operation"}
+    ],
+    "expected": {"s": "text"}
+  },
+  {
+    "name": "refuses operations without their keys, and unknown operations",
+    "initial": {},
+    "steps": [
+      {"ops": [{"op": "set", "path": ["a"]}], "error": "invalid_operation"},
+      {"ops": [{"op": "set", "value": 1}], "error": "invalid_operation"},
+      {"ops": [{"op": "delete"}], "error": "invalid_operation"},
+      {"ops": [{"op": "move", "path": ["a"]}], "error": "invalid_operation"}
+    ],
+    "expected": {}
+  },
+  {
+    "name": "refuses bad paths",
+    "initial": {},
+    "steps": [
+      {"ops": [{"op": "set", "path": "a", "value": 1}], "error": "invalid_path"},
+      {"ops": [{"op": "set", "path": [1], "value": 1}], "error": "invalid_path"},
+      {"ops": [{"op": "set", "path": [""], "value": 1}], "error": "invalid_path"},
+      {"ops": [{"op": "set", "path": ["a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a"], "value": 1}], "error": "invalid_path"}
+    ],
+    "expected": {}
+  }
+]

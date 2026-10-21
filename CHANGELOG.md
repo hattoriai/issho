@@ -25,3 +25,12 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Issho.join_as/4` and `Issho.Participant`: agents and jobs in a room
   from Elixir.
 - `Issho.Test`: an isolated instance per test, and `replays?/2`.
+- The browser client (`assets/`, bundled by `mix issho.build`): `Room`
+  over a pluggable transport (`phoenixTransport`, with sockets shared by
+  the rooms of a page and tokens renewed), `Presence`, `Awareness` (sent
+  latest-wins, received per node), and `SharedDocument` (local changes at
+  once, one transaction in flight, others' changes replayed under pending
+  ones, refusals, gaps, reconnects that resend only what the server lacks).
+- The map engine's TypeScript twin, and `test/corpus`, cases both
+  engines must pass.
+- An end-to-end test: two clients over WebSockets on a real endpoint.

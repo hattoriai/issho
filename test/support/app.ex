@@ -60,3 +60,9 @@ defmodule IsshoTest.Endpoint do
   use Phoenix.Endpoint, otp_app: :issho
   socket "/issho/socket", IsshoTest.Socket
 end
+
+defmodule IsshoTest.LiveEndpoint do
+  @moduledoc false
+  use Phoenix.Endpoint, otp_app: :issho
+  socket "/issho/socket", IsshoTest.Socket, websocket: true, longpoll: false
+end

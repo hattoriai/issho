@@ -27,6 +27,18 @@ jobs:
           restore-keys: |
             mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
+      # Node.js as in .tool-versions, for the browser client's checks and
+      # for the end-to-end test, which mix test runs once node_modules is in.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+          cache-dependency-path: assets/package-lock.json
+
+      - run: npm ci --prefix assets
+      - run: npm run --prefix assets typecheck
+      - run: npm test --prefix assets
+
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
       - run: mix format --check-formatted

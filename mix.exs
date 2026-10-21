@@ -14,7 +14,7 @@ defmodule Issho.MixProject do
       aliases: aliases(),
       deps: deps(),
       dialyzer: [
-        plt_add_apps: [:mix, :ex_unit],
+        plt_add_apps: [:mix, :ex_unit, :esbuild],
         plt_core_path: "priv/plts",
         plt_file: {:no_warn, "priv/plts/project.plt"},
         ignore_warnings: ".dialyzer_ignore.exs"
@@ -41,8 +41,11 @@ defmodule Issho.MixProject do
 
   defp deps do
     [
+      # The end-to-end test serves a real endpoint to the browser client.
+      {:bandit, "~> 1.5", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:esbuild, "~> 0.10", only: :dev, runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:phoenix, "~> 1.7.14 or ~> 1.8"},
       {:phoenix_pubsub, "~> 2.1"},
@@ -60,7 +63,21 @@ defmodule Issho.MixProject do
       name: "issho",
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib mix.exs .formatter.exs guides README.md CHANGELOG.md LICENSE NOTICE)
+      # The bundle files by name: other build output in priv/static never
+      # goes into the package.
+      files: ~w(
+        lib
+        priv/static/issho.esm.js
+        priv/static/issho.cjs.js
+        package.json
+        mix.exs
+        .formatter.exs
+        guides
+        README.md
+        CHANGELOG.md
+        LICENSE
+        NOTICE
+      )
     ]
   end
 
@@ -90,6 +107,8 @@ defmodule Issho.MixProject do
 
   defp aliases do
     [
+      "assets.build": ["issho.build"],
+      "test.js": ["cmd --cd assets npm test"],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",

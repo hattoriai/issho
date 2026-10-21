@@ -9,9 +9,9 @@ Issho contract: Kotoba's rich text, Masu's grids, Hakushi's canvas, or
 your own.
 
 > **Status: in development, not released.** Issho ships when Kotoba, Masu
-> and Hakushi run on it. What exists today is the server core described
-> below; the browser runtime, the bindings and the agent protocols come
-> next. See the design doc for the whole plan.
+> and Hakushi run on it. What exists today is the server core and the
+> browser client's core described below; the cursor overlay, following,
+> the bindings and the agent protocols come next.
 
 It gives your app:
 
@@ -34,6 +34,13 @@ It gives your app:
   whatever the size of the room;
 * **agents in the room** from Elixir (`Issho.join_as/4`): the same
   presence, places, locks, transactions and policy as a browser;
+* **a browser client** (`issho` on npm, built into the Hex package): a
+  room per page shared by every component, its people and awareness, and
+  shared documents whose changes show at once, wait while offline, and
+  replay over the changes of others; documents open again after a
+  reconnect, and only what the server does not have is sent;
+* engines in pairs, Elixir and TypeScript, held to one shared corpus of
+  cases (`test/corpus`), so the browser and the server never disagree;
 * `Issho.Test`, to start an isolated instance in a test and check that an
   engine replays.
 
@@ -81,12 +88,31 @@ token = Issho.Token.sign(MyApp.Issho, current_user, "board:42",
 {:ok, _receipt} = Issho.Participant.transact(claude, "board:42", ops)
 ```
 
+## In the browser
+
+```js
+import { joinRoom } from "issho"
+
+const room = await joinRoom("board:42", { token, self: "user:ada" })
+const doc = await room.open("board:42")
+
+doc.on((event) => event.type === "change" && render(event.state))
+doc.change([{ op: "set", path: ["title"], value: "Q3 plan" }])
+
+room.aware({ place: { doc: "board:42", at: { path: ["title"] } } })
+room.awareness.on((peers) => drawCursors(peers))
+room.presence.on(() => drawPeople(room.presence.others))
+```
+
 ## Development
 
 ```sh
 mix deps.get
-mix test
+npm ci --prefix assets
+mix test        # includes the end-to-end test of the client on a real endpoint
+mix test.js     # the browser client's unit tests
 mix precommit   # compile with warnings as errors, format, credo, test
+MIX_ENV=dev mix issho.build   # the bundles, into priv/static
 ```
 
 ## License

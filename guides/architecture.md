@@ -50,6 +50,21 @@ Every document of a room is the room (`"board:42"`) or a path under it
 (`"board:42/n7/body"`): the nested documents of a canvas share the room's
 people, its policy and its awareness.
 
+## The browser
+
+A page joins each room once (`joinRoom`), however many components share
+it. The room holds one channel, its people (`Presence`), its awareness,
+and the documents components open. A document is the accepted state, this
+browser's pending transactions, and the view: the pending ones replayed
+over the accepted state. A change shows at once; transactions go one at a
+time, never change once made, and are applied once however often they are
+sent. After a reconnect the room opens each document again with its
+pending ids, the server says which it already has, and only the others go
+again.
+
+The engines come in pairs: `Issho.Engine.Map` and `mapEngine`, held to the
+same cases in `test/corpus`. A binding's engine does the same.
+
 ## Agents
 
 An agent is an actor like any other. From Elixir it joins with

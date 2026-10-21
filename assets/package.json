@@ -1,0 +1,17 @@
+{
+  "name": "issho-assets",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "@types/phoenix": "1.6.6",
+    "esbuild": "0.28.2",
+    "phoenix": "1.8.16",
+    "typescript": "7.0.2"
+  }
+}
