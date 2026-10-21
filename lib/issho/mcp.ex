@@ -167,11 +167,15 @@ if Code.ensure_loaded?(Sake.Server) do
           quote do
             alias Issho.MCP.Session
 
+            # The arguments as the client sent them (Sake 0.5): an Issho
+            # tool casts them itself (Issho.Tool), and an older Sake, which
+            # ignores the option, fills what was left out with nil.
             use Sake.Tool,
               name: unquote(tool.name()),
               description: unquote(tool.description()),
               input_schema: unquote(Macro.escape(tool.input_schema())),
-              annotations: unquote(tool.annotations())
+              annotations: unquote(tool.annotations()),
+              absent: :omit
 
             @impl true
             def execute(args, ctx), do: Session.run(unquote(tool), args, ctx)
