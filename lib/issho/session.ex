@@ -59,7 +59,11 @@ defmodule Issho.Session do
   @doc false
   # The people of the room now, for the session's first push.
   @spec people(t()) :: map()
-  def people(%__MODULE__{room: room}), do: Presence.list(Presence.topic(room))
+  def people(%__MODULE__{instance: instance, room: room}) do
+    # A room without presence (`presence: false`) knows its people by their
+    # awareness only.
+    if Config.get(instance).presence, do: Presence.list(Presence.topic(room)), else: %{}
+  end
 
   @spec open(t(), String.t(), [String.t()], keyword()) :: {:ok, map(), t()} | {:error, term()}
   def open(%__MODULE__{} = session, document_id, pending \\ [], opts \\ []) do
