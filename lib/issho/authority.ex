@@ -359,19 +359,28 @@ defmodule Issho.Authority do
 
   defp content_at_revision(state, epoch, revision) do
     document = state.document
-
     base = Map.get(document, "base", 0)
 
     if epoch == document["epoch"] and is_integer(revision) and revision >= base and
          revision <= document["revision"] do
-      ops = document["journal"] |> Enum.take(revision - base) |> Enum.flat_map(& &1["ops"])
+      # Each transaction as it was accepted: an engine may limit the
+      # operations of one.
+      events = Enum.take(document["journal"], revision - base)
 
-      with {:ok, engine_state} <- state.engine.apply(document["initial"], ops, state.opts) do
-        Engine.validate(state.engine, engine_state, state.opts)
-      end
+      with {:ok, engine_state} <- replay(state, document["initial"], events),
+           do: Engine.validate(state.engine, engine_state, state.opts)
     else
       {:error, :unknown_revision}
     end
+  end
+
+  defp replay(_state, engine_state, []), do: {:ok, engine_state}
+
+  defp replay(state, engine_state, [event | rest]) do
+    opts = [{:author, event["author"]} | state.opts]
+
+    with {:ok, next} <- state.engine.apply(engine_state, event["ops"], opts),
+         do: replay(state, next, rest)
   end
 
   defp snapshot_of(state) do

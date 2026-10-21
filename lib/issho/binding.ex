@@ -22,6 +22,9 @@ defmodule Issho.Binding do
     place = Keyword.get(opts, :place)
 
     quote bind_quoted: [engine: engine, place: place] do
+      # Its optional callbacks are known once it is compiled.
+      Code.ensure_compiled!(engine)
+
       @behaviour Issho.Engine
 
       @doc false

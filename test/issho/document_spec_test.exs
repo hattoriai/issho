@@ -221,4 +221,29 @@ defmodule Issho.DocumentSpecTest do
     assert %{"revision" => 0, "state" => %{"title" => "From the app"}} =
              Agent.get(store, & &1[id].document)
   end
+
+  defmodule StrictEngine do
+    @moduledoc false
+    # Refuses an empty transaction, and one of more than two operations.
+    @behaviour Issho.Engine
+    def name, do: "strict"
+    def version, do: 1
+    def init(_initial, _opts), do: {:ok, %{"n" => 0}}
+
+    def apply(state, ops, _opts) when ops != [] and length(ops) <= 2,
+      do: {:ok, %{state | "n" => state["n"] + length(ops)}}
+
+    def apply(_state, _ops, _opts), do: {:error, :invalid_operations}
+  end
+
+  test "an earlier revision replays each transaction as it was accepted" do
+    id = "doc:" <> Transaction.id()
+    {:ok, pid} = Documents.open(@instance, id, nil, spec: %{engine: StrictEngine, store: :none})
+    for _ <- 1..3, do: {:ok, _} = Authority.commit(pid, tx(pid, [:a, :b]), "u")
+    {:ok, %{"epoch" => epoch}} = Authority.snapshot(pid)
+
+    assert {:ok, %{"n" => 0}} = Authority.content_at(pid, epoch, 0)
+    assert {:ok, %{"n" => 4}} = Authority.content_at(pid, epoch, 2)
+    assert Issho.Test.replays?(@instance, id)
+  end
 end

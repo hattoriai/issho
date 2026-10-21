@@ -24,6 +24,14 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `package.json`'s `types`: a component library's TypeScript imports
   `issho` with its types.
 
+### Fixed
+
+- An earlier revision (`content_at/3`) replays each transaction of the
+  journal as it was accepted, not their operations as one: revision 0,
+  and engines that limit a transaction's operations, rebuild.
+- `use Issho.Binding` waits for its engine to compile, so it delegates
+  the engine's optional callbacks (`upgrade/1`) whatever the order.
+
 ## [0.1.0] - 2026-10-21
 
 The first release: the server core, `Issho.Live`, agents from Elixir,
