@@ -44,6 +44,7 @@ export {
   type Pointing,
   type PointerLayerOptions,
 } from "./pointers";
+export { configure, type Look } from "./theme";
 export { Hooks } from "./hooks";
 export { joinRoom, releaseRoom } from "./page";
 export { holdForm, type FormMember } from "./form";

@@ -20,6 +20,7 @@
 
 import type { Peer } from "./awareness";
 import type { Person } from "./presence";
+import { currentLook } from "./theme";
 
 export type PagePointer = {
   anchor: string;
@@ -277,10 +278,17 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     const mark = document.createElement("div");
     mark.className = "issho-pointer";
     mark.dataset.key = one.key;
-    mark.innerHTML =
-      '<svg class="issho-pointer-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1 L1 13 L4.5 9.5 L7 15 L9 14 L6.5 8.5 L11.5 8.5 Z"/></svg>' +
-      '<span class="issho-pointer-name"></span>' +
-      '<button type="button" class="issho-pointer-edge" hidden></button>';
+    // The app's own drawing of the pointer, or Issho's arrow and name.
+    const own = currentLook().pointer?.(one) ?? null;
+    mark.innerHTML = own
+      ? '<button type="button" class="issho-pointer-edge" hidden></button>'
+      : '<svg class="issho-pointer-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1 L1 13 L4.5 9.5 L7 15 L9 14 L6.5 8.5 L11.5 8.5 Z"/></svg>' +
+        '<span class="issho-pointer-name"></span>' +
+        '<button type="button" class="issho-pointer-edge" hidden></button>';
+    if (own) {
+      mark.dataset.own = "";
+      mark.prepend(own);
+    }
     mark.querySelector(".issho-pointer-edge")?.addEventListener("click", () => {
       const target = people.find((person) => person.key === one.key);
       const element = target?.pointer ? elementOf(target.pointer.anchor) : target?.doc ? document.querySelector(`[data-issho-doc="${CSS.escape(target.doc)}"]`) : null;

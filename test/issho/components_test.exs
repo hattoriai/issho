@@ -59,6 +59,22 @@ defmodule Issho.ComponentsTest do
     assert doc |> LazyHTML.query(".issho-person-more") |> LazyHTML.text() |> String.trim() == "+1"
   end
 
+  test "an app draws a person with its own markup, and Issho keeps the item and its label" do
+    assigns = %{people: %{"user:ada" => %{metas: [meta("Ada Lovelace", %{})]}}}
+
+    html =
+      rendered_to_string(~H"""
+      <Components.people id="people" people={@people}>
+        <:person :let={one}><b class="mine">{one.name}</b></:person>
+      </Components.people>
+      """)
+
+    doc = LazyHTML.from_fragment(html)
+    assert doc |> LazyHTML.query("li.issho-person .mine") |> LazyHTML.text() == "Ada Lovelace"
+    assert doc |> LazyHTML.query(".issho-avatar") |> Enum.count() == 0
+    assert doc |> LazyHTML.query(".issho-person-label") |> LazyHTML.text() == "Ada Lovelace"
+  end
+
   test "with a grant, the browser draws them" do
     assigns = %{grant: %{"room" => "board:1", "token" => "t", "self" => "user:ada"}}
 

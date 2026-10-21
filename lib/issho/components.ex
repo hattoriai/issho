@@ -22,6 +22,19 @@ if Code.ensure_loaded?(Phoenix.Component) do
 
         <Issho.Components.people id="people" people={Issho.Live.people(@room)} self={@me} />
 
+    ## The look
+
+    Issho's theme (`issho.css`) styles every piece through custom
+    properties: the avatars' size, shape, edge and initials, the badges,
+    the pointers' names (`--issho-avatar-radius`, `--issho-avatar-text`,
+    `--issho-pointer-radius`... see the file), and the palette of the
+    people with no colour of their own (`--issho-person-1` to `-8`). Set
+    them in your CSS to match your app. The classes and data attributes
+    are stable: leave the file out to style them all yourself. And draw a
+    person or a pointer with your own markup: the `:person` slot of a list
+    the server renders, or `configure({person, pointer})` of the `issho`
+    package for the live list and the pointers.
+
     ## The page as a live space
 
     Each person's pointer over the page, and their clicks, in their
@@ -80,6 +93,10 @@ if Code.ensure_loaded?(Phoenix.Component) do
     attr :class, :string, default: nil
     attr :rest, :global
 
+    slot :person,
+      doc:
+        "with `people`: draws a person in place of the avatar (`:let`: `key`, `name`, `avatar`, `initials`, `color`, `kind`, `you`); with a grant, the browser draws them: `configure({person})` of the `issho` package"
+
     def people(%{grant: %{"room" => _}} = assigns) do
       ~H"""
       <div
@@ -121,11 +138,15 @@ if Code.ensure_loaded?(Phoenix.Component) do
             style={"--issho-color: #{one.color}"}
             title={one.description}
           >
-            <span class="issho-avatar" aria-hidden="true">
-              <img :if={one.avatar} src={one.avatar} alt="" />
-              <%= if !one.avatar do %>{one.initials}<% end %>
-            </span>
-            <span :if={one.kind != "human"} class="issho-badge" aria-hidden="true">
+            <%= if @person != [] do %>
+              <span class="issho-person-own" aria-hidden="true">{render_slot(@person, one)}</span>
+            <% else %>
+              <span class="issho-avatar" aria-hidden="true">
+                <img :if={one.avatar} src={one.avatar} alt="" />
+                <%= if !one.avatar do %>{one.initials}<% end %>
+              </span>
+            <% end %>
+            <span :if={one.kind != "human" and @person == []} class="issho-badge" aria-hidden="true">
               {if one.kind == "agent", do: "AI", else: "App"}
             </span>
             <span class="issho-person-label">{one.description}</span>

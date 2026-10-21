@@ -6,6 +6,7 @@
 
 import type { Peer } from "./awareness";
 import type { Person } from "./presence";
+import { currentLook } from "./theme";
 
 export interface PeopleOptions {
   /** How many avatars before "+N" (8). */
@@ -63,18 +64,25 @@ function item({ person, status, you }: Someone): HTMLLIElement {
   li.style.setProperty("--issho-color", person.color ?? `var(--issho-person-${person.palette})`);
   li.title = describe({ person, status, you });
 
-  const avatar = document.createElement("span");
-  avatar.className = "issho-avatar";
-  avatar.setAttribute("aria-hidden", "true");
-  if (person.avatar) {
-    const image = document.createElement("img");
-    image.src = person.avatar;
-    image.alt = "";
-    avatar.append(image);
-  } else avatar.textContent = initials(person.name ?? person.key);
-  li.append(avatar);
+  // The app's own drawing of the person, or Issho's avatar.
+  const own = currentLook().person?.({ person, status, you }) ?? null;
+  if (own) {
+    if (own instanceof Element) own.setAttribute("aria-hidden", "true");
+    li.append(own);
+  } else {
+    const avatar = document.createElement("span");
+    avatar.className = "issho-avatar";
+    avatar.setAttribute("aria-hidden", "true");
+    if (person.avatar) {
+      const image = document.createElement("img");
+      image.src = person.avatar;
+      image.alt = "";
+      avatar.append(image);
+    } else avatar.textContent = initials(person.name ?? person.key);
+    li.append(avatar);
+  }
 
-  if (person.kind !== "human") {
+  if (person.kind !== "human" && !own) {
     const badge = document.createElement("span");
     badge.className = "issho-badge";
     badge.setAttribute("aria-hidden", "true");
