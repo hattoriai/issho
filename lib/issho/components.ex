@@ -60,6 +60,11 @@ if Code.ensure_loaded?(Phoenix.Component) do
     `share={false}` shows the others without sharing this person's
     pointer.
 
+    A block of another room on the page (a canvas shared in its own room,
+    in a document) is that room's: its room draws its people there, and
+    this layer draws no one in it. Following someone who goes into it
+    follows them in its room too. See the "Building a component" guide.
+
     ## Agents moving
 
     An agent goes where it works as a hand would (`Issho.Motion`): its
@@ -122,6 +127,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
         class={["issho-pointers", @class]}
         phx-hook="IsshoPointers"
         phx-update="ignore"
+        data-room={@grant["room"]}
         data-grant={JSON.encode!(@grant)}
         data-share={to_string(@share)}
         data-motion={@motion}

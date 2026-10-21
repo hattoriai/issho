@@ -39,7 +39,10 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
         grant = Issho.Live.grant(MyApp.Issho, current_user, "notebook:7", can: :write)
 
     The components of a LiveView share one session per room: joining a
-    room the LiveView is in already gives the same session.
+    room the LiveView is in already gives the same session. A LiveView may
+    be in several rooms (a document, and a canvas of another room in it).
+    A component that goes while the LiveView stays releases its room
+    (`release/2`): the LiveView leaves it with its last component.
 
     Join only in a connected LiveView (`connected?(socket)`): the static
     render has no process that lasts.
@@ -164,6 +167,59 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     def subscribe(key, target) do
       Process.put({__MODULE__, :targets, key}, MapSet.put(targets(key), target))
       true
+    end
+
+    @doc """
+    Stops sending the room's events, and its documents', to a component
+    (or the LiveView, `:self`); when none is left in the room, leaves it
+    (`leave/1`). For a component that goes from the page while the
+    LiveView stays: a canvas deleted from a document, a panel closed.
+    """
+    @spec release(String.t(), target()) :: :ok
+    def release(room, target) do
+      keys = [room | open_documents(room)]
+      for key <- keys, do: unsubscribe(key, target)
+      if Enum.all?(keys, &(MapSet.size(targets(&1)) == 0)), do: leave(room)
+      :ok
+    end
+
+    @doc """
+    Leaves a room while the LiveView goes on: its people see the actor go
+    (unless a tab of theirs is still there), its awareness of them clears,
+    and the documents it opened are closed for it. Joining again later is
+    a new session. A room the LiveView is not in is left already.
+    """
+    @spec leave(String.t()) :: :ok
+    def leave(room) do
+      case session(room) do
+        nil ->
+          :ok
+
+        session ->
+          :ok = Session.leave(session)
+
+          for key <- [room | Map.keys(session.documents)],
+              do: Process.delete({__MODULE__, :targets, key})
+
+          Process.delete({__MODULE__, :session, room})
+          Process.delete({__MODULE__, :aware, room})
+          :ok
+      end
+    end
+
+    defp unsubscribe(key, target) do
+      rest = MapSet.delete(targets(key), target)
+
+      if MapSet.size(rest) == 0,
+        do: Process.delete({__MODULE__, :targets, key}),
+        else: Process.put({__MODULE__, :targets, key}, rest)
+    end
+
+    defp open_documents(room) do
+      case session(room) do
+        nil -> []
+        session -> Map.keys(session.documents)
+      end
     end
 
     @doc """

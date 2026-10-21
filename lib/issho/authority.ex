@@ -50,6 +50,10 @@ defmodule Issho.Authority do
   @spec join(GenServer.server(), pid()) :: {:ok, map(), module()}
   def join(server, pid), do: GenServer.call(server, {:join, pid})
 
+  @doc "Takes back a session that no longer uses the document, as if its process had ended."
+  @spec leave(GenServer.server(), pid()) :: :ok
+  def leave(server, pid), do: GenServer.cast(server, {:leave, pid})
+
   @doc "The document as a browser receives it: epoch, revision and the engine's snapshot."
   @spec snapshot(GenServer.server()) :: {:ok, map()}
   def snapshot(server), do: GenServer.call(server, :snapshot)
@@ -394,18 +398,31 @@ defmodule Issho.Authority do
   end
 
   @impl true
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-    state = %{state | members: Map.delete(state.members, pid)}
+  def handle_cast({:leave, pid}, state) do
+    case Map.pop(state.members, pid) do
+      {nil, _members} ->
+        {:noreply, state}
 
-    if map_size(state.members) == 0,
-      do: {:noreply, %{state | timer: Process.send_after(self(), :expire, state.config.ttl)}},
-      else: {:noreply, state}
+      {ref, members} ->
+        Process.demonitor(ref, [:flush])
+        {:noreply, member_gone(%{state | members: members})}
+    end
   end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state),
+    do: {:noreply, member_gone(%{state | members: Map.delete(state.members, pid)})}
 
   def handle_info(:expire, %{members: members} = state) when map_size(members) == 0,
     do: {:stop, :normal, state}
 
   def handle_info(:expire, state), do: {:noreply, state}
+
+  # The last session gone: the document goes after the TTL, unless one comes.
+  defp member_gone(%{members: members} = state) when map_size(members) == 0,
+    do: %{state | timer: Process.send_after(self(), :expire, state.config.ttl)}
+
+  defp member_gone(state), do: state
 
   defp cancel_timer(%{timer: nil} = state), do: state
 

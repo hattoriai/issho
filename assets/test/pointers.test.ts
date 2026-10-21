@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fractions, place, pointing, within } from "../src/pointers";
+import { fractions, place, pointing, roomOf, within } from "../src/pointers";
 import type { Person } from "../src/presence";
 import type { Peer } from "../src/awareness";
 
@@ -53,4 +53,19 @@ test("a located place says where in its box the pointer is, else its far corner"
   assert.deepEqual(within({ anchor: {}, focus: {} }), { x: 1, y: 1 });
   assert.deepEqual(within({ x: 3, y: -1 }), { x: 1, y: 1 });
   assert.deepEqual(within(null), { x: 1, y: 1 });
+});
+
+test("a pointer in a block of another room is that room's: the page hears which block, and draws none", () => {
+  const peers: Peer[] = [
+    { session: "s1", key: "ken", state: { pointer: { block: "canvas:9" } } },
+    { session: "s2", key: "eve", state: { pointer: { block: "" } } },
+  ];
+  assert.deepEqual(pointing(peers, [person("ken", { name: "Ken" })], "ada"), [
+    { key: "ken", name: "Ken", color: "var(--issho-person-3)", kind: "human", pointer: null, doc: "canvas:9", away: true },
+  ]);
+});
+
+test("the room of a document is the part of its id before the first slash", () => {
+  assert.equal(roomOf("notebook:7/intro/a"), "notebook:7");
+  assert.equal(roomOf("canvas:9"), "canvas:9");
 });

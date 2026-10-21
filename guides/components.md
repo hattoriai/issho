@@ -52,6 +52,22 @@ The room is the part before the `"/"`. Issho watches these elements: what
 is on the screen, so that agents move for someone who sees them; where
 pointers and agents go.
 
+### A block of another room
+
+A page may hold a block of another room: a canvas shared in its own room,
+embedded in a document of the page's room. That block is its room's, and
+its room draws its people there: the block itself (a canvas draws its
+people's cursors), or that room's own pointers on the page. Issho's
+pointers of the page's room hear only that a pointer is in it
+(`{ block: doc }`), and draw nothing there, so that no one is drawn twice.
+Someone in both rooms (on this page, in the document and in its canvas) is
+in both rooms' lists, each list its room's.
+
+A component in a LiveView that may go while the LiveView stays (an embed
+deleted from a document) releases its room when it goes
+(`Issho.Live.release/2`, from its hook's `destroyed`): the LiveView leaves
+the room with its last component, and the room's people see it go.
+
 ## Where a place is on the screen: `locate`
 
 Say where a place of your document is in the viewport, so that a pointer,
@@ -149,7 +165,12 @@ when it changes.
 
 On an Issho page, Issho's pointers also keep the one followed on the
 screen, and a link or a button with `data-issho-follow` that they click is
-clicked for those who follow them.
+clicked for those who follow them. When the one followed goes into a block
+of another room, the page keeps the block on the screen and follows them
+in that room too, so the block shows where they are; when they come out,
+or the page stops following, the block stops. A block that follows someone
+in its own room (from its own list of people) keeps itself on the screen:
+it scrolls into view when they move it.
 
 ## Motion
 

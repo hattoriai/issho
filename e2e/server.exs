@@ -106,6 +106,7 @@ defmodule IsshoE2E.Layouts do
           #list[data-order="desc"] { flex-direction: column-reverse; }
           #list li { height: 40px; border: 1px solid #ddd; padding: 0 12px; display: flex; align-items: center; }
           .spacer { height: 1600px; }
+          #elsewhere { width: 320px; height: 120px; border: 1px dashed #999; margin: 24px 0; }
         </style>
         <script type="module" src="/app.js"></script>
       </head>
@@ -118,7 +119,8 @@ end
 defmodule IsshoE2E.PageLive do
   @moduledoc false
   # /one and /two: two pages of a room. ?as= the person, ?order=desc draws
-  # the block's items the other way round, ?long=1 puts it below the fold.
+  # the block's items the other way round, ?long=1 puts it below the fold,
+  # ?far=1 puts the block of another room (#elsewhere) below the fold.
   use Phoenix.LiveView
   on_mount Issho.Live
 
@@ -132,9 +134,10 @@ defmodule IsshoE2E.PageLive do
      assign(socket,
        room: room,
        name: name,
-       query: Map.take(params, ["room", "as", "order"]),
+       query: Map.take(params, ["room", "as", "order", "far"]),
        order: if(params["order"] == "desc", do: "desc", else: "asc"),
        long: params["long"] == "1",
+       far: params["far"] == "1",
        grant: Issho.Live.grant(IsshoE2E.Issho, actor, room)
      )}
   end
@@ -154,6 +157,9 @@ defmodule IsshoE2E.PageLive do
     <ul id="list" data-issho-doc={@room <> "/list"} data-order={@order} phx-hook="E2EList">
       <li :for={n <- 1..8} data-item={n}>Item {n}</li>
     </ul>
+    <div :if={@far} class="spacer"></div>
+    <%!-- A block of another room (a canvas shared in its own room): that room draws its people there. --%>
+    <div id="elsewhere" data-issho-doc={"other:" <> @room}>A block of another room</div>
     <.link id="next" navigate={"/two?" <> URI.encode_query(@query)} data-issho-anchor="next" data-issho-follow>
       Next page
     </.link>
