@@ -21,9 +21,51 @@ if Code.ensure_loaded?(Phoenix.Component) do
     server renders it, from `Issho.Live.people/1`:
 
         <Issho.Components.people id="people" people={Issho.Live.people(@room)} self={@me} />
+
+    ## The page as a live space
+
+    Each person's pointer over the page, and their clicks, in their
+    colour, with their name, over any part of the page: Issho's components
+    and plain HEEx alike (the `IsshoPointers` hook):
+
+        <Issho.Components.pointers id="pointers" grant={@grant} />
+
+    A pointer is a point of an element, not of the screen, so each person
+    sees it on the same part of their own page, whatever its size and
+    scroll: the nearest element with `data-issho-anchor`, else with an
+    id. Off the screen, it is a marker at its edge that scrolls to it.
+    Inside an element with `data-issho-cursor="own"` (a canvas that draws
+    its people itself) the component takes over. Over an element with
+    `data-issho-private`, or a password field, the browser shares nothing,
+    nor while its window is in the background. An agent at work in a
+    document is drawn at its component, the element with
+    `data-issho-doc` of the document's id. `share={false}` shows the others
+    without sharing this person's pointer.
     """
 
     use Phoenix.Component
+
+    attr :id, :string, required: true
+    attr :grant, :map, required: true, doc: "a grant of the room, from `Issho.Live.grant/4`"
+    attr :share, :boolean, default: true, doc: "whether this person's pointer is shared"
+    attr :class, :string, default: nil
+    attr :rest, :global
+
+    @doc "The pointers of the room's people over the page: a layer over the viewport."
+    def pointers(assigns) do
+      ~H"""
+      <div
+        id={@id}
+        class={["issho-pointers", @class]}
+        phx-hook="IsshoPointers"
+        phx-update="ignore"
+        data-grant={JSON.encode!(@grant)}
+        data-share={to_string(@share)}
+        {@rest}
+      >
+      </div>
+      """
+    end
 
     attr :id, :string, required: true
     attr :grant, :map, default: nil, doc: "a grant of the room, from `Issho.Live.grant/4`"

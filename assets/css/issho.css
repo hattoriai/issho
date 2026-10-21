@@ -136,3 +136,118 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/*
+ * The pointers of the room's people over the page (Issho.Components.pointers/1):
+ * a layer over the viewport that lets clicks through, an arrow and a name
+ * for each, a ring for a click, and a button at the edge of the viewport
+ * for a pointer beyond it.
+ */
+.issho-pointers {
+  position: fixed;
+  inset: 0;
+  z-index: var(--issho-pointers-z, 2147483000);
+  pointer-events: none;
+  overflow: hidden;
+  font-family: var(--issho-font);
+}
+
+.issho-pointer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: transform var(--issho-pointer-glide, 80ms) linear;
+  color: var(--issho-color, var(--issho-person-1));
+}
+
+.issho-pointer-arrow {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+  stroke: var(--issho-surface);
+  stroke-width: 1;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25));
+}
+
+.issho-pointer-name {
+  position: absolute;
+  top: 1rem;
+  left: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--issho-color, var(--issho-person-1));
+  color: var(--issho-pointer-text, #ffffff);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* An agent at work in a component: its name at the component's corner, no arrow. */
+.issho-pointer[data-at="doc"] .issho-pointer-arrow {
+  display: none;
+}
+
+.issho-pointer[data-at="doc"] .issho-pointer-name {
+  top: 0;
+  left: auto;
+  right: 0;
+}
+
+.issho-pointer[data-at="doc"] .issho-pointer-name::before {
+  content: "✦ ";
+}
+
+.issho-pointer-click {
+  position: absolute;
+  top: -0.75rem;
+  left: -0.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  animation: issho-click 600ms ease-out forwards;
+}
+
+@keyframes issho-click {
+  from { transform: scale(0.3); opacity: 1; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+
+/* Beyond the viewport: a button at its edge that goes to the person. */
+.issho-pointer[data-edge="top"],
+.issho-pointer[data-edge="bottom"],
+.issho-pointer[data-edge="left"],
+.issho-pointer[data-edge="right"] {
+  transition: none;
+}
+
+.issho-pointer[data-edge="top"] .issho-pointer-arrow,
+.issho-pointer[data-edge="bottom"] .issho-pointer-arrow,
+.issho-pointer[data-edge="left"] .issho-pointer-arrow,
+.issho-pointer[data-edge="right"] .issho-pointer-arrow {
+  display: none;
+}
+
+.issho-pointer-edge {
+  position: absolute;
+  inset: -0.5rem;
+  min-width: 1rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.issho-pointer[data-edge="bottom"] .issho-pointer-name { top: auto; bottom: 0; }
+.issho-pointer[data-edge="right"] .issho-pointer-name { left: auto; right: 0; }
+.issho-pointer[data-edge="top"] .issho-pointer-name::before { content: "↑ "; }
+.issho-pointer[data-edge="bottom"] .issho-pointer-name::before { content: "↓ "; }
+.issho-pointer[data-edge="left"] .issho-pointer-name::before { content: "← "; }
+.issho-pointer[data-edge="right"] .issho-pointer-name::before { content: "→ "; }
+
+@media (prefers-reduced-motion: reduce) {
+  .issho-pointer { transition: none; }
+  .issho-pointer-click { animation-duration: 1ms; }
+}
