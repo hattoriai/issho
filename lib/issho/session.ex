@@ -97,6 +97,18 @@ defmodule Issho.Session do
   end
 
   @doc false
+  # Whether the room's policy lets the session do `action` now: a write
+  # needs a session that writes too. For a component that keeps its data
+  # outside Issho's documents (a grid of an app's database).
+  @spec authorize(t(), atom()) :: :ok | {:error, term()}
+  def authorize(%__MODULE__{} = session, action) when is_atom(action) do
+    config = Config.get(session.instance)
+
+    with true <- (action not in [:write, :lock] or session.can == :write) || {:error, :read_only},
+         do: Policy.authorize(config.policy, session.identity, session.room, action)
+  end
+
+  @doc false
   # Sets the session's awareness state, after checking its place and locks.
   @spec aware(t(), map() | nil) :: {:ok, t()} | {:error, term()}
   def aware(%__MODULE__{} = session, nil) do

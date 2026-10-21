@@ -49,6 +49,15 @@ defmodule Issho.Participant do
   def transact(participant, document_id, ops_or_transaction),
     do: GenServer.call(participant, {:transact, document_id, ops_or_transaction}, 20_000)
 
+  @doc """
+  Whether the room's policy lets the participant do `action` (`:read`,
+  `:write`, `:lock` or your own) now: for a component whose data is not
+  in Issho's documents, such as a grid of your database, which writes it
+  itself. A write needs a participant that writes (`can: :write`).
+  """
+  @spec authorize(GenServer.server(), atom()) :: :ok | {:error, term()}
+  def authorize(participant, action), do: GenServer.call(participant, {:authorize, action})
+
   @doc "Sets the participant's place (`nil` for none), keeping its locks."
   @spec place(GenServer.server(), map() | nil) :: :ok | {:error, term()}
   def place(participant, place), do: GenServer.call(participant, {:aware, %{"place" => place}})
@@ -143,6 +152,9 @@ defmodule Issho.Participant do
   end
 
   def handle_call(:awareness, _from, state), do: {:reply, state.aware, state}
+
+  def handle_call({:authorize, action}, _from, state),
+    do: {:reply, Session.authorize(state.session, action), state}
 
   def handle_call(:people, _from, %{session: session} = state) do
     places =

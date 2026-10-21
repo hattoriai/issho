@@ -60,6 +60,16 @@ defmodule Issho.ParticipantTest do
              Participant.transact(claude, room, [%{"op" => "delete", "path" => ["a"]}])
   end
 
+  test "asks the room's policy for a write it makes itself, outside the documents",
+       %{room: room} do
+    {:ok, writer} = Issho.join_as(@instance, @claude, room)
+    {:ok, reader} = Issho.join_as(@instance, %{@claude | id: "agent:reader"}, room, can: :read)
+
+    assert Participant.authorize(writer, :write) == :ok
+    assert Participant.authorize(reader, :read) == :ok
+    assert Participant.authorize(reader, :write) == {:error, :read_only}
+  end
+
   test "an agent's leaving takes it out of the room", %{room: room} do
     {:ok, claude} = Issho.join_as(@instance, @claude, room)
     assert Map.has_key?(Presence.people(room), "agent:claude")

@@ -32,6 +32,10 @@ defmodule Issho.Policy do
     * `:write`: to change its documents;
     * `:lock`: to hold an advisory lock on a place.
 
+  A component that keeps its data outside Issho's documents (a grid of
+  your database, which writes it itself) asks too, with
+  `Issho.Participant.authorize/2`.
+
   Issho asks on join and on every message in both directions, so keep it
   fast: put what it needs in the identity's `claims` when you sign the
   token (`Issho.Token.sign/4`), or cache.
