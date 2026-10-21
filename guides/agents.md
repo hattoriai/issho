@@ -5,65 +5,76 @@ here, see where it points and what it selects, and see its changes land as
 it makes them, merged with their own. It acts under your policy, as anyone
 in a room does.
 
-There are three ways in, for three kinds of agent.
+How the agent reaches your app is yours to choose, and Issho does not
+depend on it: your app's own model through an API, an MCP client, a job,
+a bot, or whatever comes next. Each way in only says who the agent is;
+the rooms, the tools and the policy are the same.
 
-## From your app: `Issho.join_as/4`
+## Who an agent is
 
-An agent that runs in your app (a job, a model you call, a bot) joins a
-room as a participant, for as long as it works:
-
-```elixir
-{:ok, claude} =
-  Issho.join_as(MyApp.Issho, %{id: "agent:summarizer", name: "Summarizer", kind: :agent}, "board:42")
-
-{:ok, _snapshot} = Issho.Participant.open(claude, "board:42")
-Issho.Participant.aware(claude, %{"status" => "Summarizing"})
-{:ok, _receipt} = Issho.Participant.transact(claude, "board:42", ops)
-Issho.Participant.leave(claude)
-```
-
-The participant is linked to the process that joins: it leaves when that
-process ends.
-
-## From your app, across calls: `Issho.Agents`
-
-A front end with no lasting connection (a webhook, a chat bot answering
-one message at a time) keeps its agent in the room between calls with
-`Issho.Agents`: the agent joins on the first call, stays where it last
-pointed, and leaves after `:idle` milliseconds with nothing to do (ten
-minutes), or when told.
+An agent is an `Issho.Actor` of `kind: :agent` (or `:service`, for your
+app itself), with, when it acts for someone, `on_behalf_of` that person,
+and `claims` your policy reads:
 
 ```elixir
-{:ok, participant} = Issho.Agents.join(MyApp.Issho, agent, "board:42", idle: 300_000)
+# A person's own assistant, on their behalf: let it do what the person may.
+assistant = %{id: "assistant:#{user.id}", name: "Assistant", kind: :agent}
+
+# Your app's bot, acting as itself, for no one.
+bot = %{id: "bot:digest", name: "Digest", kind: :service}
 ```
 
-## Over MCP: `Issho.MCP`
+Both can be in one room at once. Your policy's `authorize/3` sees an
+`Issho.Identity` with the kind, the key, `on_behalf_of` and the claims:
+let agents in where you want them, and only there.
 
-An agent outside your app (Claude Code, Claude Desktop, any MCP client)
-connects to your app's MCP endpoint. `Issho.MCP` is a
-[Sake](https://hex.pm/packages/sake) server of room tools:
+## Tools
 
-| Tool | What it does |
-|---|---|
-| `join_room` | joins a room; gives who is here and where |
-| `look_around` | who is here now, and where each is |
-| `read_document` | a document's engine, revision and state |
-| `point` | shows the others a place, in the document's terms |
-| `set_status` | a few words the others see beside the agent's name |
-| `change_document` | the engine's own operations, as one transaction |
-| `leave_room` | leaves the room |
+What an agent can do is a list of tools (`Issho.Tool`): Issho's for rooms
+(`Issho.Tools.room/0`: join, look around, read, point, say what it does,
+change, leave), the components' in their own terms
+(`Kotoba.Issho.tools/0`: select, type, format, link, copy and paste in a
+rich text; `Hakushi.Issho.tools/0`: point, add, drag, connect on a
+canvas), and yours. A tool runs as the agent of an `Issho.Tool.Context`,
+which joins the rooms it works in and stays between calls, until it
+leaves or has been idle for a while (`Issho.Agents`).
 
-The components bring their own tools, in their own terms:
-`Kotoba.Issho.MCP` (read, select, type, format, link, copy and paste in
-a rich text) and `Hakushi.Issho.MCP` (read, point, add, drag, connect a
-canvas). Serve them together, as your app serves MCP:
+## Your app's own model
+
+Give the model the tools' definitions, and run the tools it uses as its
+agent:
+
+```elixir
+tools = Issho.Tools.room() ++ Kotoba.Issho.tools()
+ctx = Issho.Tool.Context.new(MyApp.Issho, assistant, on_behalf_of: current_user)
+
+# The tools of a request to the model's API: name, description, input_schema.
+definitions = Issho.Tools.schemas(tools)
+
+# For each tool use in its answer, the result to send back:
+{:ok, result} = Issho.Tools.call(tools, tool_use["name"], tool_use["input"], ctx)
+```
+
+An error comes back as `{:error, text}`, in words the model reads ("The
+text "Q3" is not in the document."): send it back as the tool's result,
+marked as an error, and the model tries again.
+
+## MCP clients
+
+Serve the same tools to MCP clients (Claude Code, Claude Desktop, any
+other) with `Issho.MCP`, a [Sake](https://hex.pm/packages/sake) server.
+Add Sake to your dependencies:
+
+```elixir
+{:sake, "~> 0.4"}
+```
 
 ```elixir
 defmodule MyApp.MCP do
-  use Sake.Server, name: "my-app", version: "1.0.0"
-  mount Issho.MCP
-  mount Kotoba.Issho.MCP
-  mount Hakushi.Issho.MCP
+  use Issho.MCP,
+    name: "my-app",
+    version: "1.0.0",
+    tools: Issho.Tools.room() ++ Kotoba.Issho.tools() ++ Hakushi.Issho.tools()
 end
 ```
 
@@ -79,48 +90,55 @@ sake_endpoint "/mcp", server: MyApp.MCP
 config :issho, Issho.MCP, instance: MyApp.Issho
 ```
 
-Issho does not choose how agents connect: HTTP or stdio, Sake's
-authorization, yours or none (in development), its own endpoint or
-mounted in yours. It asks one thing: who a caller is in the rooms.
+Serve it as you serve MCP: HTTP or stdio, on its own endpoint or mounted
+in your own server. Who a caller is comes from the call: without a
+setting, it is an agent named for its client ("Claude Code"), on behalf
+of the principal your endpoint signed in when that is an `Issho.Actor`.
+Say otherwise with a function of the call (`Issho.MCP.Session`), or per
+endpoint (`Issho.MCP.Setup`), for example a person's assistant on one
+endpoint and your app's bot on another.
 
-## Who the agent is
+## From your code
 
-The agent a call acts as comes from the call. Without a setting of yours,
-it is named for its MCP client ("Claude Code") and acts on behalf of the
-principal your endpoint signed in, when that principal is an
-`Issho.Actor`, or as itself when there is none.
-
-Say otherwise with `:agent`, a function of the call's `Sake.Context`
-that gives the actor and its options:
+A job or a process of your app joins a room as a participant, for as
+long as it works:
 
 ```elixir
-config :issho, Issho.MCP, instance: MyApp.Issho, agent: {MyApp.Collaboration, :agent}
+{:ok, agent} = Issho.join_as(MyApp.Issho, bot, "board:42")
+{:ok, _snapshot} = Issho.Participant.open(agent, "board:42")
+{:ok, _receipt} = Issho.Participant.transact(agent, "board:42", ops)
+Issho.Participant.leave(agent)
 ```
 
-```elixir
-# A person's own assistant, on their behalf: the policy lets it do what
-# the person may.
-def agent(%Sake.Context{scope: %MyApp.User{} = user}),
-  do: {%{id: "assistant:#{user.id}", name: "Assistant", kind: :agent}, on_behalf_of: user}
+or runs tools with `Issho.Tools.call/4`, as your model would.
 
-# A service (Sake's client credentials grant), acting as itself.
-def agent(%Sake.Context{scope: %MyApp.Service{} = service}),
-  do: {%{id: "service:#{service.id}", name: service.name, kind: :service}, []}
-```
-
-An app can have several at once: on one endpoint, deciding from the call,
-or on several endpoints, each with its own settings, set by a plug before
-it:
+## Writing a tool
 
 ```elixir
-pipeline :bot_mcp do
-  plug Issho.MCP.Setup, agent: {MyApp.Collaboration, :bot}
+defmodule MyApp.Tools.Rename do
+  use Issho.Tool,
+    name: "rename_board",
+    description: "Renames a board.",
+    annotations: [idempotent: true]
+
+  arg :board, :string, required: true
+  arg :title, :string, required: true, max_length: 120
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(%{board: board, title: title}, ctx) do
+    with {:ok, agent, _document, _snapshot} <- Context.open(ctx, board),
+         {:ok, _receipt} <- Issho.Participant.transact(agent, board, [%{"op" => "set", "path" => ["title"], "value" => title}]) do
+      {:ok, "Renamed."}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
 end
 ```
 
-Your policy sees the agent as it sees anyone: an `Issho.Identity` of
-`kind: :agent` (or `:service`), with `on_behalf_of` the person when there
-is one. Let agents in where you want them, and only there.
+It serves your model and MCP clients alike.
 
 ## Trying it
 

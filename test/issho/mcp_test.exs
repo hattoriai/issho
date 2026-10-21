@@ -16,7 +16,7 @@ defmodule Issho.MCPTest do
 
   defp claude(scope \\ @ada),
     do:
-      connect(Issho.MCP,
+      connect(IsshoTest.MCP,
         scope: scope,
         client_info: %{"name" => "claude-code", "title" => "Claude Code"}
       )
@@ -141,7 +141,7 @@ defmodule Issho.MCPTest do
     plug Issho.MCP.Setup, agent: {Issho.MCPTest.Mapping, :assistant}
 
     plug Sake.Plug,
-      server: Issho.MCP,
+      server: IsshoTest.MCP,
       scope: &__MODULE__.scope/1,
       secret: String.duplicate("s", 64)
 
@@ -153,7 +153,7 @@ defmodule Issho.MCPTest do
     @moduledoc false
     use Plug.Builder
     plug Issho.MCP.Setup, agent: {Issho.MCPTest.Mapping, :bot}
-    plug Sake.Plug, server: Issho.MCP, secret: String.duplicate("s", 64)
+    plug Sake.Plug, server: IsshoTest.MCP, secret: String.duplicate("s", 64)
   end
 
   defmodule Endpoints do
@@ -170,8 +170,8 @@ defmodule Issho.MCPTest do
   test "an app has a person's assistant and its own bot at once, each on its endpoint",
        %{room: room} do
     ken = ken(room)
-    assistant = connect(Issho.MCP, plug: Endpoints, path: "/people/mcp")
-    bot = connect(Issho.MCP, plug: Endpoints, path: "/bot/mcp")
+    assistant = connect(IsshoTest.MCP, plug: Endpoints, path: "/people/mcp")
+    bot = connect(IsshoTest.MCP, plug: Endpoints, path: "/bot/mcp")
 
     assert {:ok, %{structured: %{"you" => "assistant:user:ada"}}} =
              call_tool(assistant, "join_room", %{"room" => room})

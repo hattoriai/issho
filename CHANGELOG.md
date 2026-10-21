@@ -7,22 +7,30 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.0] - 2026-10-21
 
-Agents, and pages of many components. An agent joins a room over MCP
-(with Sake) and works as a person does, in each component's own terms;
+Agents, and pages of many components. An agent joins a room, however it
+reaches the app (its own model through an API, or MCP), and works as a
+person does, in each component's own terms;
 the components of a page share one room: its connection, its people, its
 grant, its form barrier and its undo. Kotoba and Hakushi run on it.
 
 ### Added
 
-- Agents over MCP: `Issho.MCP`, a [Sake](https://hex.pm/packages/sake)
-  server the app serves as it serves MCP (HTTP or stdio, its own
-  authorization or none, on its own endpoint or mounted in its server).
-  An agent joins a room, looks around, points, says what it is doing,
-  reads and changes documents, and leaves; people see it there. It acts
-  under the app's policy, as the actor the app says: a person's agent on
-  their behalf, the app's bot or the system acting as itself, or both at
-  once, from the call or per endpoint (`Issho.MCP.Session`,
-  `Issho.MCP.Setup`). Sake is a dependency of Issho.
+- Tools for agents, however they reach your app: `Issho.Tool`, a tool
+  in Issho's own terms (a name, a description, a JSON Schema of its
+  arguments, and what it does as the agent of an `Issho.Tool.Context`),
+  and `Issho.Tools.room/0`, Issho's tools for rooms: join, look around,
+  read, point, say what you do, change, leave. The components bring
+  theirs. An agent acts under the app's policy, as the actor the app
+  says: a person's agent on their behalf, the app's bot or the system as
+  itself.
+- Your app's own model, through its API: `Issho.Tools.schemas/1` gives
+  the tools' definitions for a request, and `Issho.Tools.call/4` runs a
+  tool use, as the app's agent. No MCP needed.
+- MCP clients: `use Issho.MCP, tools: ...` serves the same tools as a
+  [Sake](https://hex.pm/packages/sake) server, served as the app serves
+  MCP (HTTP or stdio, its own authorization or none); who a caller is
+  comes from the call or the endpoint (`Issho.MCP.Session`,
+  `Issho.MCP.Setup`). Sake is an optional dependency.
 - `Issho.Agents`: an agent's lasting presence in a room for front ends
   without a lasting connection (an MCP server, a webhook), from its first
   call until it leaves or has been idle for `:idle` (ten minutes).

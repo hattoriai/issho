@@ -195,3 +195,9 @@ defmodule IsshoTest.Sync do
     :ok
   end
 end
+
+defmodule IsshoTest.MCP do
+  @moduledoc false
+  # Issho's room tools over MCP, as an app serves them.
+  use Issho.MCP, name: "issho-test", version: "0.0.0", tools: Issho.Tools.room()
+end

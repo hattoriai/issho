@@ -53,12 +53,14 @@ It gives your app:
 * **LiveViews in the room** (`Issho.Live`): a LiveView is a session like
   a browser's, and the room's changes, people and awareness reach its
   components;
-* **agents in the room**, from Elixir (`Issho.join_as/4`, `Issho.Agents`)
-  or over MCP (`Issho.MCP`, with [Sake](https://hex.pm/packages/sake)):
-  the same presence, places, transactions and policy as a person, a
-  person's agent on their behalf or your app's bot as itself, and the
-  components' own tools (`Kotoba.Issho.MCP`, `Hakushi.Issho.MCP`), so an
-  agent selects, types, drags and connects as a person does, and the
+* **agents in the room**, however they reach your app: your app's own
+  model through an API (`Issho.Tools`), MCP clients (`Issho.MCP`, with
+  [Sake](https://hex.pm/packages/sake)), your code (`Issho.join_as/4`),
+  or what comes next. The same presence, places, transactions and policy
+  as a person, a person's agent on their behalf or your app's bot as
+  itself, and the same tools (`Issho.Tool`): Issho's, and the
+  components' own (`Kotoba.Issho.tools/0`, `Hakushi.Issho.tools/0`), so
+  an agent selects, types, drags and connects as a person does, and the
   people see it (see the agents guide);
 * **one page, one room**: the components of a page share its connection,
   its people (`Issho.Components.people/1`), its grant from the LiveView
