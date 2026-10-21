@@ -61,6 +61,10 @@ defmodule Issho.Participant do
   @spec aware(GenServer.server(), map()) :: :ok | {:error, term()}
   def aware(participant, changes), do: GenServer.call(participant, {:aware, changes})
 
+  @doc "The participant's own awareness state: its place, its locks, its status."
+  @spec awareness(GenServer.server()) :: map()
+  def awareness(participant), do: GenServer.call(participant, :awareness)
+
   @doc "The places locked in the room by anyone, each with its holder's key."
   @spec locks(GenServer.server()) :: [{map(), String.t()}]
   def locks(participant), do: GenServer.call(participant, :locks)
@@ -137,6 +141,8 @@ defmodule Issho.Participant do
       {:error, _} = error -> {:reply, error, state}
     end
   end
+
+  def handle_call(:awareness, _from, state), do: {:reply, state.aware, state}
 
   def handle_call(:people, _from, %{session: session} = state) do
     places =
