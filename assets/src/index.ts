@@ -37,3 +37,4 @@ export { drawPeople, someone, describe, type Someone, type PeopleOptions } from 
 export { Hooks } from "./hooks";
 export { joinRoom, releaseRoom } from "./page";
 export { holdForm, type FormMember } from "./form";
+export { PageHistory, pageHistory, type HistoryOwner } from "./history";

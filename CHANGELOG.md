@@ -41,6 +41,9 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   accepted. On submit it locks them, waits for each to send what it has
   and note the accepted revision in its own field, then submits again; a
   component that cannot stops the submit, with its reason.
+- Undo across a page: `pageHistory` keeps the order of a person's steps
+  in every component, each component its own steps (`HistoryOwner`), so
+  undo takes back the last change wherever it was made.
 
 - `upgrade/1`, an engine's optional callback: a stored document of
   another engine version, or one a library saved before Issho, opens
