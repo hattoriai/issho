@@ -1,42 +1,85 @@
+defmodule Issho.MCP.Setup do
+  @moduledoc ~S"""
+  Issho's MCP settings for one endpoint, as a plug before it: which
+  instance, and who its callers are in the rooms. An app can serve
+  `Issho.MCP` on several endpoints, each with its own:
+
+      pipeline :people_mcp do
+        # Each person's own agent, acting on their behalf.
+        plug Issho.MCP.Setup, agent: {MyApp.Collaboration, :assistant}
+      end
+
+      pipeline :bot_mcp do
+        # The app's own bot, acting as itself.
+        plug Issho.MCP.Setup, agent: {MyApp.Collaboration, :bot}
+      end
+
+  Options: `:instance` and `:agent`, as in `Issho.MCP.Session`. What a
+  plug sets wins over the `config :issho, Issho.MCP` of the app.
+  """
+
+  @behaviour Plug
+
+  @impl true
+  def init(opts), do: Keyword.take(opts, [:instance, :agent])
+
+  @impl true
+  def call(conn, opts), do: Plug.Conn.assign(conn, :issho, opts)
+end
+
 defmodule Issho.MCP.Session do
   @moduledoc ~S"""
-  Who an MCP caller is in Issho's rooms: the agent that a tool call acts
-  as, and the person it acts for. For the tools of `Issho.MCP` and of
-  the bindings' servers (Kotoba's, Hakushi's).
+  Who an MCP caller is in Issho's rooms, for the tools of `Issho.MCP`
+  and of the bindings' servers (Kotoba's, Hakushi's).
 
-  The app says which instance, and, if it likes, how its principal (the
-  `ctx.scope` its Sake endpoint puts there, from whatever authorization
-  it uses) becomes an agent:
+  A caller is an actor of the app's choosing, as anyone in a room is:
+
+    * a person's own agent, acting on their behalf (`on_behalf_of`), so
+      that the policy can let it do what the person may;
+    * the app's bot, or the system, acting as itself, for no one
+      (`kind: :agent` or `:service`, no `on_behalf_of`);
+    * an agent for a team, a customer, a workspace, with `claims` the
+      policy reads.
+
+  An app can have all of them at once: on one endpoint, deciding from the
+  call (a person's token, a service's client credentials), or on several
+  endpoints, each with its own settings (`Issho.MCP.Setup`).
+
+  The settings, in the app's config or from `Issho.MCP.Setup`:
 
       config :issho, Issho.MCP,
         instance: MyApp.Issho,
         agent: {MyApp.Collaboration, :agent},
         idle: 600_000
 
-  `agent(ctx)` gives `{actor, opts}`: the agent (`kind: :agent`) and the
-  options of its join (`:on_behalf_of`, `:claims`, `:can`). Without it,
-  the agent is named for the MCP client ("Claude Code") and acts on
-  behalf of the principal, when the principal is an `Issho.Actor`; its
-  key is the client's and the person's, so that one person's agent is
-  the same agent from call to call.
+  `agent` is `{module, function}` or a function of one argument, called
+  with the call's `Sake.Context` (its `scope` is the principal the
+  endpoint's authorization, any of Sake's or your own, put there; nil
+  without one). It gives `{actor, opts}`: the actor, and the options of
+  its join (`:on_behalf_of`, `:claims`, `:can`):
+
+      def agent(%Sake.Context{scope: %MyApp.User{} = user}),
+        do: {%{id: "assistant:#{user.id}", name: "Assistant", kind: :agent}, on_behalf_of: user}
+
+      def agent(%Sake.Context{scope: %MyApp.Service{} = service}),
+        do: {%{id: "service:#{service.id}", name: service.name, kind: :service}, []}
+
+  Without `agent`, the caller is an agent named for its MCP client
+  ("Claude Code"): on behalf of the principal when the principal is an
+  `Issho.Actor`, or acting as itself when there is none.
   """
 
   alias Issho.{Agents, Identity}
 
-  @doc "The agent's participant in the room, joining it if it is not there."
+  @doc "The caller's participant in the room, joining it if it is not there."
   @spec join(Sake.Context.t(), String.t()) :: {:ok, pid()} | {:error, term()}
   def join(ctx, room) when is_binary(room) do
     {actor, opts} = agent(ctx)
-
-    Agents.join(
-      instance(),
-      actor,
-      room,
-      Keyword.put_new(opts, :idle, config()[:idle] || 600_000)
-    )
+    idle = setting(ctx, :idle) || 600_000
+    Agents.join(instance(ctx), actor, room, Keyword.put_new(opts, :idle, idle))
   end
 
-  @doc "The agent's participant in the room, with the document open."
+  @doc "The caller's participant in the room, with the document open."
   @spec open(Sake.Context.t(), String.t(), String.t() | nil) ::
           {:ok, pid(), String.t(), map()} | {:error, term()}
   def open(ctx, room, document \\ nil) do
@@ -47,36 +90,38 @@ defmodule Issho.MCP.Session do
          do: {:ok, participant, document, snapshot}
   end
 
-  @doc "The agent's key."
+  @doc "The caller's key in the rooms."
   @spec key(Sake.Context.t()) :: String.t()
   def key(ctx) do
     {actor, _opts} = agent(ctx)
     Identity.new(actor).key
   end
 
-  @doc "Takes the agent out of the room."
+  @doc "Takes the caller out of the room."
   @spec leave(Sake.Context.t(), String.t()) :: :ok
-  def leave(ctx, room), do: Agents.leave(instance(), key(ctx), room)
+  def leave(ctx, room), do: Agents.leave(instance(ctx), key(ctx), room)
 
-  @doc "The Issho instance of the MCP tools."
-  @spec instance() :: atom()
-  def instance do
-    config()[:instance] ||
-      raise ArgumentError, "Issho.MCP needs `config :issho, Issho.MCP, instance: MyApp.Issho`"
+  @doc "The Issho instance of the call."
+  @spec instance(Sake.Context.t()) :: atom()
+  def instance(ctx) do
+    setting(ctx, :instance) ||
+      raise ArgumentError,
+            "Issho.MCP needs an instance: `config :issho, Issho.MCP, instance: MyApp.Issho`, or Issho.MCP.Setup"
   end
 
   @doc "A tool's error, as text the model reads."
   @spec error(term()) :: {:error, String.t()}
   def error(:forbidden), do: {:error, "The room's policy does not allow this."}
-  def error(:read_only), do: {:error, "This agent may only read in this room."}
+  def error(:read_only), do: {:error, "You may only read in this room."}
   def error(:not_open), do: {:error, "Open the document first."}
   def error(:other_room), do: {:error, "That document is not in this room."}
   def error(reason) when is_binary(reason), do: {:error, reason}
   def error(reason), do: {:error, "Refused: #{inspect(reason)}"}
 
   defp agent(ctx) do
-    case config()[:agent] do
+    case setting(ctx, :agent) do
       {module, function} -> apply(module, function, [ctx])
+      function when is_function(function, 1) -> function.(ctx)
       nil -> default_agent(ctx)
     end
   end
@@ -102,7 +147,11 @@ defmodule Issho.MCP.Session do
   defp slug(name),
     do: name |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, "-") |> String.trim("-")
 
-  defp config, do: Application.get_env(:issho, Issho.MCP, [])
+  # An endpoint's own settings (Issho.MCP.Setup), else the app's.
+  defp setting(ctx, key) do
+    endpoint = (ctx.conn_assigns || %{})[:issho] || []
+    Keyword.get(endpoint, key) || Keyword.get(Application.get_env(:issho, Issho.MCP, []), key)
+  end
 end
 
 defmodule Issho.MCP.Format do

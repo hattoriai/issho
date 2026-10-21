@@ -14,8 +14,10 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   authorization or none, on its own endpoint or mounted in its server).
   An agent joins a room, looks around, points, says what it is doing,
   reads and changes documents, and leaves; people see it there. It acts
-  under the app's policy, on behalf of the person the endpoint signed in
-  (`Issho.MCP.Session`). Sake is a dependency of Issho.
+  under the app's policy, as the actor the app says: a person's agent on
+  their behalf, the app's bot or the system acting as itself, or both at
+  once, from the call or per endpoint (`Issho.MCP.Session`,
+  `Issho.MCP.Setup`). Sake is a dependency of Issho.
 - `Issho.Agents`: an agent's lasting presence in a room for front ends
   without a lasting connection (an MCP server, a webhook), from its first
   call until it leaves or has been idle for `:idle` (ten minutes).

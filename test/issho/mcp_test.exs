@@ -116,6 +116,70 @@ defmodule Issho.MCPTest do
              call_tool(client, "join_room", %{"room" => room})
   end
 
+  defmodule Mapping do
+    @moduledoc false
+    # Two endpoints of one app: people's assistants, and the app's own bot.
+    def assistant(%Sake.Context{scope: %{id: id} = person}),
+      do: {%{id: "assistant:#{id}", name: "Assistant", kind: :agent}, on_behalf_of: person}
+
+    def bot(_ctx), do: {%{id: "bot:app", name: "App bot", kind: :service}, []}
+  end
+
+  defmodule People do
+    @moduledoc false
+    use Plug.Builder
+    plug :person
+    plug Issho.MCP.Setup, agent: {Issho.MCPTest.Mapping, :assistant}
+
+    plug Sake.Plug,
+      server: Issho.MCP,
+      scope: &__MODULE__.scope/1,
+      secret: String.duplicate("s", 64)
+
+    def person(conn, _opts), do: Plug.Conn.assign(conn, :person, %{id: "user:ada", name: "Ada"})
+    def scope(conn), do: conn.assigns.person
+  end
+
+  defmodule Bot do
+    @moduledoc false
+    use Plug.Builder
+    plug Issho.MCP.Setup, agent: {Issho.MCPTest.Mapping, :bot}
+    plug Sake.Plug, server: Issho.MCP, secret: String.duplicate("s", 64)
+  end
+
+  defmodule Endpoints do
+    @moduledoc false
+    use Plug.Router
+
+    plug :match
+    plug :dispatch
+
+    forward "/people/mcp", to: Issho.MCPTest.People
+    forward "/bot/mcp", to: Issho.MCPTest.Bot
+  end
+
+  test "an app has a person's assistant and its own bot at once, each on its endpoint",
+       %{room: room} do
+    ken = ken(room)
+    assistant = connect(Issho.MCP, plug: Endpoints, path: "/people/mcp")
+    bot = connect(Issho.MCP, plug: Endpoints, path: "/bot/mcp")
+
+    assert {:ok, %{structured: %{"you" => "assistant:user:ada"}}} =
+             call_tool(assistant, "join_room", %{"room" => room})
+
+    assert {:ok, %{structured: %{"you" => "bot:app", "people" => people}}} =
+             call_tool(bot, "join_room", %{"room" => room})
+
+    assert %{"kind" => "agent", "on_behalf_of" => "Ada"} =
+             Enum.find(people, &(&1["key"] == "assistant:user:ada"))
+
+    assert %{"kind" => "service", "on_behalf_of" => nil, "you" => true} =
+             Enum.find(people, &(&1["key"] == "bot:app"))
+
+    people = Participant.people(ken)
+    assert Map.has_key?(people, "assistant:user:ada") and Map.has_key?(people, "bot:app")
+  end
+
   # Awareness frames carry what changed since the last one: wait for the frame with the status.
   defp eventually_sees(ken, status) do
     receive do
