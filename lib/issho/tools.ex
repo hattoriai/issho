@@ -123,7 +123,7 @@ defmodule Issho.Tools do
     participant
     |> Issho.Participant.people()
     |> Enum.flat_map(fn {_key, %{"states" => states}} -> states end)
-    |> Enum.flat_map(fn state -> get_in(state, ["view", "anchors"]) || [] end)
+    |> Enum.flat_map(&List.wrap(view(&1)["anchors"]))
     |> Enum.filter(&(is_map(&1) and is_binary(&1["name"])))
     |> Enum.uniq_by(& &1["name"])
     |> Enum.map(&Map.take(&1, ["name", "label", "follow", "href"]))
@@ -154,10 +154,15 @@ defmodule Issho.Tools do
   # page an agent went to.
   defp pages(states) do
     states
-    |> Enum.map(&(get_in(&1, ["view", "path"]) || &1["path"]))
+    |> Enum.map(&(view(&1)["path"] || &1["path"]))
     |> Enum.filter(&is_binary/1)
     |> Enum.uniq()
   end
+
+  # What a browser says its page shows. Only a map: a state is shared by
+  # the page's components, and another's key of that name is not it.
+  defp view(%{"view" => %{} = view}), do: view
+  defp view(_state), do: %{}
 end
 
 defmodule Issho.Tools.JoinRoom do

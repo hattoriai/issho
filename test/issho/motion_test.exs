@@ -134,6 +134,21 @@ defmodule Issho.MotionTest do
            end)
   end
 
+  test "another component's `view` in a person's state is not their page's", %{
+    room: room,
+    ken: ken
+  } do
+    # A canvas's own key of that name, merged into the same session state.
+    :ok = Participant.aware(ken, %{"view" => [0, 0, 800, 600]})
+    ctx = Tool.Context.new(@instance, %{id: "agent:one", name: "Agent", kind: :agent})
+
+    assert {:ok, %{"anchors" => [], "people" => people}} =
+             Tools.call(Tools.room(), "look_around", %{"room" => room}, ctx)
+
+    assert %{"pages" => []} = Enum.find(people, &(&1["key"] == "user:ken"))
+    assert {:ok, %{"people" => _}} = Tools.call(Tools.room(), "join_room", %{"room" => room}, ctx)
+  end
+
   test "an agent goes to another page of the app, and says where it is", %{
     room: room,
     ken: ken,
