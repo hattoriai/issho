@@ -18,6 +18,8 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   going while a person composes text; `flush()` sends the batch now.
 - `{:initial, content}` from a store's `load/2`: a document starts from
   the content your app already has, before anyone opened it together.
+- Presence says what each person may do: `can`, `"write"` when any of
+  their tabs may write, `"read"` for someone only viewing.
 - TypeScript declarations in the package (`priv/static/types`), named by
   `package.json`'s `types`: a component library's TypeScript imports
   `issho` with its types.

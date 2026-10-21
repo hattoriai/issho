@@ -11,6 +11,8 @@ export interface Person {
   kind: "human" | "agent" | "service";
   on_behalf_of: Person | null;
   joined_at: number;
+  /** "write" when any of the person's tabs may write; "read" for someone only viewing. */
+  can: "read" | "write";
 }
 
 type Meta = Omit<Person, "on_behalf_of"> & { on_behalf_of: Person | null; phx_ref?: string };
@@ -95,11 +97,12 @@ export class Presence {
   }
 }
 
-// A person from their tabs' metas: the first tab to join.
+// A person from their tabs' metas: the first tab to join, writing if any tab may.
 function person(key: string, metas: Meta[]): Person {
   const first = [...metas].sort((a, b) => a.joined_at - b.joined_at)[0];
   const { phx_ref: _ref, ...rest } = first;
-  return { ...rest, key };
+  const can = metas.some((meta) => meta.can === "write") ? "write" : "read";
+  return { ...rest, key, can };
 }
 
 function clone(state: PresenceState): PresenceState {

@@ -45,3 +45,19 @@ test("diffs announce people who come and go, not tabs", () => {
   assert.deepEqual(events, ["join:ken", "leave:ken"]);
   assert.deepEqual(presence.others, []);
 });
+
+test("a person writes when any of their tabs may", () => {
+  const presence = new Presence("ada");
+  presence.syncState({
+    ken: { metas: [meta("ken", "1", 1, { can: "read" }), meta("ken", "2", 2, { can: "write" })] },
+    sam: { metas: [meta("sam", "3", 3, { can: "read" })] },
+  } as never);
+
+  assert.deepEqual(
+    presence.others.map((p) => [p.key, p.can]),
+    [
+      ["ken", "write"],
+      ["sam", "read"],
+    ],
+  );
+});

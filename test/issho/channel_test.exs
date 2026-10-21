@@ -35,7 +35,9 @@ defmodule Issho.ChannelTest do
     assert {:ok, %{"session" => session, "can" => "write"}, _socket} = enter(room, @ada)
     assert is_binary(session)
     assert_push "presence_state", people
-    assert %{"user:ada" => %{metas: [%{"name" => "Ada", "kind" => "human"}]}} = people
+
+    assert %{"user:ada" => %{metas: [%{"name" => "Ada", "kind" => "human", "can" => "write"}]}} =
+             people
   end
 
   test "refuses a token of another room, a bad token and a denied actor", %{room: room} do

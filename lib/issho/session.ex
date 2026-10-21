@@ -33,7 +33,14 @@ defmodule Issho.Session do
           do: :ok = Phoenix.PubSub.subscribe(config.pubsub, topic)
 
       if config.presence do
-        meta = Identity.public(identity) |> Map.put("joined_at", System.system_time(:millisecond))
+        meta =
+          identity
+          |> Identity.public()
+          |> Map.merge(%{
+            "joined_at" => System.system_time(:millisecond),
+            "can" => to_string(can)
+          })
+
         {:ok, _ref} = Presence.track(self(), Presence.topic(room), identity.key, meta)
       end
 
