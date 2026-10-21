@@ -5,6 +5,10 @@
 // itself after a drop, reading the token afresh; a token that expired is
 // renewed through `renew` (the LiveView signs a new one), and renewed ahead
 // of time every `renewEvery` milliseconds while the room is open.
+//
+// The room is offline as soon as there is reason to think so: the
+// browser's offline event, or a push with no reply (the lease then checks
+// the socket, and the room joins again on a fresh channel or socket).
 
 import type { Channel } from "phoenix";
 import { Refused } from "./document";
@@ -33,6 +37,7 @@ export function phoenixTransport(room: string, options: PhoenixTransportOptions)
   let channel: Channel;
   let current: Lease;
   let renewTimer: ReturnType<typeof setInterval> | undefined;
+  const offline = (): void => status("closed");
   let joined = false;
   const handlers: [string, (payload: never) => void][] = [];
   const statusCallbacks: ((status: "joined" | "closed") => void)[] = [];
@@ -67,12 +72,15 @@ export function phoenixTransport(room: string, options: PhoenixTransportOptions)
           }
         })
         .receive("error", ({ reason }: { reason?: string }) => {
-          // Phoenix joins again shortly; an expired token is renewed first.
+          // Phoenix joins again shortly: an expired token is renewed first, and
+          // a full socket takes the join once the server lets a channel go.
           if (reason === "expired") void renew();
+          else if (reason === "too many channels joined") status("closed");
           else if (first && !joined) {
             first = false;
             channel.leave();
             clearInterval(renewTimer);
+            window.removeEventListener("offline", offline);
             current.release();
             reject(new Refused(reason ?? "forbidden"));
           }
@@ -88,6 +96,7 @@ export function phoenixTransport(room: string, options: PhoenixTransportOptions)
         void open().then(() => status("joined"));
       });
       if (options.renew) renewTimer = setInterval(() => void renew(), options.renewEvery ?? 180_000);
+      window.addEventListener("offline", offline);
       return open();
     },
 
@@ -98,6 +107,7 @@ export function phoenixTransport(room: string, options: PhoenixTransportOptions)
           .receive("ok", resolve)
           .receive("error", ({ reason }: { reason?: string }) => reject(new Refused(reason ?? "error")))
           .receive("timeout", () => {
+            status("closed");
             current.check();
             reject(new Error("timeout"));
           });
@@ -115,6 +125,7 @@ export function phoenixTransport(room: string, options: PhoenixTransportOptions)
 
     leave() {
       clearInterval(renewTimer);
+      window.removeEventListener("offline", offline);
       channel?.leave();
       current?.release();
     },

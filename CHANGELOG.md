@@ -26,6 +26,10 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The Phoenix transport takes a room offline at the browser's offline
+  event and at a push with no reply, and waits out a join the socket's
+  channel limit refused ("too many channels joined") instead of ending
+  the room.
 - `joinRoom` gives a second component of the page the room once it has
   joined, not while it is joining (when it still read as `"read"`).
 - An earlier revision (`content_at/3`) replays each transaction of the
