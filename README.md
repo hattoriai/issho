@@ -177,6 +177,12 @@ room.presence.on(() => drawPeople(room.presence.others))
   interface: an undo is a change like any other, and what a room must
   refuse (deleting, changing what was published) belongs in its policy
   or its document's checks on the server.
+* **Agents that react.** Today an agent acts when asked, and acts on
+  what people do: "rewrite what Ada selected" (the components' tools take
+  `of`, a person of the room). Next, an agent that waits for what people
+  do (someone selects text and asks the agent in the page, a row changes,
+  a card lands on a frame) and answers by itself: a tool that waits on
+  the room's events, and MCP notifications through Sake.
 * **An installer**, and a demo app of many components.
 
 ## Development
