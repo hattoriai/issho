@@ -21,9 +21,12 @@ defmodule Mix.Tasks.Issho.Build do
        `:issho_cjs` profiles.
     4. Writes the TypeScript declarations into `priv/static/types`, with
        `assets/tsconfig.types.json`.
+    5. Copies the theme's style sheets (`assets/css/issho.css` and
+       `issho-sumi.css`).
 
-  After the task, `priv/static` holds exactly the two bundles and the
-  declarations, which are the files of the Hex package. It needs `npm` on the path and the
+  After the task, `priv/static` holds exactly the two bundles, the
+  declarations and the style sheets, which are the files of the Hex
+  package. It needs `npm` on the path and the
   `:esbuild` dependency, which is available in the `:dev` environment.
   """
 
@@ -35,6 +38,7 @@ defmodule Mix.Tasks.Issho.Build do
   @static "priv/static"
   @lock_hash "node_modules/.issho-lock-sha256"
   @profiles [:issho_esm, :issho_cjs]
+  @style_sheets ~w(issho.css issho-sumi.css)
 
   @impl Mix.Task
   def run(_args) do
@@ -55,6 +59,9 @@ defmodule Mix.Tasks.Issho.Build do
     File.mkdir_p!(@static)
     Enum.each(@profiles, &bundle/1)
     declarations()
+
+    for sheet <- @style_sheets,
+        do: File.cp!(Path.join([@assets, "css", sheet]), Path.join(@static, sheet))
 
     Mix.shell().info("Issho assets are in #{@static}/")
   end

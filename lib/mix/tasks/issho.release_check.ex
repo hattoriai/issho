@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Issho.ReleaseCheck do
-  @shortdoc "Checks that priv/static holds the two bundles and the declarations, and nothing else"
+  @shortdoc "Checks that priv/static holds the bundles, the declarations and the style sheets, and nothing else"
 
   @moduledoc """
   Checks the built files before a release of Issho.
@@ -10,8 +10,9 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
   after `mix issho.build` and before `mix hex.publish`. In any project
   but Issho, it stops with an error. It fails when:
 
-    * one of the two bundle files (`issho.esm.js` and `issho.cjs.js`) is
-      missing from `priv/static`, or is empty;
+    * one of the files (the bundles `issho.esm.js` and `issho.cjs.js`, the
+      style sheets `issho.css` and `issho-sumi.css`) is missing from
+      `priv/static`, or is empty;
     * `priv/static/types` has no `index.d.ts`, or holds a file that is not
       a declaration (`.d.ts`);
     * `priv/static` holds any other file or directory;
@@ -21,7 +22,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
   use Mix.Task
 
   @static "priv/static"
-  @files ~w(issho.esm.js issho.cjs.js)
+  @files ~w(issho.esm.js issho.cjs.js issho.css issho-sumi.css)
   @types "types"
 
   @impl Mix.Task
@@ -33,7 +34,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
     case check(@static, "package.json", version) do
       :ok ->
         Mix.shell().info(
-          "#{@static} holds the two bundle files and the declarations, and nothing else, and package.json has version #{version}"
+          "#{@static} holds the bundles, the declarations and the style sheets, and nothing else, and package.json has version #{version}"
         )
 
       {:error, problems} ->
@@ -74,7 +75,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheck do
         types_problems(Path.join(static, @types)) ++
         Enum.map(
           Enum.sort(entries -- [@types | @files]),
-          &"#{static}/#{&1} is not a bundle file"
+          &"#{static}/#{&1} is not a file of the package"
         ) ++
         version_problems(package_json, version)
 

@@ -13,7 +13,7 @@
       "require": "./priv/static/issho.cjs.js"
     }
   },
-  "files": ["priv/static/issho.esm.js", "priv/static/issho.cjs.js", "priv/static/types", "README.md", "LICENSE"],
+  "files": ["priv/static/issho.esm.js", "priv/static/issho.cjs.js", "priv/static/types", "priv/static/issho.css", "priv/static/issho-sumi.css", "README.md", "LICENSE"],
   "peerDependencies": {
     "phoenix": "^1.7.14 || ^1.8.0"
   }

@@ -11,7 +11,7 @@ if (typeof globalThis.navigator === "undefined") {
   Object.defineProperty(globalThis.navigator, "onLine", { value: true, configurable: true });
 }
 
-import { registerEngine, mapEngine, Room, phoenixTransport, joinRoom, MemoryDraftStore } from "../src/index";
+import { registerEngine, mapEngine, Room, phoenixTransport, joinRoom, releaseRoom, MemoryDraftStore } from "../src/index";
 
 registerEngine(mapEngine);
 
@@ -49,8 +49,11 @@ await until(() => ken.presence.others.some((person) => person.key === "user:ada"
 const options = { socket: url, token: kenToken, self: "user:ken", drafts: new MemoryDraftStore() };
 const asked = () => joinRoom(room, options).then((joined) => ({ joined, can: joined.can, status: joined.status }));
 const [first, second] = await Promise.all([asked(), asked()]);
-const shared = { same: first.joined === second.joined, can: second.can, status: second.status };
-first.joined.leave();
+// The room stays while a component holds it.
+await releaseRoom(room);
+const afterOne = first.joined.status;
+await releaseRoom(room);
+const shared = { same: first.joined === second.joined, can: second.can, status: second.status, afterOne, afterBoth: first.joined.status };
 
 console.log(
   JSON.stringify({

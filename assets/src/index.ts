@@ -3,9 +3,6 @@
 
 import { registerEngine } from "./engine";
 import { mapEngine } from "./engines/map";
-import { defaultDraftStore } from "./drafts";
-import { phoenixTransport, type PhoenixTransportOptions } from "./phoenix";
-import { Room, type RoomOptions } from "./room";
 
 registerEngine(mapEngine);
 
@@ -36,35 +33,6 @@ export {
 } from "./drafts";
 export type { StaleDraft } from "./room";
 export { requestGrant, type Grant, type LiveHook } from "./grant";
-
-// The page's rooms, joined or joining: a second component asking for a room
-// gets it once it has joined.
-const rooms = new Map<string, Promise<Room>>();
-
-/**
- * The room of a page, joined once however many components ask for it.
- * `options.token` is the join token your LiveView signed
- * (`Issho.Token.sign/4`), and `options.self` the actor's key.
- */
-export function joinRoom(room: string, options: PhoenixTransportOptions & RoomOptions): Promise<Room> {
-  const existing = rooms.get(room);
-  if (existing) return existing;
-
-  const joined = new Room(phoenixTransport(room, options), {
-    ...options,
-    room,
-    drafts: options.drafts ?? defaultDraftStore().store,
-  });
-  const joining = joined.connect().then(
-    () => joined,
-    (error: unknown) => {
-      rooms.delete(room);
-      throw error;
-    },
-  );
-  rooms.set(room, joining);
-  joined.onStatus((status) => {
-    if (status === "ended" && rooms.get(room) === joining) rooms.delete(room);
-  });
-  return joining;
-}
+export { drawPeople, someone, describe, type Someone, type PeopleOptions } from "./people";
+export { Hooks } from "./hooks";
+export { joinRoom, releaseRoom } from "./page";

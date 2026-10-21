@@ -57,7 +57,14 @@ defmodule Issho.EndToEndTest do
            }
 
     assert result["kenSeesPeople"] == ["user:ada"]
-    assert result["shared"] == %{"same" => true, "can" => "write", "status" => "live"}
+
+    assert result["shared"] == %{
+             "same" => true,
+             "can" => "write",
+             "status" => "live",
+             "afterOne" => "live",
+             "afterBoth" => "ended"
+           }
 
     {:ok, pid} = Documents.open(IsshoTest.Issho, room)
     assert {:ok, %{"state" => ^expected, "revision" => 21}} = Authority.snapshot(pid)

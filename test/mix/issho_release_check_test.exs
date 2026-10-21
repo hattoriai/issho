@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Issho.ReleaseCheckTest do
 
   alias Mix.Tasks.Issho.ReleaseCheck
 
-  @files ~w(issho.esm.js issho.cjs.js)
+  @files ~w(issho.esm.js issho.cjs.js issho.css issho-sumi.css)
 
   @moduletag :tmp_dir
 
@@ -32,8 +32,8 @@ defmodule Mix.Tasks.Issho.ReleaseCheckTest do
     File.write!(Path.join(static, "issho.esm.js.map"), "{}")
 
     assert {:error, problems} = ReleaseCheck.check(static, package, "1.2.3")
-    assert "#{static}/issho.esm.js.map is not a bundle file" in problems
-    assert "#{static}/chunks is not a bundle file" in problems
+    assert "#{static}/issho.esm.js.map is not a file of the package" in problems
+    assert "#{static}/chunks is not a file of the package" in problems
   end
 
   test "fails without the declarations, or for another file among them", %{

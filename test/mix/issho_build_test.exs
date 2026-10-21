@@ -8,7 +8,7 @@ defmodule Mix.Tasks.Issho.BuildTest do
 
   @root Path.expand("../..", __DIR__)
   @static Path.join(@root, "priv/static")
-  @files ~w(issho.esm.js issho.cjs.js)
+  @files ~w(issho.esm.js issho.cjs.js issho.css issho-sumi.css)
   @exports ~w(joinRoom Room SharedDocument registerEngine mapEngine phoenixTransport)
 
   @moduletag :build

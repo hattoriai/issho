@@ -1,0 +1,36 @@
+/*
+ * Issho in the Sumi theme. Load it after issho.css.
+ *
+ * It takes, in this order: the Sumi tokens of the page (--font-body,
+ * --color-base-100, --color-base-content, --sumi-text-muted,
+ * --color-base-300), the short --sumi-* names (--sumi-font, --sumi-paper,
+ * --sumi-ink, --sumi-muted, --sumi-line), and Sumi's own palette, as
+ * Kotoba's Sumi theme does, so that a page of Kotoba and Issho in Sumi
+ * looks like one.
+ */
+
+:root,
+[data-theme] {
+  --issho-font: var(--font-body, var(--sumi-font, "Inter", system-ui, sans-serif));
+  --issho-surface: var(--color-base-100, var(--sumi-paper, oklch(96% 0.01 85)));
+  --issho-text: var(--color-base-content, var(--sumi-ink, oklch(15% 0.003 270)));
+  --issho-muted: var(--sumi-text-muted, var(--sumi-muted, oklch(15% 0.003 270 / 0.65)));
+  --issho-line: var(--color-base-300, var(--sumi-line, oklch(89% 0.014 80)));
+  /* Ink and its accents: blade, ember, and quieter earth tones. */
+  --issho-person-1: var(--color-sumi-blade, oklch(55% 0.18 245));
+  --issho-person-2: var(--color-sumi-ember, oklch(58% 0.2 35));
+  --issho-person-3: oklch(55% 0.12 155);
+  --issho-person-4: oklch(62% 0.14 75);
+  --issho-person-5: oklch(50% 0.12 300);
+  --issho-person-6: oklch(52% 0.18 15);
+  --issho-person-7: oklch(55% 0.1 205);
+  --issho-person-8: oklch(40% 0.02 270);
+}
+
+[data-theme="dark"] {
+  --issho-surface: var(--color-base-100, var(--sumi-paper, oklch(12% 0.003 270)));
+  --issho-text: var(--color-base-content, var(--sumi-ink, oklch(95% 0.012 85)));
+  --issho-muted: var(--sumi-text-muted, var(--sumi-muted, oklch(95% 0.012 85 / 0.5)));
+  --issho-line: var(--color-base-300, var(--sumi-line, oklch(20% 0.005 270)));
+  --issho-person-8: oklch(80% 0.02 85);
+}

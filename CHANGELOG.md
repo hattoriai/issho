@@ -27,6 +27,16 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   browser's `"issho:grant"` event, after asking the policy again.
   `requestGrant(hook, room)` asks for one from the browser. One grant
   serves every component of the page in the room.
+- The people of a room, one list for the page: `Issho.Components.people/1`
+  (with a grant, kept live in the browser by the `IsshoPeople` hook of
+  `Hooks`; or rendered by a LiveView in the room), `drawPeople` in the
+  browser. Agents and the app are marked, with whom an agent acts for;
+  viewers are marked; a person's status shows.
+- Issho's theme: `issho.css`, and `issho-sumi.css` for the Sumi theme, in
+  the package's `priv/static`; every value a custom property, people's
+  colours from `--issho-person-1` to `-8`.
+- `releaseRoom`: each component that asked for a room holds it, and the
+  page leaves the room when the last lets go.
 
 - `upgrade/1`, an engine's optional callback: a stored document of
   another engine version, or one a library saved before Issho, opens
