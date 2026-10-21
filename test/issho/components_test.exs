@@ -6,7 +6,7 @@ defmodule Issho.ComponentsTest do
 
   alias Issho.Components
 
-  defp meta(name, extra \\ %{}),
+  defp meta(name, extra),
     do:
       Map.merge(
         %{"name" => name, "kind" => "human", "can" => "write", "joined_at" => 1, "palette" => 3},

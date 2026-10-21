@@ -42,9 +42,9 @@ defmodule Issho.Agents do
   @doc "The participant of the agent with this key in the room, if it is there."
   @spec participant(atom(), String.t(), String.t()) :: pid() | nil
   def participant(instance, key, room) do
-    case whereis(instance, key, room) do
+    case call(instance, key, room, :touch, nil) do
+      {:ok, participant} -> participant
       nil -> nil
-      agent -> agent |> GenServer.call(:touch) |> elem(1)
     end
   end
 
@@ -53,21 +53,13 @@ defmodule Issho.Agents do
   copied, what it was asked to remember), until it leaves.
   """
   @spec put(atom(), String.t(), String.t(), term(), term()) :: :ok | {:error, :not_there}
-  def put(instance, key, room, name, value) do
-    case whereis(instance, key, room) do
-      nil -> {:error, :not_there}
-      agent -> GenServer.call(agent, {:put, name, value})
-    end
-  end
+  def put(instance, key, room, name, value),
+    do: call(instance, key, room, {:put, name, value}, {:error, :not_there})
 
   @doc "A value the agent kept in the room, or `default`."
   @spec get(atom(), String.t(), String.t(), term(), term()) :: term()
-  def get(instance, key, room, name, default \\ nil) do
-    case whereis(instance, key, room) do
-      nil -> default
-      agent -> GenServer.call(agent, {:get, name, default})
-    end
-  end
+  def get(instance, key, room, name, default \\ nil),
+    do: call(instance, key, room, {:get, name, default}, default)
 
   @doc "Takes the agent out of the room."
   @spec leave(atom(), String.t(), String.t()) :: :ok
@@ -86,6 +78,17 @@ defmodule Issho.Agents do
     Registry.select(Config.child_name(instance, AgentRegistry), [
       {{{key, :"$1"}, :_, :_}, [], [:"$1"]}
     ])
+  end
+
+  # A call to the agent, or `gone` when it is not there: one that just left
+  # can still be registered for a moment after it ended.
+  defp call(instance, key, room, message, gone) do
+    case whereis(instance, key, room) do
+      nil -> gone
+      agent -> GenServer.call(agent, message)
+    end
+  catch
+    :exit, _reason -> gone
   end
 
   defp whereis(instance, key, room) do

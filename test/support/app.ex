@@ -123,7 +123,7 @@ defmodule IsshoTest.GrantLive do
   end
 
   @impl true
-  def render(assigns), do: ~H"<div id='grant' data-room={@grant[\"room\"]}></div>"
+  def render(assigns), do: ~H"<div id='grant' data-room={Map.get(@grant, ~s(room))}></div>"
 end
 
 defmodule IsshoTest.BoardLive do
