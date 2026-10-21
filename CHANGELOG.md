@@ -26,6 +26,8 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `joinRoom` gives a second component of the page the room once it has
+  joined, not while it is joining (when it still read as `"read"`).
 - An earlier revision (`content_at/3`) replays each transaction of the
   journal as it was accepted, not their operations as one: revision 0,
   and engines that limit a transaction's operations, rebuild.

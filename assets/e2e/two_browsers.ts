@@ -11,7 +11,7 @@ if (typeof globalThis.navigator === "undefined") {
   Object.defineProperty(globalThis.navigator, "onLine", { value: true, configurable: true });
 }
 
-import { registerEngine, mapEngine, Room, phoenixTransport } from "../src/index";
+import { registerEngine, mapEngine, Room, phoenixTransport, joinRoom, MemoryDraftStore } from "../src/index";
 
 registerEngine(mapEngine);
 
@@ -45,8 +45,16 @@ ada.aware({ place: { doc: room, at: { path: ["title"] } } });
 await until(() => ken.awareness.peers.some((peer) => peer.key === "user:ada"));
 await until(() => ken.presence.others.some((person) => person.key === "user:ada"));
 
+// Two components of a page asking for the room at once get one room, joined.
+const options = { socket: url, token: kenToken, self: "user:ken", drafts: new MemoryDraftStore() };
+const asked = () => joinRoom(room, options).then((joined) => ({ joined, can: joined.can, status: joined.status }));
+const [first, second] = await Promise.all([asked(), asked()]);
+const shared = { same: first.joined === second.joined, can: second.can, status: second.status };
+first.joined.leave();
+
 console.log(
   JSON.stringify({
+    shared,
     ada: adaDoc.state,
     ken: kenDoc.state,
     revisions: [adaDoc.revision, kenDoc.revision],

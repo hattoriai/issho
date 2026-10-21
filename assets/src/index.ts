@@ -36,7 +36,9 @@ export {
 } from "./drafts";
 export type { StaleDraft } from "./room";
 
-const rooms = new Map<string, Room>();
+// The page's rooms, joined or joining: a second component asking for a room
+// gets it once it has joined.
+const rooms = new Map<string, Promise<Room>>();
 
 /**
  * The room of a page, joined once however many components ask for it.
@@ -45,22 +47,23 @@ const rooms = new Map<string, Room>();
  */
 export function joinRoom(room: string, options: PhoenixTransportOptions & RoomOptions): Promise<Room> {
   const existing = rooms.get(room);
-  if (existing) return Promise.resolve(existing);
+  if (existing) return existing;
 
   const joined = new Room(phoenixTransport(room, options), {
     ...options,
     room,
     drafts: options.drafts ?? defaultDraftStore().store,
   });
-  rooms.set(room, joined);
-  joined.onStatus((status) => {
-    if (status === "ended") rooms.delete(room);
-  });
-  return joined.connect().then(
+  const joining = joined.connect().then(
     () => joined,
     (error: unknown) => {
       rooms.delete(room);
       throw error;
     },
   );
+  rooms.set(room, joining);
+  joined.onStatus((status) => {
+    if (status === "ended" && rooms.get(room) === joining) rooms.delete(room);
+  });
+  return joining;
 }
