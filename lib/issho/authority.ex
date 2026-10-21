@@ -92,7 +92,8 @@ defmodule Issho.Authority do
     engine_opts = Map.get(spec, :opts, [])
     {store, context} = store(Map.get(spec, :store), config.store)
 
-    with {:ok, stored} <- store.load(context, id),
+    with {:ok, loaded} <- store.load(context, id),
+         {stored, spec} = initial(loaded, spec),
          {:ok, document} <- document(stored, engine, spec, engine_opts),
          {:ok, content} <- Engine.validate(engine, document["state"], engine_opts),
          :ok <- first_save(stored, store, context, id, document, content) do
@@ -114,6 +115,11 @@ defmodule Issho.Authority do
       {:error, reason} -> {:stop, reason}
     end
   end
+
+  # A store that has the content but no document yet (your app's own
+  # table, before anyone opened it together) gives the initial content.
+  defp initial({:initial, content}, spec), do: {nil, Map.put(spec, :initial, content)}
+  defp initial(stored, spec), do: {stored, spec}
 
   defp document(nil, engine, spec, opts) do
     with {:ok, state} <- engine.init(Map.get(spec, :initial), opts) do

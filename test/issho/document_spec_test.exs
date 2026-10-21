@@ -201,4 +201,24 @@ defmodule Issho.DocumentSpecTest do
     spec = %{engine: Issho.Engine.Map, store: legacy_store(id, unknown)}
     assert {:error, :unsupported_document} = Documents.open(@instance, id, nil, spec: spec)
   end
+
+  test "a store with the content and no document yet starts one from it" do
+    id = "doc:" <> Transaction.id()
+    store = start_supervised!({Issho.Store.Memory, name: :"store_#{System.unique_integer()}"})
+
+    defmodule SeededStore do
+      @moduledoc false
+      def load(_store, _id), do: {:ok, {:initial, %{"title" => "From the app"}}}
+      defdelegate save(store, id, expected, document, content), to: Issho.Store.Memory
+    end
+
+    spec = %{engine: Issho.Engine.Map, initial: %{"title" => "spec"}, store: {SeededStore, store}}
+    {:ok, pid} = Documents.open(@instance, id, nil, spec: spec)
+
+    assert {:ok, %{"state" => %{"title" => "From the app"}, "revision" => 0}} =
+             Authority.snapshot(pid)
+
+    assert %{"revision" => 0, "state" => %{"title" => "From the app"}} =
+             Agent.get(store, & &1[id].document)
+  end
 end
