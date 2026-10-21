@@ -5,6 +5,7 @@
 // one theme (issho.css, issho-sumi.css) styles both.
 
 import type { Peer } from "./awareness";
+import { follow, following } from "./follow";
 import type { Person } from "./presence";
 import { currentLook } from "./theme";
 
@@ -13,6 +14,8 @@ export interface PeopleOptions {
   max?: number;
   /** The list's accessible name ("People here"). */
   label?: string;
+  /** The room the list is of: a click on someone follows them there. Without it, no one is followed. */
+  room?: string;
 }
 
 /** The view of the people the list draws: a person and what they are doing. */
@@ -41,7 +44,8 @@ export function drawPeople(element: HTMLElement, people: Someone[], options: Peo
   list.className = "issho-people";
   list.setAttribute("aria-label", options.label ?? "People here");
 
-  for (const one of people.slice(0, max)) list.append(item(one));
+  const room = options.room;
+  for (const one of people.slice(0, max)) list.append(item(one, room));
 
   if (people.length > max) {
     const more = document.createElement("li");
@@ -51,10 +55,29 @@ export function drawPeople(element: HTMLElement, people: Someone[], options: Peo
     list.append(more);
   }
 
-  element.replaceChildren(list);
+  // Whom this tab follows, with a way to stop.
+  const followed = room ? people.find((one) => one.person.key === following(room) && !one.you) : undefined;
+  if (followed) {
+    const line = document.createElement("p");
+    line.className = "issho-following";
+    line.dataset.isshoFollowControl = "";
+    line.setAttribute("role", "status");
+    line.style.setProperty("--issho-color", followed.person.color ?? `var(--issho-person-${followed.person.palette})`);
+    const text = document.createElement("span");
+    text.textContent = `Following ${followed.person.name ?? followed.person.key}`;
+    const stop = document.createElement("button");
+    stop.type = "button";
+    stop.className = "issho-following-stop";
+    stop.textContent = "Stop";
+    stop.addEventListener("click", () => follow(room!, null));
+    line.append(text, stop);
+    element.replaceChildren(list, line);
+  } else {
+    element.replaceChildren(list);
+  }
 }
 
-function item({ person, status, you }: Someone): HTMLLIElement {
+function item({ person, status, you }: Someone, room?: string): HTMLLIElement {
   const li = document.createElement("li");
   li.className = "issho-person";
   li.dataset.kind = person.kind;
@@ -64,11 +87,26 @@ function item({ person, status, you }: Someone): HTMLLIElement {
   li.style.setProperty("--issho-color", person.color ?? `var(--issho-person-${person.palette})`);
   li.title = describe({ person, status, you });
 
+  // Someone else: a button that follows them, or stops.
+  let into: HTMLElement = li;
+  if (room && !you) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "issho-person-follow";
+    button.dataset.isshoFollowControl = "";
+    const followed = following(room) === person.key;
+    if (followed) li.dataset.followed = "";
+    button.setAttribute("aria-pressed", String(followed));
+    button.addEventListener("click", () => follow(room, following(room) === person.key ? null : person.key));
+    li.append(button);
+    into = button;
+  }
+
   // The app's own drawing of the person, or Issho's avatar.
   const own = currentLook().person?.({ person, status, you }) ?? null;
   if (own) {
     if (own instanceof Element) own.setAttribute("aria-hidden", "true");
-    li.append(own);
+    into.append(own);
   } else {
     const avatar = document.createElement("span");
     avatar.className = "issho-avatar";
@@ -79,7 +117,7 @@ function item({ person, status, you }: Someone): HTMLLIElement {
       image.alt = "";
       avatar.append(image);
     } else avatar.textContent = initials(person.name ?? person.key);
-    li.append(avatar);
+    into.append(avatar);
   }
 
   if (person.kind !== "human" && !own) {
@@ -87,21 +125,21 @@ function item({ person, status, you }: Someone): HTMLLIElement {
     badge.className = "issho-badge";
     badge.setAttribute("aria-hidden", "true");
     badge.textContent = person.kind === "agent" ? "AI" : "App";
-    li.append(badge);
+    into.append(badge);
   }
 
   // What a screen reader reads, and what the theme may show beside the avatar.
   const label = document.createElement("span");
   label.className = "issho-person-label";
   label.textContent = describe({ person, status, you });
-  li.append(label);
+  into.append(label);
 
   if (status) {
     const doing = document.createElement("span");
     doing.className = "issho-status";
     doing.setAttribute("aria-hidden", "true");
     doing.textContent = status;
-    li.append(doing);
+    into.append(doing);
   }
   return li;
 }

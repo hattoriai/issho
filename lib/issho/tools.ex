@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, say what you do, change, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -30,6 +30,7 @@ defmodule Issho.Tools do
       Issho.Tools.LookAround,
       Issho.Tools.ReadDocument,
       Issho.Tools.Point,
+      Issho.Tools.Click,
       Issho.Tools.SetStatus,
       Issho.Tools.ChangeDocument,
       Issho.Tools.LeaveRoom
@@ -61,10 +62,15 @@ defmodule Issho.Tools do
     end
   end
 
-  @doc "Runs a tool with its input, as the agent of the context."
+  @doc """
+  Runs a tool with its input, as the agent of the context, within the
+  time budget of a tool call: the gestures it makes together take no
+  longer (`Issho.Motion`).
+  """
   @spec run(module(), map(), Tool.Context.t()) :: Tool.result()
   def run(tool, input, %Tool.Context{} = ctx) do
-    with {:ok, args} <- Tool.cast(tool, input), do: tool.call(args, ctx)
+    with {:ok, args} <- Tool.cast(tool, input),
+         do: Issho.Motion.within(fn -> tool.call(args, ctx) end)
   end
 
   @doc """
@@ -106,6 +112,21 @@ defmodule Issho.Tools do
         nil -> {:error, "#{name} is not in #{document}."}
       end
     end
+  end
+
+  @doc false
+  # The elements the people's pages name (data-issho-anchor), as their
+  # browsers say them: once each, with its label, and whether a click on it
+  # takes the people who follow the agent along (a link, a button).
+  def anchors(participant) do
+    participant
+    |> Issho.Participant.people()
+    |> Enum.flat_map(fn {_key, %{"states" => states}} -> states end)
+    |> Enum.flat_map(fn state -> get_in(state, ["view", "anchors"]) || [] end)
+    |> Enum.filter(&(is_map(&1) and is_binary(&1["name"])))
+    |> Enum.uniq_by(& &1["name"])
+    |> Enum.map(&Map.take(&1, ["name", "label", "follow"]))
+    |> Enum.take(100)
   end
 
   @doc false
@@ -165,7 +186,9 @@ defmodule Issho.Tools.LookAround do
     Who is in the room now, and where each of them is: the place each
     person's cursor or selection is, in the terms of the document they
     are in. To act on what someone selected, give their name as `of` to
-    a component's tool ("the text Ada selected").
+    a component's tool ("the text Ada selected"). And the elements of
+    the people's pages that you can point at and click (`anchors`), by
+    their name and their label.
     """,
     annotations: [read_only: true, idempotent: true]
 
@@ -177,7 +200,11 @@ defmodule Issho.Tools.LookAround do
   def call(%{room: room}, ctx) do
     case Context.join(ctx, room) do
       {:ok, participant} ->
-        {:ok, %{"people" => Issho.Tools.people(participant, Context.key(ctx))}}
+        {:ok,
+         %{
+           "people" => Issho.Tools.people(participant, Context.key(ctx)),
+           "anchors" => Issho.Tools.anchors(participant)
+         }}
 
       {:error, reason} ->
         Context.error(reason)
@@ -234,26 +261,69 @@ defmodule Issho.Tools.Point do
   use Issho.Tool,
     name: "point",
     description: """
-    Shows the others where you are: a place in a document, in the
-    document's own terms (a node of a canvas, a cell of a grid, a
-    selection of a text). Without `at`, you point nowhere.
+    Shows the others where you are, your pointer going there: a place in
+    a document, in the document's own terms (a node of a canvas, a cell of
+    a grid, a selection of a text), or an element of the page by its
+    anchor (see look_around). Without `at` or `anchor`, you point nowhere.
     """,
     annotations: [idempotent: true]
 
   arg :room, :string, required: true
   arg :document, :string, description: "A document of the room; the room itself unless given"
   arg :at, :any, description: "The place, as the document's component describes it"
+  arg :anchor, :string, description: "An element of the page, by its anchor"
 
   alias Issho.Tool.Context
 
   @impl true
+  def call(%{anchor: anchor} = args, ctx) when is_binary(anchor) do
+    with {:ok, participant} <- Context.join(ctx, args.room),
+         :ok <- Issho.Motion.go(participant, %{"anchor" => anchor}) do
+      {:ok, "Pointing at it."}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
   def call(args, ctx) do
     document = args[:document] || args.room
-    place = if args[:at], do: %{"doc" => document, "at" => args.at}
 
     with {:ok, participant, _document, _snapshot} <- Context.open(ctx, args.room, document),
-         :ok <- Issho.Participant.place(participant, place) do
-      {:ok, if(place, do: "Pointing at it.", else: "Pointing nowhere.")}
+         :ok <- point(participant, document, args[:at]) do
+      {:ok, if(args[:at], do: "Pointing at it.", else: "Pointing nowhere.")}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp point(participant, _document, nil), do: Issho.Participant.place(participant, nil)
+
+  defp point(participant, document, at),
+    do: Issho.Motion.go(participant, %{"doc" => document, "at" => at})
+end
+
+defmodule Issho.Tools.Click do
+  @moduledoc false
+  use Issho.Tool,
+    name: "click",
+    description: """
+    Clicks an element of the page, by its anchor (see look_around): your
+    pointer goes there and the people see the click. A link or a button
+    that takes people along (`follow` in look_around) takes those who
+    follow you there too, as if they had clicked it.
+    """,
+    annotations: []
+
+  arg :room, :string, required: true
+  arg :anchor, :string, required: true, description: "The element, by its anchor"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(%{room: room, anchor: anchor}, ctx) do
+    with {:ok, participant} <- Context.join(ctx, room),
+         :ok <- Issho.Motion.click(participant, %{"anchor" => anchor}) do
+      {:ok, "Clicked."}
     else
       {:error, reason} -> Context.error(reason)
     end

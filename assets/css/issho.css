@@ -116,6 +116,79 @@
   color: var(--issho-muted);
 }
 
+/* Someone else is a button that follows them: no button look of its own. */
+.issho-person-follow {
+  display: block;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--issho-avatar-radius);
+}
+
+.issho-person-follow:focus-visible {
+  outline: 2px solid var(--issho-color, var(--issho-person-1));
+  outline-offset: 2px;
+}
+
+/* The one followed: a ring of their colour around their avatar. */
+.issho-person[data-followed] .issho-avatar {
+  box-shadow:
+    inset 0 0 0 var(--issho-avatar-ring-width) var(--issho-avatar-ring),
+    0 0 0 2px var(--issho-surface),
+    0 0 0 4px var(--issho-color, var(--issho-person-1));
+}
+
+/* "Following Ada", with Stop: a pill in their colour, beside the avatars. */
+.issho-people-of:has(> .issho-following) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.issho-following {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.125rem 0.25rem 0.125rem 0.625rem;
+  border-radius: 999px;
+  background: var(--issho-color, var(--issho-person-1));
+  color: #fff;
+  font-family: var(--issho-font);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 30%, transparent);
+  animation: issho-following-in 160ms ease-out;
+}
+
+.issho-following-stop {
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.issho-following-stop:hover,
+.issho-following-stop:focus-visible {
+  background: rgba(255, 255, 255, 0.36);
+  outline: none;
+}
+
+@keyframes issho-following-in {
+  from { opacity: 0; transform: translateY(-2px); }
+}
+
 /* An agent or the app: a square avatar, and a small badge. */
 .issho-person[data-kind="agent"] .issho-avatar,
 .issho-person[data-kind="service"] .issho-avatar {
@@ -191,12 +264,39 @@
   font-family: var(--issho-font);
 }
 
+/* Following someone over the page: a frame of their colour around it. */
+.issho-pointers[data-following] {
+  box-shadow: inset 0 0 0 3px var(--issho-follow-color);
+  transition: box-shadow 160ms ease;
+}
+
 .issho-pointer {
   position: absolute;
   top: 0;
   left: 0;
   transition: transform var(--issho-pointer-glide, 80ms) linear;
   color: var(--issho-color, var(--issho-person-1));
+}
+
+/* At a place a component located for an agent (its caret), the component
+   names it: the pointer is the arrow only. */
+.issho-pointer[data-at="place"] .issho-pointer-name {
+  display: none;
+}
+
+/* The pointer of the one followed: a little larger. A pressed or dragging pointer: smaller, as a hand pressing. */
+.issho-pointer[data-followed] .issho-pointer-arrow {
+  transform: scale(1.15);
+}
+
+.issho-pointer[data-gesture="press"] .issho-pointer-arrow,
+.issho-pointer[data-gesture="drag"] .issho-pointer-arrow {
+  transform: scale(0.85);
+}
+
+/* An agent goes from place to place: it glides, as a hand would move. */
+.issho-pointer[data-kind="agent"] {
+  transition: transform var(--issho-agent-glide, 320ms) cubic-bezier(0.3, 0.7, 0.4, 1);
 }
 
 .issho-pointer-arrow {
@@ -290,4 +390,5 @@
 @media (prefers-reduced-motion: reduce) {
   .issho-pointer { transition: none; }
   .issho-pointer-click { animation-duration: 1ms; }
+  .issho-following { animation: none; }
 }

@@ -25,7 +25,7 @@ test("each browser draws it where the element is on its own page, or at the edge
   assert.deepEqual(place({ left: 900, top: 100, width: 200, height: 100 }, { x: 0, y: 0 }, viewport), { x: 788, y: 100, edge: "right" });
 });
 
-test("the others, one each, never this actor; an agent at the document it works in", () => {
+test("the others, one each, never this actor; an agent at the document it works in, and where", () => {
   const everyone = [person("ada", { name: "Ada" }), person("ken", { name: "Ken", color: "#be185d" }), person("claude", { name: "Claude", kind: "agent" })];
   const peers: Peer[] = [
     { session: "s1", key: "ada", state: { pointer: { anchor: "#title", x: 0.5, y: 0.5 } } },
@@ -35,7 +35,7 @@ test("the others, one each, never this actor; an agent at the document it works 
     { session: "s5", key: "nobody", state: { status: "Thinking" } },
   ];
   assert.deepEqual(pointing(peers, everyone, "ada"), [
-    { key: "claude", name: "Claude", color: "var(--issho-person-3)", kind: "agent", pointer: null, doc: "notebook:7/tasks" },
+    { key: "claude", name: "Claude", color: "var(--issho-person-3)", kind: "agent", pointer: null, doc: "notebook:7/tasks", at: { cell: [1, "name"] } },
     { key: "ken", name: "Ken", color: "#be185d", kind: "human", pointer: { anchor: "page", x: 1, y: 0.1, click: 3 }, doc: null },
   ]);
 });

@@ -40,11 +40,19 @@ export {
   pointerAt,
   fractions,
   place,
+  locate,
+  point,
+  type Locator,
+  type Pointer,
+  type DocPointer,
+  type Box,
   type PagePointer,
   type Pointing,
   type PointerLayerOptions,
 } from "./pointers";
 export { configure, type Look } from "./theme";
+export { follow, following, onFollow, stopOnOwnWay } from "./follow";
+export { motion, setMotion, onMotion, type Motion } from "./motion";
 export { Hooks } from "./hooks";
 export { joinRoom, releaseRoom } from "./page";
 export { holdForm, type FormMember } from "./form";
