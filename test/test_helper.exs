@@ -15,4 +15,6 @@ children = [
 
 {:ok, _pid} = Supervisor.start_link(children, strategy: :one_for_one)
 
-ExUnit.start()
+# The :build tests run `mix issho.build` (npm, and the network on the first
+# run) and `mix hex.build`: `mix test --include build`.
+ExUnit.start(exclude: [:build])

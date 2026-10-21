@@ -8,10 +8,24 @@ Build apps like Notion, Figma or Linear, and bring any UI that follows the
 Issho contract: Kotoba's rich text, Masu's grids, Hakushi's canvas, or
 your own.
 
-> **Status: in development, not released.** Issho ships when Kotoba, Masu
-> and Hakushi run on it. What exists today is the server core and the
-> browser client's core described below; the cursor overlay, following,
-> the bindings and the agent protocols come next.
+> **Status: early release (0.1).** The server core, LiveView sessions,
+> agents from Elixir and the browser client's core are here, and Hakushi's
+> shared canvases run on them. The cursor overlay, following, the
+> bindings of Kotoba and Masu, MCP and the installer come next; before
+> 1.0, a minor version may change the API.
+
+## Installation
+
+```elixir
+def deps do
+  [
+    {:issho, "~> 0.1"}
+  ]
+end
+```
+
+Issho needs Elixir 1.18 or later, Phoenix 1.7.14 or later and, for
+`Issho.Live`, Phoenix LiveView 1.1 or later.
 
 It gives your app:
 
@@ -27,18 +41,26 @@ It gives your app:
   your store, and only then confirms and broadcasts it; any revision of
   an epoch can be read again, for forms that publish exactly what a person
   saw;
+* **your tables as the truth** when you want them: a document's
+  `:on_transaction` hook runs once for each accepted change, before
+  anyone sees it, to save it (or refuse it), and a document with
+  `store: :none` starts from your data each time it opens;
 * **engines** for each kind of document, behind one boundary
   (`Issho.Engine`): the model is the binding's, everything else is Issho's;
 * **presence** on `Phoenix.Presence`, and **awareness** (places,
   selections, locks) in batched frames: about 20 a second per session,
   whatever the size of the room;
+* **LiveViews in the room** (`Issho.Live`): a LiveView is a session like
+  a browser's, and the room's changes, people and awareness reach its
+  components;
 * **agents in the room** from Elixir (`Issho.join_as/4`): the same
   presence, places, locks, transactions and policy as a browser;
-* **a browser client** (`issho` on npm, built into the Hex package): a
-  room per page shared by every component, its people and awareness, and
-  shared documents whose changes show at once, wait while offline, and
-  replay over the changes of others; documents open again after a
-  reconnect, and only what the server does not have is sent;
+* **a browser client**, built into the Hex package (`import ... from
+  "issho"`): a room per page shared by every component, its people and
+  awareness, and shared documents whose changes show at once, wait while
+  offline (kept across a reload of the tab), and replay over the changes
+  of others; after a reconnect, only what the server does not have is
+  sent;
 * engines in pairs, Elixir and TypeScript, held to one shared corpus of
   cases (`test/corpus`), so the browser and the server never disagree;
 * `Issho.Test`, to start an isolated instance in a test and check that an

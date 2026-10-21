@@ -5,7 +5,11 @@ All notable changes to Issho are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-10-21
+
+The first release: the server core, `Issho.Live`, agents from Elixir,
+and the browser client's core. The cursor overlay, following, the
+bindings of Kotoba and Masu, MCP and the installer come next.
 
 ### Added
 

@@ -1,7 +1,7 @@
 defmodule Issho.MixProject do
   use Mix.Project
 
-  @version "0.1.0-dev"
+  @version "0.1.0"
   @source_url "https://github.com/hattoriai/issho"
 
   def project do
@@ -87,6 +87,7 @@ defmodule Issho.MixProject do
   defp docs do
     [
       main: "readme",
+      source_ref: "v#{@version}",
       source_url: @source_url,
       assets: %{"media" => "media"},
       extras: ["README.md", "guides/architecture.md", "CHANGELOG.md"],
@@ -100,9 +101,17 @@ defmodule Issho.MixProject do
           Issho.Store
         ],
         Documents: [Issho.Authority, Issho.Documents, Issho.Transaction, Issho.Engine.Map],
-        Rooms: [Issho.Channel, Issho.Token, Issho.Presence, Issho.Awareness, Issho.Identity],
+        Rooms: [
+          Issho.Channel,
+          Issho.Token,
+          Issho.Presence,
+          Issho.Awareness,
+          Issho.Identity,
+          Issho.Color
+        ],
+        LiveView: [Issho.Live],
         Agents: [Issho.Participant],
-        Stores: [Issho.Store.Memory],
+        Stores: [Issho.Store.Memory, Issho.Store.None],
         Testing: [Issho.Test]
       ]
     ]
@@ -112,6 +121,18 @@ defmodule Issho.MixProject do
     [
       "assets.build": ["issho.build"],
       "test.js": ["cmd --cd assets npm test"],
+      # The build and the check run in a child VM, as in Hakushi: once
+      # anything compiles in this VM, Mix no longer finds the tasks of the
+      # Hex archive. The check refuses a priv/static with anything but the
+      # bundle files.
+      release: [
+        "cmd mix issho.build",
+        "cmd mix issho.release_check",
+        "hex.publish --yes",
+        "cmd git tag v#{@version} -f",
+        "cmd git push",
+        "cmd git push --tags"
+      ],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
