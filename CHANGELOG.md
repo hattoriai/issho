@@ -15,6 +15,9 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   work in it goes to that box (its caret, a node, a cell), follows it as
   the document changes, and moves from place to place, and from component
   to component, as a hand would (`--issho-agent-glide`, 320ms).
+- At a place a component located, the pointer is the arrow only: the
+  component names the agent there (Kotoba's caret has its name), so the
+  name is not shown twice.
 - `Pointing` carries the agent's place in its document (`at`).
 
 ## [0.2.0] - 2026-10-21

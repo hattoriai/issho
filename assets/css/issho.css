@@ -199,6 +199,12 @@
   color: var(--issho-color, var(--issho-person-1));
 }
 
+/* At a place a component located for an agent (its caret), the component
+   names it: the pointer is the arrow only. */
+.issho-pointer[data-at="place"] .issho-pointer-name {
+  display: none;
+}
+
 /* An agent goes from place to place: it glides, as a hand would move. */
 .issho-pointer[data-kind="agent"] {
   transition: transform var(--issho-agent-glide, 320ms) cubic-bezier(0.3, 0.7, 0.4, 1);

@@ -270,7 +270,8 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       mark.style.transform = `translate(${Math.round(spot.x)}px, ${Math.round(spot.y)}px)`;
       mark.dataset.edge = spot.edge ?? "";
       mark.dataset.kind = one.kind;
-      mark.dataset.at = one.pointer ? "pointer" : "doc";
+      // At a place a component located (an agent's caret, which the component names), the arrow only.
+      mark.dataset.at = spot === null ? "" : one.pointer ? "pointer" : atPlace(one) ? "place" : "doc";
       const label = mark.querySelector<HTMLElement>(".issho-pointer-name");
       if (label && label.textContent !== one.name) label.textContent = one.name;
       const button = mark.querySelector<HTMLButtonElement>(".issho-pointer-edge");
@@ -295,6 +296,12 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       clearInterval(follow);
       follow = 0;
     }
+  }
+
+  function atPlace(one: Pointing): boolean {
+    if (!one.doc || one.at === undefined) return false;
+    const element = document.querySelector(`[data-issho-doc="${CSS.escape(one.doc)}"]`);
+    return !!element && !!(element as Located)[LOCATOR]?.(one.at);
   }
 
   function spotOf(one: Pointing, viewport: { width: number; height: number }): Spot | null {
