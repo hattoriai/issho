@@ -37,6 +37,8 @@ export { drawPeople, someone, describe, type Someone, type PeopleOptions } from 
 export {
   pointerLayer,
   pointing,
+  gestureTracker,
+  type Gestures,
   pointerAt,
   roomOf,
   fractions,

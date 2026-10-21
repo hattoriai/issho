@@ -42,6 +42,10 @@ export class Awareness {
   private timer: unknown = null;
   private lastSent = -Infinity;
   private nodes = new Map<string, { seen: number; peers: Map<string, Peer> }>();
+  // The sessions each node said were there when this browser joined (its
+  // first full frame), and the nodes that have said so.
+  private there = new Set<string>();
+  private told = new Set<string>();
   private listeners = new Set<(peers: Peer[]) => void>();
   private readonly interval: number;
   private readonly staleAfter: number;
@@ -107,6 +111,10 @@ export class Awareness {
   receive(frame: Frame): void {
     const entry = this.nodes.get(frame.node) ?? { seen: 0, peers: new Map<string, Peer>() };
     if (frame.full) entry.peers.clear();
+    if (frame.full && !this.told.has(frame.node)) {
+      this.told.add(frame.node);
+      for (const [session, { state }] of Object.entries(frame.states)) if (state !== null) this.there.add(session);
+    }
     for (const session of frame.gone) entry.peers.delete(session);
     for (const [session, { key, state }] of Object.entries(frame.states)) {
       if (state === null) entry.peers.delete(session);
@@ -117,9 +125,19 @@ export class Awareness {
     this.emit();
   }
 
+  /**
+   * Whether a session was in the room when this browser joined it (or
+   * joined it again): what it did before then is not news.
+   */
+  wasThere(session: string): boolean {
+    return this.there.has(session);
+  }
+
   /** Forgets every peer, after a disconnect. */
   reset(): void {
     this.nodes.clear();
+    this.there.clear();
+    this.told.clear();
     this.emit();
   }
 
