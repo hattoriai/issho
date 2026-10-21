@@ -65,6 +65,14 @@ defmodule Issho.Participant do
   @spec locks(GenServer.server()) :: [{map(), String.t()}]
   def locks(participant), do: GenServer.call(participant, :locks)
 
+  @doc """
+  The people of the room now (`Phoenix.Presence`'s list, by actor key),
+  each with where they are: `%{key => %{"person" => meta, "places" =>
+  [place]}}`, a place for each of their sessions that has one.
+  """
+  @spec people(GenServer.server()) :: map()
+  def people(participant), do: GenServer.call(participant, :people)
+
   @doc "Leaves the room."
   @spec leave(GenServer.server()) :: :ok
   def leave(participant), do: GenServer.stop(participant, :normal)
@@ -83,6 +91,10 @@ defmodule Issho.Participant do
   end
 
   @impl true
+  def handle_call({:open, document_id}, _from, %{session: session} = state)
+      when is_map_key(session.documents, document_id),
+      do: {:reply, Authority.snapshot(session.documents[document_id]), state}
+
   def handle_call({:open, document_id}, _from, state) do
     case Session.open(state.session, document_id) do
       {:ok, snapshot, session} -> {:reply, {:ok, snapshot}, %{state | session: session}}
@@ -124,6 +136,28 @@ defmodule Issho.Participant do
       {:ok, session} -> {:reply, :ok, %{state | session: session, aware: aware}}
       {:error, _} = error -> {:reply, error, state}
     end
+  end
+
+  def handle_call(:people, _from, %{session: session} = state) do
+    places =
+      session.instance
+      |> Awareness.states(session.room)
+      |> Enum.reduce(%{}, fn {_session_id, %{"key" => key, "state" => aware}}, acc ->
+        case aware do
+          %{"place" => place} when not is_nil(place) ->
+            Map.update(acc, key, [place], &[place | &1])
+
+          _other ->
+            acc
+        end
+      end)
+
+    people =
+      for {key, %{metas: [meta | _]}} <- Session.people(session), into: %{} do
+        {key, %{"person" => Map.delete(meta, :phx_ref), "places" => Map.get(places, key, [])}}
+      end
+
+    {:reply, people, state}
   end
 
   def handle_call(:locks, _from, state),

@@ -9,6 +9,18 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Agents over MCP: `Issho.MCP`, a [Sake](https://hex.pm/packages/sake)
+  server the app serves as it serves MCP (HTTP or stdio, its own
+  authorization or none, on its own endpoint or mounted in its server).
+  An agent joins a room, looks around, points, says what it is doing,
+  reads and changes documents, and leaves; people see it there. It acts
+  under the app's policy, on behalf of the person the endpoint signed in
+  (`Issho.MCP.Session`). Sake is a dependency of Issho.
+- `Issho.Agents`: an agent's lasting presence in a room for front ends
+  without a lasting connection (an MCP server, a webhook), from its first
+  call until it leaves or has been idle for `:idle` (ten minutes).
+- `Issho.Participant.people/1`: the room's people, and where each is.
+
 - `upgrade/1`, an engine's optional callback: a stored document of
   another engine version, or one a library saved before Issho, opens
   upgraded and is saved upgraded with its next transaction.

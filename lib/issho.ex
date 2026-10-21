@@ -67,7 +67,11 @@ defmodule Issho do
           {DynamicSupervisor,
            strategy: :one_for_one, name: Config.child_name(name, AwarenessSupervisor)},
           {Issho.Documents, name: Config.child_name(name, Documents)},
-          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Participants)}
+          {DynamicSupervisor,
+           strategy: :one_for_one, name: Config.child_name(name, Participants)},
+          {Registry, keys: :unique, name: Config.child_name(name, AgentRegistry)},
+          # An agent starts its participant under Participants: its own supervisor.
+          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Agents)}
         ]
 
     Supervisor.init(children, strategy: :one_for_one)
