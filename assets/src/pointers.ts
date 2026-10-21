@@ -191,6 +191,15 @@ function asMotion(value: unknown): { to: Record<string, unknown>; gesture: strin
   return { to: to as Record<string, unknown>, gesture, ms: typeof ms === "number" && ms > 0 ? Math.min(ms, 5_000) : 0, seq: typeof seq === "number" ? seq : 0 };
 }
 
+// Where in a located place's box a pointer is: the place's own `x` and `y`
+// (fractions of the box, as a grid's cell says them), else its far corner
+// (the end of a caret, a point).
+export function within(at: unknown): { x: number; y: number } {
+  const { x, y } = (typeof at === "object" && at !== null ? at : {}) as { x?: unknown; y?: unknown };
+  const ok = (value: unknown): value is number => typeof value === "number" && value >= 0 && value <= 1;
+  return { x: ok(x) ? x : 1, y: ok(y) ? y : 1 };
+}
+
 const fraction = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? clamp(value, 0, 1) : 0.5);
 
 function asPointer(value: unknown): PagePointer | DocPointer | null {
@@ -563,7 +572,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       // An agent at work in a component: where its place is (the end of
       // its selection, a node, a cell), else at the component's top end.
       const box = one.at === undefined ? null : (element as Located)[LOCATOR]?.(one.at);
-      if (box) return place(box, { x: 1, y: 1 }, viewport);
+      if (box) return place(box, within(one.at), viewport);
       return place(boxOf(element), { x: 1, y: 0 }, viewport);
     }
     return null;
