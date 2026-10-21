@@ -9,10 +9,17 @@ Issho contract: Kotoba's rich text, Masu's grids, Hakushi's canvas, or
 your own.
 
 > **Status: early release.** Rooms, documents, LiveView sessions, grants,
-> the browser client, the people list and theme, undo across a page,
-> agents over MCP, and the bindings of Kotoba and Hakushi are here. Masu's
-> binding, following and the installer come next; before 1.0, a minor
-> version may change the API.
+> the browser client, the people list and theme, the page's pointers, undo
+> across a page, agents however they connect (MCP, your app's own model),
+> and the bindings of Kotoba, Hakushi and Masu are here. Following across
+> pages and the installer come next; before 1.0, a minor version may
+> change the API.
+
+Live collaboration in the Hattori libraries is Issho's: Kotoba's shared
+editing (from 0.6), Masu's grids' people (from 0.4) and Hakushi's
+canvases. Each library works on its own without it; with it, a page of
+them has one connection, one list of people, one policy, and agents that
+work across all of them.
 
 ## Installation
 
@@ -170,8 +177,6 @@ room.presence.on(() => drawPeople(room.presence.others))
   interface: an undo is a change like any other, and what a room must
   refuse (deleting, changing what was published) belongs in its policy
   or its document's checks on the server.
-* **Masu's grids** on Issho: the people, their places and selections in
-  a grid, beside its rows, which stay Phoenix's own.
 * **An installer**, and a demo app of many components.
 
 ## Development
