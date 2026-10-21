@@ -146,6 +146,30 @@ room.presence.on(() => drawPeople(room.presence.others))
   (a person, or an agent to watch it work) navigates with them, through
   LiveView's navigation, and each component reveals their place in the
   new page: the paragraph, the node.
+* **Components inside components.** A rich text editor in a canvas node,
+  its body a document of the canvas's room (`board:42/n7/body`): one
+  people list, a cursor that goes from the canvas into the text, an agent
+  that drags the note and writes in it (hattoriai/hakushi#2).
+* **Live embeds, by reference.** A component shown, live, inside another:
+  a canvas or a grid in a rich text (hattoriai/kotoba#53), small, with
+  its people and their cursors, and full size when opened. The reference
+  is a room and a document, joined as a viewer:
+  * on another page of the app: rooms are not pages, and a read grant
+    for the referenced room is all it takes;
+  * in another app of the same BEAM cluster: the apps share Issho's
+    PubSub and registry, so the room's authority is found and its
+    changes reach every node, as today;
+  * in an app outside the cluster: a remote grant. The owning app signs a
+    read grant for its room, and the browser opens the room on the owning
+    app's socket, across origins. The transport already takes a socket
+    URL and a token; what is to come is issuing grants from app to app,
+    and their policy.
+* **Settings for a page or a room.** What a page allows its components
+  (no undo in this space, for example), carried in the room's signed
+  grant, so every component follows it. Undo stays a choice of the
+  interface: an undo is a change like any other, and what a room must
+  refuse (deleting, changing what was published) belongs in its policy
+  or its document's checks on the server.
 * **Masu's grids** on Issho: the people, their places and selections in
   a grid, beside its rows, which stay Phoenix's own.
 * **An installer**, and a demo app of many components.
