@@ -94,7 +94,7 @@ defmodule Issho.MixProject do
       source_ref: "v#{@version}",
       source_url: @source_url,
       assets: %{"media" => "media"},
-      extras: ["README.md", "guides/architecture.md", "CHANGELOG.md"],
+      extras: ["README.md", "guides/architecture.md", "guides/agents.md", "CHANGELOG.md"],
       groups_for_modules: [
         Contracts: [
           Issho.Actor,

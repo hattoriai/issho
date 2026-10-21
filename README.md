@@ -8,18 +8,18 @@ Build apps like Notion, Figma or Linear, and bring any UI that follows the
 Issho contract: Kotoba's rich text, Masu's grids, Hakushi's canvas, or
 your own.
 
-> **Status: early release (0.1).** The server core, LiveView sessions,
-> agents from Elixir and the browser client's core are here, and Hakushi's
-> shared canvases run on them. The cursor overlay, following, the
-> bindings of Kotoba and Masu, MCP and the installer come next; before
-> 1.0, a minor version may change the API.
+> **Status: early release.** Rooms, documents, LiveView sessions, grants,
+> the browser client, the people list and theme, undo across a page,
+> agents over MCP, and the bindings of Kotoba and Hakushi are here. Masu's
+> binding, following and the installer come next; before 1.0, a minor
+> version may change the API.
 
 ## Installation
 
 ```elixir
 def deps do
   [
-    {:issho, "~> 0.1"}
+    {:issho, "~> 0.2"}
   ]
 end
 ```
@@ -53,8 +53,18 @@ It gives your app:
 * **LiveViews in the room** (`Issho.Live`): a LiveView is a session like
   a browser's, and the room's changes, people and awareness reach its
   components;
-* **agents in the room** from Elixir (`Issho.join_as/4`): the same
-  presence, places, locks, transactions and policy as a browser;
+* **agents in the room**, from Elixir (`Issho.join_as/4`, `Issho.Agents`)
+  or over MCP (`Issho.MCP`, with [Sake](https://hex.pm/packages/sake)):
+  the same presence, places, transactions and policy as a person, a
+  person's agent on their behalf or your app's bot as itself, and the
+  components' own tools (`Kotoba.Issho.MCP`, `Hakushi.Issho.MCP`), so an
+  agent selects, types, drags and connects as a person does, and the
+  people see it (see the agents guide);
+* **one page, one room**: the components of a page share its connection,
+  its people (`Issho.Components.people/1`), its grant from the LiveView
+  (`Issho.Live.grant/4`, renewed by Issho), its form barrier (`holdForm`)
+  and its undo (`pageHistory`), so a cursor goes from one component to
+  another;
 * **a browser client**, built into the Hex package (`import ... from
   "issho"`): a room per page shared by every component, its people and
   awareness, and shared documents whose changes show at once, wait while
