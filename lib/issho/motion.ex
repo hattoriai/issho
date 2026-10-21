@@ -125,17 +125,20 @@ defmodule Issho.Motion do
   @spec watched?(GenServer.server(), target()) :: boolean()
   def watched?(participant, target) do
     self_key = Participant.key(participant)
+    people = Participant.people(participant)
 
-    participant
-    |> Participant.people()
-    |> Enum.reject(fn {key, %{"person" => person}} ->
-      key == self_key or person["kind"] in ["agent", :agent]
-    end)
-    |> Enum.any?(fn
-      # Someone here who says nothing yet: they may see it.
-      {_key, %{"states" => []}} -> true
-      {_key, %{"states" => states}} -> Enum.any?(states, &sees?(&1, target, participant))
-    end)
+    # A room that knows no one, not even this agent (no presence): it cannot
+    # tell who sees it, so someone may.
+    not Map.has_key?(people, self_key) or
+      people
+      |> Enum.reject(fn {key, %{"person" => person}} ->
+        key == self_key or person["kind"] in ["agent", :agent]
+      end)
+      |> Enum.any?(fn
+        # Someone here who says nothing yet: they may see it.
+        {_key, %{"states" => []}} -> true
+        {_key, %{"states" => states}} -> Enum.any?(states, &sees?(&1, target, participant))
+      end)
   end
 
   defp sees?(%{"view" => %{} = view}, target, participant) do
