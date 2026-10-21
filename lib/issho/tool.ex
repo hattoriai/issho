@@ -179,10 +179,12 @@ defmodule Issho.Tool do
   defp in_range?(value, opts),
     do: value >= (opts[:min] || value) and value <= (opts[:max] || value)
 
-  # An object's declared fields, with atom keys, as the tool's own arguments are.
+  # An object's declared fields, with atom keys, as the tool's own arguments
+  # are: a field given as null is not given, as an argument is not (an MCP
+  # layer may fill each declared field with null).
   defp cast_value(value, {:object, fields}) do
     for {name, type, _opts} <- fields,
-        {:ok, field} <- [fetch(value, name)],
+        {:ok, field} when not is_nil(field) <- [fetch(value, name)],
         into: %{},
         do: {name, cast_value(field, type)}
   end

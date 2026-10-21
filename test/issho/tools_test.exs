@@ -82,6 +82,12 @@ defmodule Issho.ToolsTest do
                ctx
              )
 
+    # A field given as null is not given, as an argument is not.
+    assert {:ok, [%{key: "name"} = sort]} =
+             Tools.run(Sort, %{"by" => [%{"key" => "name", "dir" => nil}]}, ctx)
+
+    refute Map.has_key?(sort, :dir)
+
     assert {:error, "by is not a list of an object with key."} =
              Tools.run(Sort, %{"by" => [%{"dir" => "asc"}]}, ctx)
 
