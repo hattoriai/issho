@@ -74,6 +74,10 @@ defmodule Issho.Participant do
   @spec awareness(GenServer.server()) :: map()
   def awareness(participant), do: GenServer.call(participant, :awareness)
 
+  @doc "The participant's key in the room (its identity's)."
+  @spec key(GenServer.server()) :: String.t()
+  def key(participant), do: GenServer.call(participant, :key)
+
   @doc "The places locked in the room by anyone, each with its holder's key."
   @spec locks(GenServer.server()) :: [{map(), String.t()}]
   def locks(participant), do: GenServer.call(participant, :locks)
@@ -154,6 +158,8 @@ defmodule Issho.Participant do
   end
 
   def handle_call(:awareness, _from, state), do: {:reply, state.aware, state}
+
+  def handle_call(:key, _from, state), do: {:reply, state.session.identity.key, state}
 
   def handle_call({:authorize, action}, _from, state),
     do: {:reply, Session.authorize(state.session, action), state}

@@ -46,17 +46,49 @@ if Code.ensure_loaded?(Phoenix.Component) do
     A pointer is a point of an element, not of the screen, so each person
     sees it on the same part of their own page, whatever its size and
     scroll: the nearest element with `data-issho-anchor`, else with an
-    id. Off the screen, it is a marker at its edge that scrolls to it.
-    Inside an element with `data-issho-cursor="own"` (a canvas that draws
-    its people itself) the component takes over. Over an element with
-    `data-issho-private`, or a password field, the browser shares nothing,
-    nor while its window is in the background. An agent at work in a
-    document is drawn where it works: its caret, the node or the cell it
-    is at, where the component says (`locate` in the `issho` package), else
-    at its component, the element with `data-issho-doc` of the document's
-    id; it glides from place to place across the page
-    (`--issho-agent-glide`). `share={false}` shows the others without
-    sharing this person's pointer.
+    id. Over a component that says what is under a point (`point` in the
+    `issho` package: a canvas's point, a grid's cell), it is a place of
+    the component's document, drawn where that place is on each screen
+    (`locate`): the same cell in another order, the same point of a
+    canvas panned elsewhere. So one pointer goes from block to block of
+    the page, and into a block within a block. Off the screen, it is a
+    marker at its edge that scrolls to it. Inside an element with
+    `data-issho-cursor="own"` (a component that draws its people itself,
+    and says nothing of its points) the component takes over. Over an
+    element with `data-issho-private`, or a password field, the browser
+    shares nothing, nor while its window is in the background.
+    `share={false}` shows the others without sharing this person's
+    pointer.
+
+    ## Agents moving
+
+    An agent goes where it works as a hand would (`Issho.Motion`): its
+    pointer glides there, in the time the agent says, to a place of a
+    document (its caret, a node, a cell) or an element of the page
+    (`data-issho-anchor`), and rings where it clicks. The pointers tell
+    the room what each browser shows (the page in the foreground, the
+    components on the screen, whether its person wants motion), so that an
+    agent moves only for someone who sees it.
+
+    How much a person wants to see others move is the app's to say, from
+    its own settings: `motion="reduced"` on the pointers, `setMotion` of
+    the `issho` package, or `data-issho-motion` on the page's root
+    element; else the browser's "reduce motion" setting. `motion_switch/1`
+    is a switch for it, to place and style as you like, or not at all.
+
+    ## Following
+
+    A click on someone in the people list follows them (`follow={false}`
+    for a list that does not): on a page whose blocks share the room,
+    each block shows where they are (the grid their view, the canvas their
+    viewport, the text their caret) and the page scrolls to them. A link
+    or a button with `data-issho-follow` that they click is clicked for
+    those who follow them too: the agent clicks "Edit together", and its
+    person, following it, is in the editor. Going one's own way (a scroll,
+    a click, a key) stops following. A block alone in its room follows
+    within itself, by the same contract (`follow` of the `issho` package,
+    or the `issho:following` event and `data-issho-following` on the
+    page's root element for a block's own script).
     """
 
     use Phoenix.Component
@@ -64,6 +96,13 @@ if Code.ensure_loaded?(Phoenix.Component) do
     attr :id, :string, required: true
     attr :grant, :map, required: true, doc: "a grant of the room, from `Issho.Live.grant/4`"
     attr :share, :boolean, default: true, doc: "whether this person's pointer is shared"
+
+    attr :motion, :string,
+      default: nil,
+      values: [nil, "full", "reduced"],
+      doc:
+        "how much this person wants to see others move, from the app's settings; the browser's setting unless given"
+
     attr :class, :string, default: nil
     attr :rest, :global
 
@@ -77,6 +116,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
         phx-update="ignore"
         data-grant={JSON.encode!(@grant)}
         data-share={to_string(@share)}
+        data-motion={@motion}
         {@rest}
       >
       </div>
@@ -93,6 +133,11 @@ if Code.ensure_loaded?(Phoenix.Component) do
     attr :self, :string, default: nil, doc: "this actor's key, with `people`"
     attr :max, :integer, default: 8, doc: "how many avatars before \"+N\""
     attr :label, :string, default: "People here"
+
+    attr :follow, :boolean,
+      default: true,
+      doc: "with a grant: whether a click on someone follows them"
+
     attr :class, :string, default: nil
     attr :rest, :global
 
@@ -110,6 +155,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
         data-grant={JSON.encode!(@grant)}
         data-max={@max}
         data-label={@label}
+        data-follow={to_string(@follow)}
         {@rest}
       >
         <ul class="issho-people" aria-label={@label}></ul>
@@ -215,6 +261,40 @@ if Code.ensure_loaded?(Phoenix.Component) do
         end
 
       String.upcase(letters)
+    end
+
+    attr :id, :string, required: true
+    attr :label, :string, default: "Show others moving"
+
+    attr :event, :string,
+      default: nil,
+      doc:
+        "an event pushed to the LiveView with `%{\"motion\" => \"full\" | \"reduced\"}` when it changes, to keep it in the person's settings"
+
+    attr :class, :string, default: nil
+    attr :rest, :global
+
+    @doc """
+    A switch for how much this person wants to see others move: pressed,
+    pointers glide, carets travel and selections sweep; not, they are
+    there at once. Optional: place it where your settings are, style it
+    (`.issho-motion-switch`, `aria-pressed`), or use your own control with
+    `setMotion` of the `issho` package (the `IsshoMotion` hook).
+    """
+    def motion_switch(assigns) do
+      ~H"""
+      <button
+        id={@id}
+        type="button"
+        class={["issho-motion-switch", @class]}
+        phx-hook="IsshoMotion"
+        aria-pressed="true"
+        data-event={@event}
+        {@rest}
+      >
+        {@label}
+      </button>
+      """
     end
   end
 end
