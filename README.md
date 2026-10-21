@@ -138,6 +138,18 @@ room.awareness.on((peers) => drawCursors(peers))
 room.presence.on(() => drawPeople(room.presence.others))
 ```
 
+## Roadmap
+
+* **Following across pages.** A room is a page today. One level above it
+  (an app's or a workspace's room, joined on every page) will hold where
+  each person is, their route and their place, so that following someone
+  (a person, or an agent to watch it work) navigates with them, through
+  LiveView's navigation, and each component reveals their place in the
+  new page: the paragraph, the node.
+* **Masu's grids** on Issho: the people, their places and selections in
+  a grid, beside its rows, which stay Phoenix's own.
+* **An installer**, and a demo app of many components.
+
 ## Development
 
 ```sh
