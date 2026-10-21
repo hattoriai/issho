@@ -34,3 +34,11 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The map engine's TypeScript twin, and `test/corpus`, cases both
   engines must pass.
 - An end-to-end test: two clients over WebSockets on a real endpoint.
+- Drafts: pending transactions kept per tab session across reloads, in
+  IndexedDB or memory, sent when the document opens again; a draft of
+  another epoch is reported and kept aside.
+- Document specs from server code (`Issho.Documents.open/4`), documents
+  with no store (`Issho.Store.None`), and `:on_transaction` hooks, run
+  once per accepted transaction before it is saved, able to refuse it.
+- `Issho.Live`: a LiveView in a room, the same session as a channel's,
+  with the room's events sent to its components or to the LiveView.

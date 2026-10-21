@@ -59,10 +59,109 @@ defmodule IsshoTest.Endpoint do
   @moduledoc false
   use Phoenix.Endpoint, otp_app: :issho
   socket "/issho/socket", IsshoTest.Socket
+  socket "/live", Phoenix.LiveView.Socket
 end
 
 defmodule IsshoTest.LiveEndpoint do
   @moduledoc false
   use Phoenix.Endpoint, otp_app: :issho
   socket "/issho/socket", IsshoTest.Socket, websocket: true, longpoll: false
+end
+
+defmodule IsshoTest.TitleComponent do
+  @moduledoc false
+  # A component that renders a shared document's title, and the number of
+  # people, from the events Issho.Live sends it.
+  use Phoenix.LiveComponent
+
+  @impl true
+  def mount(socket), do: {:ok, assign(socket, state: %{}, people: 0, bye: nil, seen: [])}
+
+  @impl true
+  def update(%{issho: {"tx", _doc, event}}, socket) do
+    {:ok, state} = Issho.Engine.Map.apply(socket.assigns.state, event["ops"], [])
+    {:ok, assign(socket, state: state, seen: [event["author"] | socket.assigns.seen])}
+  end
+
+  def update(%{issho: {"presence_diff", room, _diff}}, socket),
+    do: {:ok, assign(socket, :people, map_size(Issho.Live.people(room)))}
+
+  def update(%{issho: {"bye", _room, reason}}, socket), do: {:ok, assign(socket, :bye, reason)}
+  def update(%{issho: {_event, _key, _payload}}, socket), do: {:ok, socket}
+
+  def update(assigns, socket) do
+    socket = assign(socket, Map.drop(assigns, [:snapshot]))
+
+    if snapshot = assigns[:snapshot],
+      do: {:ok, assign(socket, :state, snapshot["state"])},
+      else: {:ok, socket}
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <div id={@id}>
+      <h1>{@state["title"]}</h1>
+      <p id="people">people: {@people}</p>
+      <p :if={@bye} id="bye">bye: {@bye}</p>
+    </div>
+    """
+  end
+end
+
+defmodule IsshoTest.BoardLive do
+  @moduledoc false
+  use Phoenix.LiveView
+
+  on_mount Issho.Live
+
+  @impl true
+  def mount(_params, %{"user" => user, "room" => room}, socket) do
+    socket = assign(socket, user: user, room: room, snapshot: nil, messages: [])
+
+    if connected?(socket) do
+      {:ok, _session} = Issho.Live.join(IsshoTest.Issho, %{id: user, name: user}, room)
+      {:ok, snapshot} = Issho.Live.open(room, room, notify: {IsshoTest.TitleComponent, "title"})
+      Issho.Live.subscribe(room, :self)
+      {:ok, assign(socket, :snapshot, snapshot)}
+    else
+      {:ok, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("rename", %{"title" => title}, socket) do
+    {:ok, _} =
+      Issho.Live.transact(socket.assigns.room, socket.assigns.room, [
+        %{"op" => "set", "path" => ["title"], "value" => title}
+      ])
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({Issho.Live, event, _key, _payload}, socket),
+    do: {:noreply, update(socket, :messages, &[event | &1])}
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <.live_component :if={@snapshot} module={IsshoTest.TitleComponent} id="title" snapshot={@snapshot} />
+    <p id="messages">{Enum.join(Enum.uniq(@messages), ",")}</p>
+    """
+  end
+end
+
+defmodule IsshoTest.UnhookedLive do
+  @moduledoc false
+  use Phoenix.LiveView
+
+  @impl true
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: Issho.Live.join(IsshoTest.Issho, %{id: "x"}, "board:x")
+    {:ok, socket}
+  end
+
+  @impl true
+  def render(assigns), do: ~H"<p>unhooked</p>"
 end

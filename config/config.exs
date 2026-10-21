@@ -33,6 +33,7 @@ end
 if config_env() == :test do
   config :issho, IsshoTest.Endpoint,
     secret_key_base: String.duplicate("issho-test-secret-key-base-", 4),
+    live_view: [signing_salt: "issho-test-salt"],
     pubsub_server: IsshoTest.PubSub,
     server: false
 

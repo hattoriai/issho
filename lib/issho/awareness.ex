@@ -109,7 +109,13 @@ defmodule Issho.Awareness do
   def init({instance, room}) do
     config = Config.get(instance)
     :ok = Phoenix.PubSub.subscribe(config.pubsub, topic(room))
-    Phoenix.PubSub.broadcast_from(config.pubsub, self(), topic(room), {Issho, :awareness_hello})
+
+    Phoenix.PubSub.broadcast_from(
+      config.pubsub,
+      self(),
+      topic(room),
+      {Issho, :awareness_hello, room}
+    )
 
     {:ok,
      %{
@@ -212,7 +218,7 @@ defmodule Issho.Awareness do
     {:noreply, %{state | remote: Map.put(state.remote, node, entry)}}
   end
 
-  def handle_info({Issho, :awareness_hello}, state),
+  def handle_info({Issho, :awareness_hello, _room}, state),
     do: {:noreply, schedule(%{state | full_next: true})}
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
