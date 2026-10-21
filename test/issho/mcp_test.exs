@@ -108,6 +108,15 @@ defmodule Issho.MCPTest do
     assert_receive {:DOWN, ^ref, _, _, _}, 1_000
   end
 
+  test "an agent keeps values in the room until it leaves", %{room: room} do
+    {:ok, _participant} = Agents.join(@instance, %{id: "agent:memory", kind: :agent}, room)
+    assert Agents.get(@instance, "agent:memory", room, :clipboard) == nil
+    :ok = Agents.put(@instance, "agent:memory", room, :clipboard, "copied")
+    assert Agents.get(@instance, "agent:memory", room, :clipboard) == "copied"
+    Agents.leave(@instance, "agent:memory", room)
+    assert Agents.get(@instance, "agent:memory", room, :clipboard, :gone) == :gone
+  end
+
   test "without a person, the agent is the client's own" do
     client = claude(nil)
     room = "board:" <> Transaction.id()

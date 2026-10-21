@@ -48,6 +48,27 @@ defmodule Issho.Agents do
     end
   end
 
+  @doc """
+  Keeps a value for the agent in the room, for its later calls (what it
+  copied, what it was asked to remember), until it leaves.
+  """
+  @spec put(atom(), String.t(), String.t(), term(), term()) :: :ok | {:error, :not_there}
+  def put(instance, key, room, name, value) do
+    case whereis(instance, key, room) do
+      nil -> {:error, :not_there}
+      agent -> GenServer.call(agent, {:put, name, value})
+    end
+  end
+
+  @doc "A value the agent kept in the room, or `default`."
+  @spec get(atom(), String.t(), String.t(), term(), term()) :: term()
+  def get(instance, key, room, name, default \\ nil) do
+    case whereis(instance, key, room) do
+      nil -> default
+      agent -> GenServer.call(agent, {:get, name, default})
+    end
+  end
+
   @doc "Takes the agent out of the room."
   @spec leave(atom(), String.t(), String.t()) :: :ok
   def leave(instance, key, room) do
@@ -102,7 +123,7 @@ defmodule Issho.Agents do
       {:ok, participant} ->
         Process.link(participant)
         idle = Keyword.get(opts, :idle, @idle)
-        {:ok, %{participant: participant, idle: idle, timer: timer(nil, idle)}}
+        {:ok, %{participant: participant, idle: idle, timer: timer(nil, idle), memory: %{}}}
 
       {:error, reason} ->
         {:stop, reason}
@@ -112,6 +133,12 @@ defmodule Issho.Agents do
   @impl true
   def handle_call(:touch, _from, state),
     do: {:reply, {:ok, state.participant}, %{state | timer: timer(state.timer, state.idle)}}
+
+  def handle_call({:put, name, value}, _from, state),
+    do: {:reply, :ok, %{state | memory: Map.put(state.memory, name, value)}}
+
+  def handle_call({:get, name, default}, _from, state),
+    do: {:reply, Map.get(state.memory, name, default), state}
 
   @impl true
   def handle_info(:idle, state), do: {:stop, :normal, state}
