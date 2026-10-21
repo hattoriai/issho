@@ -11,7 +11,8 @@ Agents, and pages of many components. An agent joins a room, however it
 reaches the app (its own model through an API, or MCP), and works as a
 person does, in each component's own terms;
 the components of a page share one room: its connection, its people, its
-grant, its form barrier and its undo. Kotoba and Hakushi run on it.
+grant, its form barrier and its undo, and the page itself is a live space.
+Kotoba, Hakushi and Masu run on it.
 
 ### Added
 
@@ -34,7 +35,34 @@ grant, its form barrier and its undo. Kotoba and Hakushi run on it.
 - `Issho.Agents`: an agent's lasting presence in a room for front ends
   without a lasting connection (an MCP server, a webhook), from its first
   call until it leaves or has been idle for `:idle` (ten minutes).
-- `Issho.Participant.people/1`: the room's people, and where each is.
+- `Issho.Participant.people/1`: the room's people, where each is, and
+  each session's awareness state.
+- Agents act on what someone selected: `Issho.Tools.person_of/2` and
+  `place_of/3` find a person of the room by name or key, and their place
+  in a document or their whole state, for a component's tool that takes
+  `of` ("rewrite what Ada selected").
+- `Issho.Participant.authorize/2`: the room's policy, for a component
+  whose data is not in Issho's documents (a grid of the app's database),
+  which writes it itself.
+- The page as a live space: `Issho.Components.pointers/1` and the
+  `IsshoPointers` hook draw each person's pointer and clicks over the
+  whole page, on the same element of everyone's own page (an element and
+  a point in it, never screen pixels), with a marker at the edge of the
+  viewport that scrolls to it. A component that draws its own cursors
+  takes over (`data-issho-cursor="own"`); nothing is shared over
+  `data-issho-private`, a password field or a window in the background;
+  an agent at work in a document is drawn at its component
+  (`data-issho-doc`).
+- `Issho.Live.merge/2`, `awareness/1` and `states/1`: the components of a
+  LiveView that share its session in a room each merge their own keys,
+  and one that draws the others itself reads the room's states.
+- The look is the app's: every piece of `issho.css` a custom property
+  (the avatars' tint, ring, initials and shape, the badges, the pointers'
+  names), a `:person` slot for the list the server renders, and
+  `configure({person, pointer})` in the browser to draw a person or a
+  pointer with the app's own markup. The default avatars are a tint of
+  the person's colour, a fine ring, and their initials in a deeper shade.
+- `import_deps: [:issho]` gives formatters `Issho.Tool`'s `arg`.
 - Grants: `Issho.Live.grant/4` signs a room's grant for a component's
   browser half and remembers it; the `Issho.Live` hook renews it on the
   browser's `"issho:grant"` event, after asking the policy again.
@@ -86,6 +114,12 @@ grant, its form barrier and its undo. Kotoba and Hakushi run on it.
   and engines that limit a transaction's operations, rebuild.
 - `use Issho.Binding` waits for its engine to compile, so it delegates
   the engine's optional callbacks (`upgrade/1`) whatever the order.
+- A tool's argument that is a list of objects comes with each object's
+  declared fields, checked; a field given as `null` is not given, as an
+  argument is not (an MCP layer may fill each declared field with null).
+- A room without presence (`presence: false`) has no people list to ask:
+  `Issho.Participant.people/1` gives its people by their states.
+- The live people list says the `label` it is given.
 
 ## [0.1.0] - 2026-10-21
 
