@@ -1,0 +1,11 @@
+/_build
+/deps
+/doc
+/cover
+/priv/plts
+assets/node_modules
+/priv/static/*
+/tmp
+erl_crash.dump
+issho-*.tar
+*.ez
