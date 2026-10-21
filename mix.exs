@@ -132,6 +132,8 @@ defmodule Issho.MixProject do
     [
       "assets.build": ["issho.build"],
       "test.js": ["cmd --cd assets npm test"],
+      # The page layer in a browser: e2e/ (npm ci there, and Playwright's browsers).
+      "test.e2e": ["cmd --cd e2e npm test"],
       # The build and the check run in a child VM, as in Hakushi: once
       # anything compiles in this VM, Mix no longer finds the tasks of the
       # Hex archive. The check refuses a priv/static with anything but the
