@@ -80,9 +80,16 @@ defmodule Issho.Policy do
     end
   end
 
-  @doc false
-  # The room of a document: the document itself, or the part before its
-  # first "/".
+  @doc """
+  The room of a document: the part of its id before the first `"/"`, or
+  the whole id. The documents of a page share a room (`"notebook:7/cell-1"`,
+  `"notebook:7/cell-2"`), and with it its people and their places.
+
+      iex> Issho.Policy.room("notebook:7/cell-1")
+      "notebook:7"
+      iex> Issho.Policy.room("post:42")
+      "post:42"
+  """
   @spec room(String.t()) :: String.t()
   def room(document_id) do
     document_id |> String.split("/", parts: 2) |> hd()
