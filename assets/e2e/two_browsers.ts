@@ -3,8 +3,13 @@
 // tokens). Prints what each ended with, as one line of JSON.
 
 // What the client needs of a browser.
+// Node.js 20 has no navigator; 21 and later have one without onLine.
 (globalThis as unknown as { window: EventTarget }).window = new EventTarget();
-Object.defineProperty(globalThis.navigator, "onLine", { value: true });
+if (typeof globalThis.navigator === "undefined") {
+  Object.defineProperty(globalThis, "navigator", { value: { onLine: true }, configurable: true });
+} else {
+  Object.defineProperty(globalThis.navigator, "onLine", { value: true, configurable: true });
+}
 
 import { registerEngine, mapEngine, Room, phoenixTransport } from "../src/index";
 

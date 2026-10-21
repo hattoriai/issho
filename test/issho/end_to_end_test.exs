@@ -40,7 +40,7 @@ defmodule Issho.EndToEndTest do
       {"ISSHO_KEN", Token.sign(IsshoTest.Issho, %{id: "user:ken", name: "Kenji"}, room)}
     ]
 
-    {output, status} = System.cmd("node", [out], env: env, stderr_to_stdout: true)
+    {output, status} = System.cmd("node", node_flags() ++ [out], env: env, stderr_to_stdout: true)
     File.rm(out)
     assert status == 0, output
 
@@ -60,5 +60,12 @@ defmodule Issho.EndToEndTest do
 
     {:ok, pid} = Documents.open(IsshoTest.Issho, room)
     assert {:ok, %{"state" => ^expected, "revision" => 21}} = Authority.snapshot(pid)
+  end
+
+  # Node.js 20 (the CI's) has WebSocket behind a flag; 22 has it on.
+  defp node_flags do
+    {version, 0} = System.cmd("node", ["-p", "process.versions.node"])
+    [major | _] = version |> String.trim() |> String.split(".")
+    if String.to_integer(major) < 22, do: ["--experimental-websocket"], else: []
   end
 end
