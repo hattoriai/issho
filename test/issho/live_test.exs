@@ -4,6 +4,8 @@ defmodule Issho.LiveTest do
   import Phoenix.ConnTest
   import Phoenix.LiveViewTest
 
+  import IsshoTest.Eventually
+
   alias Issho.Transaction
 
   @endpoint IsshoTest.Endpoint
@@ -32,18 +34,16 @@ defmodule Issho.LiveTest do
   test "people come and go, as the components see them", %{conn: conn, room: room} do
     {:ok, ada, _} = board(conn, room, "user:ada")
     {:ok, ken, _} = board(conn, room, "user:ken")
-    assert render(ada) =~ "people: 2"
+    eventually(do: assert(render(ada) =~ "people: 2"))
 
     GenServer.stop(ken.pid)
-    Process.sleep(50)
-    assert render(ada) =~ "people: 1"
+    eventually(do: assert(render(ada) =~ "people: 1"))
   end
 
   test "the LiveView itself can receive the room's events", %{conn: conn, room: room} do
     {:ok, ada, _} = board(conn, room, "user:ada")
     {:ok, _ken, _} = board(conn, room, "user:ken")
-    Process.sleep(30)
-    assert render(ada) =~ "presence_diff"
+    eventually(do: assert(render(ada) =~ "presence_diff"))
   end
 
   test "a revoked person's components hear why", %{conn: conn, room: room} do

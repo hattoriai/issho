@@ -1,6 +1,8 @@
 defmodule Issho.ParticipantTest do
   use ExUnit.Case, async: false
 
+  import IsshoTest.Eventually
+
   alias Issho.{Participant, Presence, Transaction}
 
   @instance IsshoTest.Issho
@@ -43,13 +45,10 @@ defmodule Issho.ParticipantTest do
     :ok = Participant.lock(ada, [place])
 
     # Claude's process receives Ada's frame, and the room's locks show it.
-    assert_receive {Participant, ^claude, "aware", %{"states" => _}}, 500
-    assert [{^place, "user:ada"}] = Participant.locks(claude)
+    eventually(do: assert([{^place, "user:ada"}] = Participant.locks(claude)))
 
     :ok = Participant.lock(ada, [])
-    assert_receive {Participant, ^claude, "aware", _}, 500
-    Process.sleep(30)
-    assert Participant.locks(claude) == []
+    eventually(do: assert(Participant.locks(claude) == []))
   end
 
   test "a read-only agent cannot lock or write", %{room: room} do
@@ -67,7 +66,6 @@ defmodule Issho.ParticipantTest do
     {:ok, claude} = Issho.join_as(@instance, @claude, room)
     assert Map.has_key?(Presence.people(room), "agent:claude")
     :ok = Participant.leave(claude)
-    Process.sleep(50)
-    refute Map.has_key?(Presence.people(room), "agent:claude")
+    eventually(do: refute(Map.has_key?(Presence.people(room), "agent:claude")))
   end
 end

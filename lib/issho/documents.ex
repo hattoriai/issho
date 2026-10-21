@@ -55,6 +55,15 @@ defmodule Issho.Documents do
     end
   end
 
+  @doc "The authority of a document if it is running, on any node, or `nil`."
+  @spec whereis(atom(), String.t()) :: pid() | nil
+  def whereis(instance, document_id) when is_binary(document_id) do
+    case GenServer.whereis(name(Config.get(instance), document_id)) do
+      pid when is_pid(pid) -> pid
+      _ -> nil
+    end
+  end
+
   defp start(config, document_id, name, identity, given) do
     with {:ok, spec} <- given_or_policy(given, config.policy, identity, document_id) do
       child = {Authority, instance: config.name, document_id: document_id, spec: spec, name: name}

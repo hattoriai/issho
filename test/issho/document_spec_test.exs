@@ -101,4 +101,14 @@ defmodule Issho.DocumentSpecTest do
     assert {:ok, %{"state" => %{items: [{:item, :one}, {:item, :two}]}}} = Authority.snapshot(pid)
     assert Issho.Test.replays?(@instance, id)
   end
+
+  test "whereis finds a running document and starts none" do
+    id = "canvas:" <> Transaction.id()
+    assert Documents.whereis(@instance, id) == nil
+
+    {:ok, pid} =
+      Documents.open(@instance, id, nil, spec: %{engine: Issho.Engine.Map, store: :none})
+
+    assert Documents.whereis(@instance, id) == pid
+  end
 end

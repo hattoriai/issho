@@ -165,3 +165,29 @@ defmodule IsshoTest.UnhookedLive do
   @impl true
   def render(assigns), do: ~H"<p>unhooked</p>"
 end
+
+defmodule IsshoTest.Eventually do
+  @moduledoc false
+  # Retries an assertion until it passes or a second goes by: for what
+  # happens after a message another process sends, never a fixed sleep.
+  defmacro eventually(do: block) do
+    quote do
+      IsshoTest.Eventually.retry(
+        fn -> unquote(block) end,
+        System.monotonic_time(:millisecond) + 1_000
+      )
+    end
+  end
+
+  def retry(fun, deadline) do
+    fun.()
+  rescue
+    error in [ExUnit.AssertionError] ->
+      if System.monotonic_time(:millisecond) > deadline do
+        reraise error, __STACKTRACE__
+      else
+        Process.sleep(10)
+        retry(fun, deadline)
+      end
+  end
+end
