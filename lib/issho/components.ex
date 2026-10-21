@@ -84,8 +84,10 @@ if Code.ensure_loaded?(Phoenix.Component) do
     viewport, the text their caret) and the page scrolls to them. A link
     or a button with `data-issho-follow` that they click is clicked for
     those who follow them too: the agent clicks "Edit together", and its
-    person, following it, is in the editor. Going one's own way (a scroll,
-    a click, a key) stops following. A block alone in its room follows
+    person, following it, is in the editor. `follow_agents="on_behalf"` on
+    the pointers follows an agent at work for this person as soon as it
+    moves (unless they stopped following it on this page). Going one's own
+    way (a scroll, a click, a key) stops following. A block alone in its room follows
     within itself, by the same contract (`follow` of the `issho` package,
     or the `issho:following` event and `data-issho-following` on the
     page's root element for a block's own script).
@@ -103,6 +105,12 @@ if Code.ensure_loaded?(Phoenix.Component) do
       doc:
         "how much this person wants to see others move, from the app's settings; the browser's setting unless given"
 
+    attr :follow_agents, :string,
+      default: nil,
+      values: [nil, "on_behalf"],
+      doc:
+        "`\"on_behalf\"`: an agent at work for this person is followed when it starts to move, unless they stopped following it"
+
     attr :class, :string, default: nil
     attr :rest, :global
 
@@ -117,6 +125,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
         data-grant={JSON.encode!(@grant)}
         data-share={to_string(@share)}
         data-motion={@motion}
+        data-follow-agents={@follow_agents}
         {@rest}
       >
       </div>

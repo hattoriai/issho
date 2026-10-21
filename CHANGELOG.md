@@ -39,6 +39,8 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
   (`data-issho-following`, the `issho:following` event), so a block
   follows with or without Issho's script; `follow`, `following`,
   `onFollow` and `stopOnOwnWay` in the `issho` package.
+  `follow_agents="on_behalf"` on the pointers follows an agent at work for
+  the person as soon as it moves, unless they stopped following it.
 - The person's motion is the app's to say: `motion` on the pointers,
   `setMotion` in the `issho` package, or `data-issho-motion` on the root
   element; else the browser's setting. `motion_switch/1`, an optional

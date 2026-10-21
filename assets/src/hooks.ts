@@ -88,7 +88,32 @@ const IsshoPointers = {
           room: grant.room,
           aware: (changes) => room.aware(changes as Parameters<typeof room.aware>[0]),
         });
-        const draw = (): void => layer.draw(pointing(room.awareness.peers, room.presence.everyone, grant.self));
+        // An agent at work for this person is followed when it starts to
+        // move (`follow-agents="on_behalf"`), unless they stopped following
+        // it on this page.
+        const followAgents = this.el.dataset.followAgents === "on_behalf";
+        const declined = new Set<string>();
+        const moved = new Map<string, number>();
+        const followMine = (): void => {
+          if (!followAgents) return;
+          for (const peer of room.awareness.peers) {
+            const seq = (peer.state as { motion?: { seq?: number } }).motion?.seq;
+            if (typeof seq !== "number" || moved.get(peer.key) === seq) continue;
+            moved.set(peer.key, seq);
+            const agent = room.presence.everyone.find((person) => person.key === peer.key);
+            if (agent?.kind !== "agent" || agent.on_behalf_of?.key !== grant.self) continue;
+            if (!following(grant.room) && !declined.has(agent.key)) follow(grant.room, agent.key);
+          }
+        };
+        let followed = following(grant.room);
+        const offFollowing = onFollow(grant.room, (key) => {
+          if (followed && key === null && room.presence.everyone.some((person) => person.key === followed)) declined.add(followed);
+          followed = key;
+        });
+        const draw = (): void => {
+          followMine();
+          layer.draw(pointing(room.awareness.peers, room.presence.everyone, grant.self));
+        };
         const offPresence = room.presence.on(draw);
         const offAwareness = room.awareness.on(draw);
         // On an Issho page, going one's own way on it ends following.
@@ -97,6 +122,7 @@ const IsshoPointers = {
           offPresence();
           offAwareness();
           offOwnWay();
+          offFollowing();
           layer.stop();
         };
         draw();
