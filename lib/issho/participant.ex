@@ -81,7 +81,9 @@ defmodule Issho.Participant do
   @doc """
   The people of the room now (`Phoenix.Presence`'s list, by actor key),
   each with where they are: `%{key => %{"person" => meta, "places" =>
-  [place]}}`, a place for each of their sessions that has one.
+  [place], "states" => [state]}}`, a place for each of their sessions
+  that has one, and each session's whole awareness state (a component's
+  own keys: a canvas's selection, say).
   """
   @spec people(GenServer.server()) :: map()
   def people(participant), do: GenServer.call(participant, :people)
@@ -157,22 +159,27 @@ defmodule Issho.Participant do
     do: {:reply, Session.authorize(state.session, action), state}
 
   def handle_call(:people, _from, %{session: session} = state) do
-    places =
+    states =
       session.instance
       |> Awareness.states(session.room)
       |> Enum.reduce(%{}, fn {_session_id, %{"key" => key, "state" => aware}}, acc ->
-        case aware do
-          %{"place" => place} when not is_nil(place) ->
-            Map.update(acc, key, [place], &[place | &1])
-
-          _other ->
-            acc
-        end
+        if is_map(aware), do: Map.update(acc, key, [aware], &[aware | &1]), else: acc
       end)
 
+    metas = for {key, %{metas: [meta | _]}} <- Session.people(session), into: %{}, do: {key, meta}
+
+    # Everyone the presence knows, and everyone with a state (a room
+    # without presence knows no names).
     people =
-      for {key, %{metas: [meta | _]}} <- Session.people(session), into: %{} do
-        {key, %{"person" => Map.delete(meta, :phx_ref), "places" => Map.get(places, key, [])}}
+      for key <- Enum.uniq(Map.keys(metas) ++ Map.keys(states)), into: %{} do
+        own = Map.get(states, key, [])
+
+        {key,
+         %{
+           "person" => metas |> Map.get(key, %{"key" => key}) |> Map.delete(:phx_ref),
+           "places" => for(%{"place" => place} <- own, place != nil, do: place),
+           "states" => own
+         }}
       end
 
     {:reply, people, state}

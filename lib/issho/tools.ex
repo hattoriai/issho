@@ -67,6 +67,47 @@ defmodule Issho.Tools do
     with {:ok, args} <- Tool.cast(tool, input), do: tool.call(args, ctx)
   end
 
+  @doc """
+  A person of the room, by their name (any case) or their key: their
+  name, and each of their sessions' awareness states, for a component's
+  tool that acts on what someone selected ("connect what Ada selected").
+  Gives `{:ok, %{name: name, key: key, states: [state]}}`, or an error in
+  words.
+  """
+  @spec person_of(GenServer.server(), String.t()) :: {:ok, map()} | {:error, String.t()}
+  def person_of(participant, who) when is_binary(who) do
+    wanted = who |> String.trim() |> String.downcase()
+
+    participant
+    |> Issho.Participant.people()
+    |> Enum.find(fn {key, %{"person" => person}} ->
+      String.downcase(key) == wanted or String.downcase(person["name"] || "") == wanted
+    end)
+    |> case do
+      nil ->
+        {:error, "No one called #{inspect(who)} is in the room."}
+
+      {key, %{"person" => person, "states" => states}} ->
+        {:ok, %{name: person["name"] || key, key: key, states: states}}
+    end
+  end
+
+  @doc """
+  Where a person of the room is in a document: their place's `"at"`, in
+  the document's own terms ("rewrite what Ada selected"). Gives
+  `{:ok, at, name}`, or an error in words.
+  """
+  @spec place_of(GenServer.server(), String.t(), String.t()) ::
+          {:ok, term(), String.t()} | {:error, String.t()}
+  def place_of(participant, document, who) when is_binary(who) do
+    with {:ok, %{name: name, states: states}} <- person_of(participant, who) do
+      case Enum.find(states, &match?(%{"place" => %{"doc" => ^document}}, &1)) do
+        %{"place" => %{"at" => at}} -> {:ok, at, name}
+        nil -> {:error, "#{name} is not in #{document}."}
+      end
+    end
+  end
+
   @doc false
   # The room as a model reads it.
   def people(participant, self_key) do
@@ -123,7 +164,8 @@ defmodule Issho.Tools.LookAround do
     description: """
     Who is in the room now, and where each of them is: the place each
     person's cursor or selection is, in the terms of the document they
-    are in.
+    are in. To act on what someone selected, give their name as `of` to
+    a component's tool ("the text Ada selected").
     """,
     annotations: [read_only: true, idempotent: true]
 

@@ -93,4 +93,19 @@ defmodule Issho.ToolsTest do
 
     assert {:error, _} = Tools.run(Sort, %{"by" => [%{"key" => "a", "dir" => "up"}]}, ctx)
   end
+
+  test "a person of the room, by name or key: where they are, for acting on what they selected",
+       %{room: room, ken: ken, ctx: ctx} do
+    place = %{"doc" => room, "at" => %{"path" => ["title"]}}
+    :ok = Participant.place(ken, place)
+    {:ok, agent} = Tool.Context.join(ctx, room)
+
+    assert {:ok, %{"path" => ["title"]}, _name} = Tools.place_of(agent, room, "user:ken")
+
+    assert {:ok, %{key: "user:ken", states: [%{"place" => ^place}]}} =
+             Tools.person_of(agent, "USER:KEN")
+
+    assert {:error, "No one called \"Zed\" is in the room."} = Tools.place_of(agent, room, "Zed")
+    assert {:error, _not_there} = Tools.place_of(agent, room <> "/other", "user:ken")
+  end
 end
