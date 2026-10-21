@@ -109,6 +109,23 @@ defmodule IsshoTest.TitleComponent do
   end
 end
 
+defmodule IsshoTest.GrantLive do
+  @moduledoc false
+  # A page whose browser half joins the room itself: a grant.
+  use Phoenix.LiveView
+
+  on_mount Issho.Live
+
+  @impl true
+  def mount(_params, %{"user" => user, "room" => room}, socket) do
+    grant = Issho.Live.grant(IsshoTest.Issho, %{id: user, name: user}, room, can: :read)
+    {:ok, assign(socket, grant: grant)}
+  end
+
+  @impl true
+  def render(assigns), do: ~H"<div id='grant' data-room={@grant[\"room\"]}></div>"
+end
+
 defmodule IsshoTest.BoardLive do
   @moduledoc false
   use Phoenix.LiveView

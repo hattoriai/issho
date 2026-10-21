@@ -253,3 +253,14 @@ test("a tab keeps its session across reloads; a duplicated tab gets its own", as
   const duplicate = await claimSession("scope", { ...first.copy(), newId: id });
   assert.notEqual(duplicate, session);
 });
+
+test("a grant comes from the hook's LiveView, for its room only", async () => {
+  const { requestGrant } = await import("../src/grant");
+  const replies: Record<string, unknown> = {
+    "board:1": { room: "board:1", token: "t", can: "write", self: "user:ada", socket: "/issho/socket", max_channels: 100 },
+    "board:2": {},
+  };
+  const hook = { pushEvent: (_event: string, payload: object, reply: (reply: unknown) => void) => reply(replies[(payload as { room: string }).room]) };
+  assert.equal((await requestGrant(hook, "board:1")).token, "t");
+  await assert.rejects(requestGrant(hook, "board:2"));
+});

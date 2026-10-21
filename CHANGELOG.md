@@ -22,6 +22,11 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   without a lasting connection (an MCP server, a webhook), from its first
   call until it leaves or has been idle for `:idle` (ten minutes).
 - `Issho.Participant.people/1`: the room's people, and where each is.
+- Grants: `Issho.Live.grant/4` signs a room's grant for a component's
+  browser half and remembers it; the `Issho.Live` hook renews it on the
+  browser's `"issho:grant"` event, after asking the policy again.
+  `requestGrant(hook, room)` asks for one from the browser. One grant
+  serves every component of the page in the room.
 
 - `upgrade/1`, an engine's optional callback: a stored document of
   another engine version, or one a library saved before Issho, opens

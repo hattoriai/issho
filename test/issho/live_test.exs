@@ -85,4 +85,37 @@ defmodule Issho.LiveTest do
 
     assert message =~ "on_mount Issho.Live"
   end
+
+  describe "grants" do
+    defp granted(conn, room, user),
+      do: live_isolated(conn, IsshoTest.GrantLive, session: %{"user" => user, "room" => room})
+
+    test "the LiveView renews the grant of its room while the policy lets the actor in",
+         %{conn: conn, room: room} do
+      {:ok, view, _html} = granted(conn, room, "user:grantee")
+
+      render_hook(view, "issho:grant", %{"room" => room})
+
+      assert_reply(view, %{
+        "room" => ^room,
+        "token" => token,
+        "can" => "read",
+        "self" => "user:grantee"
+      })
+
+      assert {:ok, %Issho.Identity{key: "user:grantee"}, :read} =
+               Issho.Token.verify(IsshoTest.Issho, token, room)
+
+      # A room it never granted, and an actor the policy no longer lets in, get nothing.
+      render_hook(view, "issho:grant", %{"room" => "board:other"})
+      assert_reply(view, reply)
+      assert reply == %{}
+
+      IsshoTest.Policy.deny("user:grantee")
+      on_exit(fn -> IsshoTest.Policy.allow("user:grantee") end)
+      render_hook(view, "issho:grant", %{"room" => room})
+      assert_reply(view, reply)
+      assert reply == %{}
+    end
+  end
 end

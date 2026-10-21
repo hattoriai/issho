@@ -25,6 +25,19 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     `notify: :self` sends them to the LiveView as
     `{Issho.Live, event, key, payload}` messages instead.
 
+    ## Grants: rooms the browser joins
+
+    A component whose browser half joins the room itself (a text editor,
+    which applies its own changes in the browser) needs a grant: a short
+    token for the room, signed by the LiveView for the actor it
+    authenticated. `grant/4` signs it and remembers it, and the hook
+    renews it when the browser asks (the `"issho:grant"` event, with the
+    room), after asking the policy again, so that a person whose access
+    went away gets no new grant. One grant serves every component of the
+    page in that room.
+
+        grant = Issho.Live.grant(MyApp.Issho, current_user, "notebook:7", can: :write)
+
     The components of a LiveView share one session per room: joining a
     room the LiveView is in already gives the same session.
 
@@ -43,8 +56,61 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     @doc false
     def on_mount(_arg, _params, _session, socket) do
       Process.put(@mounted, true)
-      {:cont, attach_hook(socket, :issho_live, :handle_info, &__MODULE__.__handle_info__/2)}
+
+      socket =
+        socket
+        |> attach_hook(:issho_live, :handle_info, &__MODULE__.__handle_info__/2)
+        |> attach_hook(:issho_grant, :handle_event, &__MODULE__.__handle_event__/3)
+
+      {:cont, socket}
     end
+
+    @doc """
+    A grant for the browser to join the room as the actor: `%{"room",
+    "token", "can", "self", "socket", "max_channels"}`, for a component's
+    browser half. The LiveView renews it when the browser asks. Options:
+    `:can` (`:write` or `:read`), `:claims`, `:on_behalf_of`, `:socket`
+    (the Issho socket's path, `"/issho/socket"`) and `:max_channels`
+    (that socket's `:max_channels_per_transport`, 100).
+    """
+    @spec grant(atom(), Issho.Actor.t(), String.t(), keyword()) :: map()
+    def grant(instance, actor, room, opts \\ []) when is_binary(room) do
+      ensure_mounted!()
+      Process.put({__MODULE__, :grant, room}, {instance, actor, opts})
+      sign(instance, actor, room, opts)
+    end
+
+    defp sign(instance, actor, room, opts) do
+      identity = Identity.new(actor, Keyword.take(opts, [:claims, :on_behalf_of]))
+      can = Keyword.get(opts, :can, :write)
+
+      %{
+        "room" => room,
+        "token" => Issho.Token.sign(instance, identity, room, can: can),
+        "can" => Atom.to_string(can),
+        "self" => identity.key,
+        "socket" => Keyword.get(opts, :socket, "/issho/socket"),
+        "max_channels" => Keyword.get(opts, :max_channels, 100)
+      }
+    end
+
+    @doc false
+    # A grant again, for a room this LiveView granted, if the policy still lets the actor in.
+    def __handle_event__("issho:grant", %{"room" => room}, socket) when is_binary(room) do
+      reply =
+        with {instance, actor, opts} <- Process.get({__MODULE__, :grant, room}),
+             identity = Identity.new(actor, Keyword.take(opts, [:claims, :on_behalf_of])),
+             :ok <-
+               Policy.authorize(Issho.Config.get(instance).policy, identity, room, :join) do
+          sign(instance, actor, room, opts)
+        else
+          _ -> %{}
+        end
+
+      {:halt, reply, socket}
+    end
+
+    def __handle_event__(_event, _params, socket), do: {:cont, socket}
 
     @doc """
     Joins a room as an actor, from this LiveView, or gives the session the

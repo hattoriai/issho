@@ -35,6 +35,7 @@ export {
   type DraftStore,
 } from "./drafts";
 export type { StaleDraft } from "./room";
+export { requestGrant, type Grant, type LiveHook } from "./grant";
 
 // The page's rooms, joined or joining: a second component asking for a room
 // gets it once it has joined.
