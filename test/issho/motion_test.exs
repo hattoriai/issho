@@ -133,4 +133,43 @@ defmodule Issho.MotionTest do
              )
            end)
   end
+
+  test "an agent goes to another page of the app, and says where it is", %{
+    room: room,
+    ken: ken,
+    agent: agent
+  } do
+    view(ken, %{
+      "page" => true,
+      "path" => "/pages/1",
+      "docs" => [],
+      "motion" => "full",
+      "anchors" => [
+        %{"name" => "next", "label" => "Page two", "follow" => true, "href" => "/pages/2"}
+      ]
+    })
+
+    ctx = Tool.Context.new(@instance, %{id: "agent:one", name: "Agent", kind: :agent})
+
+    assert {:ok, %{"anchors" => [%{"href" => "/pages/2"}], "people" => people}} =
+             Tools.call(Tools.room(), "look_around", %{"room" => room}, ctx)
+
+    assert %{"pages" => ["/pages/1"]} = Enum.find(people, &(&1["key"] == "user:ken"))
+
+    assert {:ok, "Gone to /pages/2."} =
+             Tools.call(Tools.room(), "navigate", %{"room" => room, "path" => "/pages/2"}, ctx)
+
+    :ok = Motion.navigate(agent, "/pages/3")
+
+    assert %{
+             "motion" => %{"gesture" => "navigate", "to" => %{"path" => "/pages/3"}},
+             "path" => "/pages/3"
+           } =
+             Participant.awareness(agent)
+
+    # Only a path of the app: not another site, nor a script.
+    assert {:error, :invalid_path} = Motion.navigate(agent, "//evil.example/x")
+    assert {:error, :invalid_path} = Motion.navigate(agent, "javascript:alert(1)")
+    assert {:error, :invalid_path} = Motion.navigate(agent, "https://evil.example/")
+  end
 end

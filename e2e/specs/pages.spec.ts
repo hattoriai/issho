@@ -91,3 +91,34 @@ test("an agent's click on a link takes its followers along, and no one else", as
   await expect(other.locator("#title")).toHaveText("Page one");
   await other.context().close();
 });
+
+// An agent goes to another page of the app (navigate): it sees where the
+// links go and where each person is (look_around), and the page of whom
+// follows it goes there too; the others stay. Only a path of the app goes.
+test("an agent navigates to another page, and takes its followers along", async ({ page, browser, request }) => {
+  const room = newRoom();
+  await open(page, "/one", room, "Ada");
+  const other = await (await browser.newContext()).newPage();
+  await open(other, "/one", room, "Grace");
+  await agent(request, "join_room", { room: `page:${room}` });
+  await agent(request, "point", { room: `page:${room}`, anchor: "next" });
+  await page.locator('#people li[data-key="agent:e2e"] .issho-person-follow').click();
+  await expect(page.locator("#people .issho-following")).toContainText("Following Agent");
+
+  type Around = { anchors: { name: string; href?: string }[]; people: { key: string; pages: string[] }[] };
+  await expect.poll(async () => {
+    const around = (await agent(request, "look_around", { room: `page:${room}` })) as Around;
+    const next = around.anchors.find((anchor) => anchor.name === "next");
+    const ada = around.people.find((person) => person.key === "Ada");
+    return Boolean(next?.href?.startsWith("/two?") && ada?.pages.some((path) => path.startsWith("/one?")));
+  }).toBe(true);
+
+  await agent(request, "navigate", { room: `page:${room}`, path: `/two?room=${room}&as=Ada` });
+  await expect(page.locator("#title")).toHaveText("Page two");
+  await expect(page).toHaveURL(/\/two\?/);
+  await expect(other.locator("#title")).toHaveText("Page one");
+
+  // Another site is no page of the app.
+  await expect(agent(request, "navigate", { room: `page:${room}`, path: "//example.com/" })).rejects.toThrow(/navigate/);
+  await other.context().close();
+});

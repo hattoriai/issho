@@ -31,6 +31,7 @@ defmodule Issho.Tools do
       Issho.Tools.ReadDocument,
       Issho.Tools.Point,
       Issho.Tools.Click,
+      Issho.Tools.Navigate,
       Issho.Tools.SetStatus,
       Issho.Tools.ChangeDocument,
       Issho.Tools.LeaveRoom
@@ -125,7 +126,7 @@ defmodule Issho.Tools do
     |> Enum.flat_map(fn state -> get_in(state, ["view", "anchors"]) || [] end)
     |> Enum.filter(&(is_map(&1) and is_binary(&1["name"])))
     |> Enum.uniq_by(& &1["name"])
-    |> Enum.map(&Map.take(&1, ["name", "label", "follow"]))
+    |> Enum.map(&Map.take(&1, ["name", "label", "follow", "href"]))
     |> Enum.take(100)
   end
 
@@ -134,7 +135,7 @@ defmodule Issho.Tools do
   def people(participant, self_key) do
     participant
     |> Issho.Participant.people()
-    |> Enum.map(fn {key, %{"person" => person, "places" => places}} ->
+    |> Enum.map(fn {key, %{"person" => person, "places" => places} = entry} ->
       %{
         "key" => key,
         "name" => person["name"],
@@ -142,10 +143,20 @@ defmodule Issho.Tools do
         "you" => key == self_key,
         "can" => person["can"],
         "on_behalf_of" => get_in(person, ["on_behalf_of", "name"]),
-        "places" => places
+        "places" => places,
+        "pages" => pages(Map.get(entry, "states", []))
       }
     end)
     |> Enum.sort_by(&{not &1["you"], &1["name"] || &1["key"]})
+  end
+
+  # The pages of the app a person has open (each browser's path), or the
+  # page an agent went to.
+  defp pages(states) do
+    states
+    |> Enum.map(&(get_in(&1, ["view", "path"]) || &1["path"]))
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
   end
 end
 
@@ -183,12 +194,13 @@ defmodule Issho.Tools.LookAround do
   use Issho.Tool,
     name: "look_around",
     description: """
-    Who is in the room now, and where each of them is: the place each
-    person's cursor or selection is, in the terms of the document they
-    are in. To act on what someone selected, give their name as `of` to
-    a component's tool ("the text Ada selected"). And the elements of
-    the people's pages that you can point at and click (`anchors`), by
-    their name and their label.
+    Who is in the room now, and where each of them is: the pages of the
+    app they have open (`pages`), and the place each person's cursor or
+    selection is, in the terms of the document they are in. To act on
+    what someone selected, give their name as `of` to a component's tool
+    ("the text Ada selected"). And the elements of the people's pages
+    that you can point at and click (`anchors`), by their name and their
+    label, and for a link where it goes (`href`).
     """,
     annotations: [read_only: true, idempotent: true]
 
@@ -324,6 +336,34 @@ defmodule Issho.Tools.Click do
     with {:ok, participant} <- Context.join(ctx, room),
          :ok <- Issho.Motion.click(participant, %{"anchor" => anchor}) do
       {:ok, "Clicked."}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.Navigate do
+  @moduledoc false
+  use Issho.Tool,
+    name: "navigate",
+    description: """
+    Goes to another page of the app, by its path ("/pages/2", as a link's
+    `href` in look_around says it): the people who follow you go there
+    with you. You are in the rooms you joined, not in a page: to work in
+    the documents of the page you went to, join its room.
+    """,
+    annotations: []
+
+  arg :room, :string, required: true, description: "The room you are going from"
+  arg :path, :string, required: true, description: "A path of the app, starting with /"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(%{room: room, path: path}, ctx) do
+    with {:ok, participant} <- Context.join(ctx, room),
+         :ok <- Issho.Motion.navigate(participant, path) do
+      {:ok, "Gone to #{path}."}
     else
       {:error, reason} -> Context.error(reason)
     end
