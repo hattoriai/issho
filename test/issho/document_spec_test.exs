@@ -111,4 +111,94 @@ defmodule Issho.DocumentSpecTest do
 
     assert Documents.whereis(@instance, id) == pid
   end
+
+  defmodule UpgradingEngine do
+    @moduledoc false
+    # The map engine, version 2, which opens the documents of version 1 and
+    # those a library saved before Issho: %{"v" => 1, "fields" => ...}.
+    @behaviour Issho.Engine
+    alias Issho.Engine.Map, as: MapEngine
+
+    def name, do: "map"
+    def version, do: 2
+    defdelegate init(initial, opts), to: MapEngine
+    defdelegate apply(state, ops, opts), to: MapEngine
+
+    def upgrade(%{"engine_version" => 1} = stored),
+      do: {:ok, Map.take(stored, ~w(state epoch revision initial journal receipts))}
+
+    def upgrade(%{"v" => 1, "fields" => fields, "epoch" => epoch, "revision" => revision}),
+      do: {:ok, %{"state" => fields, "epoch" => epoch, "revision" => revision}}
+
+    def upgrade(_other), do: {:error, :unknown_format}
+  end
+
+  defp legacy_store(id, stored) do
+    store = start_supervised!({Issho.Store.Memory, name: :"store_#{System.unique_integer()}"})
+    Agent.update(store, &Map.put(&1, id, %{document: stored, content: nil}))
+    {Issho.Store.Memory, store}
+  end
+
+  test "a document saved before Issho opens upgraded, and saves upgraded" do
+    id = "doc:" <> Transaction.id()
+    legacy = %{"v" => 1, "fields" => %{"title" => "Old"}, "epoch" => "e1", "revision" => 7}
+    {Issho.Store.Memory, store} = spec_store = legacy_store(id, legacy)
+
+    {:ok, pid} =
+      Documents.open(@instance, id, nil, spec: %{engine: UpgradingEngine, store: spec_store})
+
+    assert {:ok, %{"state" => %{"title" => "Old"}, "epoch" => "e1", "revision" => 7}} =
+             Authority.snapshot(pid)
+
+    # The store keeps it as it was until the next transaction.
+    assert %{document: ^legacy} = Agent.get(store, & &1[id])
+
+    assert {:ok, %{"revision" => 8}} = Authority.commit(pid, tx(pid, [set("n", 1)]), "u")
+
+    assert %{
+             document: %{
+               "engine" => "map",
+               "engine_version" => 2,
+               "epoch" => "e1",
+               "revision" => 8,
+               "state" => %{"title" => "Old", "n" => 1}
+             }
+           } = Agent.get(store, & &1[id])
+
+    # Its journal begins at the upgrade.
+    assert {:ok, %{"title" => "Old"}} = Authority.content_at(pid, "e1", 7)
+    assert {:error, :unknown_revision} = Authority.content_at(pid, "e1", 6)
+    assert Issho.Test.replays?(@instance, id)
+  end
+
+  test "a document of another engine version opens upgraded, with its journal" do
+    id = "doc:" <> Transaction.id()
+
+    {:ok, old} =
+      Documents.open(@instance, id, nil, spec: %{engine: Issho.Engine.Map, store: :none})
+
+    {:ok, _} = Authority.commit(old, tx(old, [set("a", 1)]), "u")
+    {:ok, _} = Authority.commit(old, tx(old, [set("b", 2)]), "u")
+    stored = :sys.get_state(old).document
+    assert stored["engine_version"] == 1
+
+    other = "doc:" <> Transaction.id()
+    spec = %{engine: UpgradingEngine, store: legacy_store(other, stored)}
+    {:ok, pid} = Documents.open(@instance, other, nil, spec: spec)
+
+    assert {:ok, %{"revision" => 2, "state" => %{"a" => 1, "b" => 2}}} = Authority.snapshot(pid)
+    assert {:ok, %{"a" => 1}} = Authority.content_at(pid, stored["epoch"], 1)
+  end
+
+  test "a stored document the engine cannot upgrade does not open" do
+    unknown = %{"v" => 9, "epoch" => "e", "revision" => 0}
+
+    id = "doc:" <> Transaction.id()
+    spec = %{engine: UpgradingEngine, store: legacy_store(id, unknown)}
+    assert {:error, :unknown_format} = Documents.open(@instance, id, nil, spec: spec)
+
+    id = "doc:" <> Transaction.id()
+    spec = %{engine: Issho.Engine.Map, store: legacy_store(id, unknown)}
+    assert {:error, :unsupported_document} = Documents.open(@instance, id, nil, spec: spec)
+  end
 end

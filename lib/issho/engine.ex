@@ -32,6 +32,16 @@ defmodule Issho.Engine do
       graph). Without it, the content is the state.
     * `c:snapshot/1` is what a browser receives when it opens the
       document. Without it, the state.
+    * `c:upgrade/1` takes a stored document of another version of the
+      engine, or one saved before Issho in a library's own format, and
+      gives its `"state"`, `"epoch"` and `"revision"`, and its
+      `"receipts"` if it kept them. With an `"initial"` state and a
+      `"journal"` of the transactions since, earlier revisions can be
+      rebuilt. Keep the epoch and revision the store has, so that the
+      first save after the upgrade finds the version it expects.
+      The upgraded document is saved with the next transaction; until
+      then the store keeps it as it was. Without it, such a document does
+      not open.
   """
 
   @type state :: map()
@@ -58,7 +68,10 @@ defmodule Issho.Engine do
   @doc "The state a browser receives when it opens the document."
   @callback snapshot(state()) :: map()
 
-  @optional_callbacks validate: 2, snapshot: 1
+  @doc "A stored document of another version, or format, as this engine's."
+  @callback upgrade(stored :: map()) :: {:ok, map()} | {:error, term()}
+
+  @optional_callbacks validate: 2, snapshot: 1, upgrade: 1
 
   @doc false
   @spec validate(module(), state(), keyword()) :: {:ok, term()} | {:error, term()}
@@ -71,6 +84,10 @@ defmodule Issho.Engine do
   def snapshot(engine, state) do
     if exports?(engine, :snapshot, 1), do: engine.snapshot(state), else: state
   end
+
+  @doc false
+  @spec upgrades?(module()) :: boolean()
+  def upgrades?(engine), do: exports?(engine, :upgrade, 1)
 
   defp exports?(module, name, arity),
     do: Code.ensure_loaded?(module) and function_exported?(module, name, arity)

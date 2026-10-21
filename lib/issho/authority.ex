@@ -18,7 +18,8 @@ defmodule Issho.Authority do
   engine's name and version, an epoch, a revision, the state the epoch
   began with, a journal of the accepted transactions, and their receipts.
   The journal can rebuild any revision of the epoch (`content_at/3`), so a
-  form can publish exactly the revision a person saw.
+  form can publish exactly the revision a person saw. (An upgraded document
+  that kept no journal rebuilds the revisions from its upgrade on.)
 
   A store that answers `{:error, :conflict}` means another process saved
   meanwhile (a node that lost touch with the cluster): this one stops, and
@@ -130,13 +131,57 @@ defmodule Issho.Authority do
     end
   end
 
-  defp document(%{"engine" => name, "engine_version" => version} = stored, engine, _spec, _opts) do
-    if name == engine.name() and version == engine.version(),
-      do: {:ok, stored},
-      else: {:error, {:engine_mismatch, name, version}}
+  defp document(%{"engine" => name, "engine_version" => version} = stored, engine, _spec, _opts)
+       when is_binary(name) do
+    cond do
+      name == engine.name() and version == engine.version() -> {:ok, stored}
+      Engine.upgrades?(engine) -> upgrade(engine, stored)
+      true -> {:error, {:engine_mismatch, name, version}}
+    end
   end
 
-  defp document(_stored, _engine, _spec, _opts), do: {:error, :unsupported_document}
+  defp document(stored, engine, _spec, _opts) do
+    if Engine.upgrades?(engine),
+      do: upgrade(engine, stored),
+      else: {:error, :unsupported_document}
+  end
+
+  # A stored document of another engine version, or from before Issho (a
+  # library's own format): the engine's upgrade/1 gives its state, epoch
+  # and revision, and its journal and receipts if it kept them.
+  defp upgrade(engine, stored) do
+    case engine.upgrade(stored) do
+      {:ok, %{"state" => state, "epoch" => epoch, "revision" => revision} = upgraded}
+      when is_binary(epoch) and is_integer(revision) ->
+        {initial, journal} = history(upgraded, state)
+
+        {:ok,
+         %{
+           "engine" => engine.name(),
+           "engine_version" => engine.version(),
+           "epoch" => epoch,
+           "revision" => revision,
+           "state" => state,
+           "initial" => initial,
+           "base" => revision - length(journal),
+           "journal" => journal,
+           "receipts" => Map.get(upgraded, "receipts", %{})
+         }}
+
+      {:error, _reason} = error ->
+        error
+
+      other ->
+        raise ArgumentError, "#{inspect(engine)}.upgrade/1 returned #{inspect(other)}"
+    end
+  end
+
+  # The journal an upgraded document kept, from the state it began with;
+  # without one, its journal begins at the revision it has.
+  defp history(%{"initial" => initial, "journal" => journal}, _state) when is_list(journal),
+    do: {initial, journal}
+
+  defp history(_upgraded, state), do: {state, []}
 
   defp store(:none, _default), do: {Issho.Store.None, nil}
   defp store({module, _context} = store, _default) when is_atom(module), do: store
@@ -309,9 +354,11 @@ defmodule Issho.Authority do
   defp content_at_revision(state, epoch, revision) do
     document = state.document
 
-    if epoch == document["epoch"] and is_integer(revision) and revision >= 0 and
+    base = Map.get(document, "base", 0)
+
+    if epoch == document["epoch"] and is_integer(revision) and revision >= base and
          revision <= document["revision"] do
-      ops = document["journal"] |> Enum.take(revision) |> Enum.flat_map(& &1["ops"])
+      ops = document["journal"] |> Enum.take(revision - base) |> Enum.flat_map(& &1["ops"])
 
       with {:ok, engine_state} <- state.engine.apply(document["initial"], ops, state.opts) do
         Engine.validate(state.engine, engine_state, state.opts)

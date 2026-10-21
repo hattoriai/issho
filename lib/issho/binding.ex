@@ -44,6 +44,11 @@ defmodule Issho.Binding do
 
       @impl Issho.Engine
       def snapshot(state), do: Issho.Engine.snapshot(unquote(engine), state)
+
+      if Issho.Engine.upgrades?(engine) do
+        @impl Issho.Engine
+        defdelegate upgrade(stored), to: engine
+      end
     end
   end
 
