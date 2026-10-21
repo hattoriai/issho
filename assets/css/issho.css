@@ -143,7 +143,17 @@
     0 0 0 4px var(--issho-color, var(--issho-person-1));
 }
 
-/* "Following Ada", with Stop: a pill in their colour, beside the avatars. */
+/*
+ * "Following Ada", with Stop: a pill in their colour, beside the avatars.
+ * It is the look of following everywhere: Kotoba's editor, Masu's grid and
+ * Hakushi's canvas carry these classes too, and read the same properties,
+ * so that one rule restyles every one of them on the page:
+ *
+ *   --issho-following-background  the pill (the person's colour)
+ *   --issho-following-text        its text (#fff)
+ *   --issho-following-ring        the ring around what follows, a box-shadow,
+ *                                 or none (2px, 3px for the page, of the colour)
+ */
 .issho-people-of:has(> .issho-following) {
   display: inline-flex;
   align-items: center;
@@ -157,8 +167,8 @@
   margin: 0;
   padding: 0.125rem 0.25rem 0.125rem 0.625rem;
   border-radius: 999px;
-  background: var(--issho-color, var(--issho-person-1));
-  color: #fff;
+  background: var(--issho-following-background, var(--issho-color, var(--issho-person-1)));
+  color: var(--issho-following-text, #fff);
   font-family: var(--issho-font);
   font-size: 0.75rem;
   font-weight: 500;
@@ -266,7 +276,7 @@
 
 /* Following someone over the page: a frame of their colour around it. */
 .issho-pointers[data-following] {
-  box-shadow: inset 0 0 0 3px var(--issho-follow-color);
+  box-shadow: var(--issho-following-ring, inset 0 0 0 3px var(--issho-follow-color));
   transition: box-shadow 160ms ease;
 }
 

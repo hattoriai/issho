@@ -12,6 +12,13 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 
 ### Added
 
+- One look for following, everywhere: `--issho-following-background`,
+  `--issho-following-text` and `--issho-following-ring` restyle the
+  "Following Ada" pill and the ring of Issho's people list and pointers,
+  and of Kotoba's, Masu's and Hakushi's, which carry Issho's classes.
+- A located place may say where in its box a pointer is (`x`, `y`,
+  fractions of it): a grid's cell, which each page draws the pointer
+  within at the same spot.
 - `Issho.Motion`: an agent goes where it works as a hand would, in
   gestures (move, press, drag, release, click) to a place of a document
   or an element of the page (`data-issho-anchor`). Only where it goes is

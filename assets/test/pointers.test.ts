@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fractions, place, pointing } from "../src/pointers";
+import { fractions, place, pointing, within } from "../src/pointers";
 import type { Person } from "../src/presence";
 import type { Peer } from "../src/awareness";
 
@@ -46,4 +46,11 @@ test("a pointer that is not one is none", () => {
     { session: "s2", key: "eve", state: { pointer: { anchor: "#a", x: "0", y: 0 } } },
   ];
   assert.deepEqual(pointing(peers, [], "ada"), []);
+});
+
+test("a located place says where in its box the pointer is, else its far corner", () => {
+  assert.deepEqual(within({ cell: [1, "name"], x: 0.25, y: 0.5 }), { x: 0.25, y: 0.5 });
+  assert.deepEqual(within({ anchor: {}, focus: {} }), { x: 1, y: 1 });
+  assert.deepEqual(within({ x: 3, y: -1 }), { x: 1, y: 1 });
+  assert.deepEqual(within(null), { x: 1, y: 1 });
 });

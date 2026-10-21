@@ -77,6 +77,11 @@ Say which place of your document is under a point of the screen:
 
     point(element, (clientX, clientY) => ({ point: toCanvas(clientX, clientY) }));
 
+A place may say where in its box the pointer is, as fractions of it
+(`x`, `y` from 0 to 1, a cell's `{cell: ..., x: 0.25, y: 0.5}`); each page
+then draws the pointer at that spot of the place's box (`locate`), else at
+its far corner (the end of a caret, a point).
+
 Over your block, a person's pointer is then a place of your document,
 which each browser draws where it is on its own screen: the same cell in
 another sort order, the same point of a canvas panned elsewhere. One
@@ -129,6 +134,18 @@ when it changes.
   `data-issho-follow-control`.
 - **Stop when the person goes their own way in your block**: a scroll, a
   press, a key (`stopOnOwnWay(room, element)`).
+- **Say whom you follow, in Issho's look**: a block that lists its own
+  people shows "Following Ada" with Stop, with the classes
+  `issho-following` and `issho-following-stop`, `--issho-color` set to the
+  person's colour, and a ring around the block. The look is Issho's (its
+  stylesheet styles these classes) and its properties are the app's, the
+  same for every block of the page: `--issho-following-background`,
+  `--issho-following-text`, `--issho-following-ring` (a box-shadow, or
+  `none`). A block that may be on a page without Issho's stylesheet styles
+  the classes the same way itself, with the same properties.
+- **Let the app turn following off for your block**: a `follow` option
+  (`follow={false}`) under which it follows no one and shows no one
+  followed.
 
 On an Issho page, Issho's pointers also keep the one followed on the
 screen, and a link or a button with `data-issho-follow` that they click is
