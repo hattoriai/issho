@@ -183,7 +183,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   let people: Pointing[] = [];
   let clicks = 0;
   let last: PagePointer | null = null;
-  const seenClicks = new Map<string, number>();
+  const seenClicks = new Map<string, number | undefined>();
   const marks = new Map<string, HTMLElement>();
   let frame = 0;
 
@@ -230,7 +230,8 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       const spot = spotOf(one, viewport);
       if (!spot) continue;
       keep.add(one.key);
-      const mark = marks.get(one.key) ?? createMark(one);
+      const known = marks.get(one.key);
+      const mark = known ?? createMark(one);
       marks.set(one.key, mark);
       mark.style.setProperty("--issho-color", one.color);
       mark.style.transform = `translate(${Math.round(spot.x)}px, ${Math.round(spot.y)}px)`;
@@ -244,9 +245,10 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
         button.hidden = spot.edge === null;
         button.setAttribute("aria-label", `Go to ${one.name}`);
       }
+      // A click rings once; a person who comes with one already made does not.
       const click = one.pointer?.click;
-      if (click !== undefined && seenClicks.has(one.key) && seenClicks.get(one.key) !== click) ripple(mark);
-      if (click !== undefined) seenClicks.set(one.key, click);
+      if (known && click !== undefined && seenClicks.get(one.key) !== click) ripple(mark);
+      seenClicks.set(one.key, click);
     }
     for (const [key, mark] of marks) {
       if (!keep.has(key)) {
