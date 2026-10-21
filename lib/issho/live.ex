@@ -202,7 +202,34 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       with {:ok, session} <- fetch(room),
            {:ok, session} <- Session.aware(session, state) do
         put_session(session)
+        Process.put({__MODULE__, :aware, room}, state)
         :ok
+      end
+    end
+
+    @doc """
+    Merges keys into this session's awareness state: for the components of
+    a LiveView that share its session in a room, each setting its own
+    keys (a grid its place, another component its own key).
+    """
+    @spec merge(String.t(), map()) :: :ok | {:error, term()}
+    def merge(room, changes) when is_map(changes),
+      do: aware(room, Map.merge(awareness(room), changes))
+
+    @doc "This session's own awareness state (an empty map for none)."
+    @spec awareness(String.t()) :: map()
+    def awareness(room), do: Process.get({__MODULE__, :aware, room}) || %{}
+
+    @doc """
+    The awareness states of the room's sessions, from every node:
+    `%{session_id => %{"key" => actor_key, "state" => state}}`, for a
+    component that draws the others itself.
+    """
+    @spec states(String.t()) :: map()
+    def states(room) do
+      case fetch(room) do
+        {:ok, session} -> Issho.Awareness.states(session.instance, room)
+        {:error, _} -> %{}
       end
     end
 
@@ -259,6 +286,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     defp deliver(socket, session, {:stop, reason}) do
       Session.aware(session, nil)
       Process.delete({__MODULE__, :session, session.room})
+      Process.delete({__MODULE__, :aware, session.room})
       notify(session.room, {"bye", session.room, Atom.to_string(reason)})
       socket
     end
