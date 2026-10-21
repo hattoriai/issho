@@ -106,6 +106,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
         phx-update="ignore"
         data-grant={JSON.encode!(@grant)}
         data-max={@max}
+        data-label={@label}
         {@rest}
       >
         <ul class="issho-people" aria-label={@label}></ul>

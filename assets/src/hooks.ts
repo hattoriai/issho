@@ -25,6 +25,7 @@ const IsshoPeople = {
   mounted(this: PeopleHook): void {
     const grant = JSON.parse(this.el.dataset.grant ?? "{}") as Grant;
     const max = Number(this.el.dataset.max ?? 8);
+    const label = this.el.dataset.label;
     this.room = grant.room;
     void joinRoom(grant.room, {
       token: grant.token,
@@ -34,7 +35,7 @@ const IsshoPeople = {
       renew: async () => (await requestGrant(this, grant.room)).token,
     }).then(
       (room) => {
-        const draw = (): void => drawPeople(this.el, someone(room.presence.everyone, room.awareness.peers, grant.self), { max });
+        const draw = (): void => drawPeople(this.el, someone(room.presence.everyone, room.awareness.peers, grant.self), { max, label });
         const offPresence = room.presence.on(draw);
         const offAwareness = room.awareness.on(draw);
         this.stop = () => {
