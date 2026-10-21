@@ -61,4 +61,30 @@ defmodule Issho.ToolsTest do
 
     assert {:error, "There is no tool \"fly\"."} = Tools.call(Tools.room(), "fly", %{}, ctx)
   end
+
+  defmodule Sort do
+    use Issho.Tool, name: "sort", description: "Sorts."
+
+    arg :by,
+        {:array,
+         {:object, [{:key, :string, required: true}, {:dir, {:enum, ["asc", "desc"]}, []}]}},
+        required: true
+
+    @impl true
+    def call(%{by: by}, _ctx), do: {:ok, by}
+  end
+
+  test "a list of objects comes with each object's declared fields, checked", %{ctx: ctx} do
+    assert {:ok, [%{key: "total", dir: "desc"}, %{key: "name"}]} =
+             Tools.run(
+               Sort,
+               %{"by" => [%{"key" => "total", "dir" => "desc", "x" => 1}, %{"key" => "name"}]},
+               ctx
+             )
+
+    assert {:error, "by is not a list of an object with key."} =
+             Tools.run(Sort, %{"by" => [%{"dir" => "asc"}]}, ctx)
+
+    assert {:error, _} = Tools.run(Sort, %{"by" => [%{"key" => "a", "dir" => "up"}]}, ctx)
+  end
 end

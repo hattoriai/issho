@@ -165,7 +165,16 @@ defmodule Issho.Tool do
   defp valid?(value, {:array, item}, _opts),
     do: is_list(value) and Enum.all?(value, &valid?(&1, item, []))
 
-  defp valid?(value, {:object, _fields}, _opts), do: is_map(value)
+  defp valid?(value, {:object, fields}, _opts) do
+    is_map(value) and
+      Enum.all?(fields, fn {name, type, opts} ->
+        case fetch(value, name) do
+          {:ok, nil} -> opts[:required] != true
+          {:ok, field} -> valid?(field, type, opts)
+          :error -> opts[:required] != true
+        end
+      end)
+  end
 
   defp in_range?(value, opts),
     do: value >= (opts[:min] || value) and value <= (opts[:max] || value)
@@ -178,12 +187,20 @@ defmodule Issho.Tool do
         do: {name, cast_value(field, type)}
   end
 
+  defp cast_value(value, {:array, item}), do: Enum.map(value, &cast_value(&1, item))
   defp cast_value(value, _type), do: value
 
   defp describe(:any), do: "a value"
   defp describe({:array, item}), do: "a list of #{describe(item)}"
   defp describe({:enum, values}), do: "one of #{Enum.join(values, ", ")}"
-  defp describe({:object, _}), do: "an object"
+
+  defp describe({:object, fields}) do
+    case for {name, _type, opts} <- fields, opts[:required], do: name do
+      [] -> "an object"
+      required -> "an object with #{Enum.join(required, ", ")}"
+    end
+  end
+
   defp describe(:integer), do: "a whole number in range"
   defp describe(:number), do: "a number in range"
   defp describe(:string), do: "text of the right length"
