@@ -69,6 +69,8 @@ export interface Pointing {
   click?: number;
   /** An agent's last gesture (Issho.Motion): how long its way there takes, and what it does there. */
   motion?: { gesture: string; ms: number; seq: number };
+  /** An agent's place in a document, where it is drawn when the element it went to is not on this page. */
+  place?: { doc: string; at: unknown };
 }
 
 /** Where a place of a document is in the viewport (its `at`), or `null`. */
@@ -173,6 +175,7 @@ export function pointing(peers: Peer[], everyone: Person[], self: string): Point
       ...(pointer ? {} : { at }),
       ...(over?.click !== undefined ? { click: over.click } : {}),
       ...(motion ? { motion: { gesture: motion.gesture, ms: motion.ms, seq: motion.seq } } : {}),
+      ...(pointer && target && docOf(peer.state.place) ? { place: { doc: docOf(peer.state.place) as string, at: atOf(peer.state.place) } } : {}),
     };
     const before = chosen.get(peer.key);
     // A pointer wins over a place: the session that moved is the one with a pointer.
@@ -245,7 +248,7 @@ function anchors(): { name: string; label: string; follow?: true }[] {
   for (const element of document.querySelectorAll<HTMLElement>("[data-issho-anchor]")) {
     if (found.length >= 50 || element.closest("[data-issho-private]")) continue;
     const name = element.dataset.isshoAnchor!;
-    const label = (element.getAttribute("aria-label") ?? element.title ?? element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const label = (element.getAttribute("aria-label") || element.title || element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
     found.push({ name, label, ...(element.closest("[data-issho-follow]") ? { follow: true as const } : {}) });
   }
   return found;
@@ -310,6 +313,9 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   // before it, a node moved): looked at again while one is drawn there.
   let locating = 0;
   let scrolledTo = "";
+  // What the room showed when the page came is not done again: a click an
+  // agent made before is not made again for a page that comes after it.
+  let primed = false;
 
   const send = (pointer: PagePointer | DocPointer | null): void => {
     if (!share) return;
@@ -421,7 +427,8 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     const reduced = motionPreference() === "reduced";
     const followed = room ? following(room) : null;
     const keep = new Set<string>();
-    for (const one of people) {
+    for (const someone of people) {
+      const one = onThisPage(someone);
       const spot = spotOf(one, viewport);
       if (!spot) continue;
       keep.add(one.key);
@@ -455,7 +462,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       // already made does not. An agent's rings when it gets there.
       if (gesture) {
         seenMotion.set(one.key, gesture.seq);
-        if (known && gesture.gesture === "click") window.setTimeout(() => clicked(one, mark), reduced ? 0 : gesture.ms);
+        if (primed && gesture.gesture === "click") window.setTimeout(() => clicked(one, mark), reduced ? 0 : gesture.ms);
       } else {
         const click = one.pointer?.click ?? one.click;
         if (known && click !== undefined && seenClicks.get(one.key) !== click) clicked(one, mark);
@@ -463,13 +470,22 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       }
       if (followed === one.key) keepInView(one, spot, viewport);
     }
+    // Following someone here: the page has a frame of their colour.
+    const frame = followed ? people.find((one) => one.key === followed && keep.has(one.key)) : undefined;
+    if (frame) {
+      layer.dataset.following = "";
+      layer.style.setProperty("--issho-follow-color", frame.color);
+    } else {
+      delete layer.dataset.following;
+    }
     for (const [key, mark] of marks) {
       if (!keep.has(key)) {
         mark.remove();
         marks.delete(key);
       }
     }
-    const located = people.some((one) => !!one.doc);
+    primed = true;
+    const located = people.some((one) => !!onThisPage(one).doc);
     if (located && !locating) locating = window.setInterval(schedule, 250);
     if (!located && locating) {
       clearInterval(locating);
@@ -478,13 +494,14 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   }
 
   // A click of someone: it rings, and when this page follows them, a link
-  // or a button that takes followers along is clicked here too.
+  // or a button that takes followers along is clicked here too, a moment
+  // later, so that the ring is seen before the page goes.
   function clicked(one: Pointing, mark: HTMLElement): void {
     ripple(mark);
     if (!room || following(room) !== one.key || !one.pointer) return;
     const element = elementOf(one.pointer.anchor);
     const target = element?.closest<HTMLElement>("[data-issho-follow]");
-    if (target) target.click();
+    if (target) window.setTimeout(() => target.isConnected && target.click(), motionPreference() === "reduced" ? 0 : 150);
   }
 
   // The one followed stays on the screen: the page scrolls to them when
@@ -527,6 +544,13 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     return !!element && !!(element as Located)[LOCATOR]?.(one.at);
   }
 
+  // An agent that went to an element of another page (it clicked a link)
+  // is drawn where it is in a document here, if it is in one.
+  function onThisPage(one: Pointing): Pointing {
+    if (!one.pointer || !one.place || elementOf(one.pointer.anchor)) return one;
+    return { ...one, pointer: null, doc: one.place.doc, at: one.place.at };
+  }
+
   function spotOf(one: Pointing, viewport: { width: number; height: number }): Spot | null {
     if (one.pointer) {
       const element = elementOf(one.pointer.anchor);
@@ -561,7 +585,8 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       mark.prepend(own);
     }
     mark.querySelector(".issho-pointer-edge")?.addEventListener("click", () => {
-      const target = people.find((person) => person.key === one.key);
+      const found = people.find((person) => person.key === one.key);
+      const target = found && onThisPage(found);
       const element = target?.pointer ? elementOf(target.pointer.anchor) : target?.doc ? document.querySelector(`[data-issho-doc="${CSS.escape(target.doc)}"]`) : null;
       element?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
