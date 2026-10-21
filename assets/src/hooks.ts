@@ -12,7 +12,7 @@ import { joinRoom, releaseRoom } from "./page";
 import { follow, following, onFollow, stopOnOwnWay } from "./follow";
 import { motion, onMotion, setMotion } from "./motion";
 import { drawPeople, someone } from "./people";
-import { pointerLayer, pointing } from "./pointers";
+import { gestureTracker, pointerLayer, pointing, type Gestures } from "./pointers";
 
 interface Hook extends LiveHook {
   el: HTMLElement;
@@ -93,13 +93,10 @@ const IsshoPointers = {
         // it on this page.
         const followAgents = this.el.dataset.followAgents === "on_behalf";
         const declined = new Set<string>();
-        const moved = new Map<string, number>();
-        const followMine = (): void => {
+        const followMine = (gestures: Gestures): void => {
           if (!followAgents) return;
           for (const peer of room.awareness.peers) {
-            const seq = (peer.state as { motion?: { seq?: number } }).motion?.seq;
-            if (typeof seq !== "number" || moved.get(peer.key) === seq) continue;
-            moved.set(peer.key, seq);
+            if (!gestures.fresh.has(peer.session)) continue;
             const agent = room.presence.everyone.find((person) => person.key === peer.key);
             if (agent?.kind !== "agent" || agent.on_behalf_of?.key !== grant.self) continue;
             if (!following(grant.room) && !declined.has(agent.key)) follow(grant.room, agent.key);
@@ -114,15 +111,12 @@ const IsshoPointers = {
         // The one followed goes to another page (an agent's `navigate`):
         // this page goes there too. A gesture seen when the page came is
         // where they already were; only a path of this app is followed.
-        const went = new Map<string, number>();
-        const goAlong = (): void => {
+        const goAlong = (gestures: Gestures): void => {
           const key = following(grant.room);
           for (const peer of room.awareness.peers) {
-            const gesture = (peer.state as { motion?: { seq?: unknown; gesture?: unknown; to?: { path?: unknown } } }).motion;
-            if (!gesture || typeof gesture.seq !== "number") continue;
-            const seen = went.get(peer.key);
-            went.set(peer.key, gesture.seq);
-            if (seen === undefined || seen === gesture.seq || gesture.gesture !== "navigate" || peer.key !== key) continue;
+            if (!gestures.fresh.has(peer.session) || peer.key !== key) continue;
+            const gesture = (peer.state as { motion?: { gesture?: unknown; to?: { path?: unknown } } }).motion;
+            if (gesture?.gesture !== "navigate") continue;
             const path = gesture.to?.path;
             if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) continue;
             if (path === location.pathname + location.search) continue;
@@ -143,11 +137,14 @@ const IsshoPointers = {
             delete this.el.dataset.following;
           }
         };
+        // Each gesture of the agents is new once, for all of the above.
+        const track = gestureTracker();
         const draw = (): void => {
-          followMine();
-          goAlong();
+          const gestures = track(room.awareness.peers, (session) => room.awareness.wasThere(session));
+          followMine(gestures);
+          goAlong(gestures);
           frame();
-          layer.draw(pointing(room.awareness.peers, room.presence.everyone, grant.self));
+          layer.draw(pointing(room.awareness.peers, room.presence.everyone, grant.self, gestures));
         };
         const offPresence = room.presence.on(draw);
         const offAwareness = room.awareness.on(draw);

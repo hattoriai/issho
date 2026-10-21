@@ -86,7 +86,7 @@ export interface Pointing {
   /** The clicks of a pointer over a component (a place of its document), as a page pointer's. */
   click?: number;
   /** An agent's last gesture (Issho.Motion): how long its way there takes, and what it does there. */
-  motion?: { gesture: string; ms: number; seq: number };
+  motion?: { gesture: string; ms: number; seq: number; fresh?: true };
   /** An agent's place in a document, where it is drawn when the element it went to is not on this page. */
   place?: { doc: string; at: unknown };
   /** In a block of another room (`doc`): not drawn here, that room draws them. */
@@ -163,15 +163,54 @@ export function place(box: Box, pointer: { x: number; y: number }, viewport: { w
   return { x: clamp(x, margin, viewport.width - margin), y: clamp(y, margin, viewport.height - margin), edge };
 }
 
+/** What a page heard of the agents' gestures in a frame. */
+export interface Gestures {
+  /** The sessions whose gesture this page has not seen before. */
+  fresh: Set<string>;
+  /** Each agent's session that made its last new gesture. */
+  latest: Map<string, string>;
+}
+
 /**
- * The others the layer draws: one each, the session that has a pointer
- * (else one with a place, for an agent), never this actor, and none whose
- * pointer is in a component that draws its own (`own`, the anchors inside
- * one).
+ * Follows the sessions' gestures from frame to frame, so that each is new
+ * once, for all that the page does with it (follow the agent, go along,
+ * click, draw the way there). The gesture of a session that was in the
+ * room when this page joined it (`wasThere`, the room's awareness says)
+ * was made before the page came: it is where the agent already is, and is
+ * not followed nor done again, however late the room's states reach the
+ * page. A session that comes later is new with its first gesture.
  */
-export function pointing(peers: Peer[], everyone: Person[], self: string): Pointing[] {
+export function gestureTracker(): (peers: Peer[], wasThere: (session: string) => boolean) => Gestures {
+  let seen = new Map<string, number>();
+  const latest = new Map<string, string>();
+  return (peers, wasThere) => {
+    const next = new Map<string, number>();
+    const fresh = new Set<string>();
+    for (const peer of peers) {
+      const seq = asMotion(peer.state.motion)?.seq ?? 0;
+      const before = seen.get(peer.session);
+      next.set(peer.session, seq);
+      const changed = before === undefined ? !wasThere(peer.session) : seq !== before;
+      if (changed && seq !== 0) {
+        fresh.add(peer.session);
+        latest.set(peer.key, peer.session);
+      }
+    }
+    seen = next;
+    return { fresh, latest };
+  };
+}
+
+/**
+ * The others the layer draws: one each, the session that made the agent's
+ * last gesture, else one that has a pointer (else one with a place, for an
+ * agent), never this actor, and none whose pointer is in a component that
+ * draws its own (`own`, the anchors inside one).
+ */
+export function pointing(peers: Peer[], everyone: Person[], self: string, gestures: Gestures = { fresh: new Set(), latest: new Map() }): Pointing[] {
   const people = new Map(everyone.map((person) => [person.key, person]));
   const chosen = new Map<string, Pointing>();
+  const ranks = new Map<string, number>();
   for (const peer of peers) {
     if (peer.key === self) continue;
     const motion = asMotion(peer.state.motion);
@@ -196,12 +235,16 @@ export function pointing(peers: Peer[], everyone: Person[], self: string): Point
       ...(pointer || away ? {} : { at }),
       ...(away ? { away: true as const } : {}),
       ...(over?.click !== undefined ? { click: over.click } : {}),
-      ...(motion ? { motion: { gesture: motion.gesture, ms: motion.ms, seq: motion.seq } } : {}),
+      ...(motion ? { motion: { gesture: motion.gesture, ms: motion.ms, seq: motion.seq, ...(gestures.fresh.has(peer.session) ? { fresh: true as const } : {}) } } : {}),
       ...(pointer && target && docOf(peer.state.place) ? { place: { doc: docOf(peer.state.place) as string, at: atOf(peer.state.place) } } : {}),
     };
-    const before = chosen.get(peer.key);
-    // A pointer wins over a place: the session that moved is the one with a pointer.
-    if (!before || (!before.pointer && pointer)) chosen.set(peer.key, one);
+    // The session of the last gesture wins; else a pointer wins over a
+    // place: the session that moved is the one with a pointer.
+    const rank = gestures.latest.get(peer.key) === peer.session ? 2 : pointer ? 1 : 0;
+    if (rank > (ranks.get(peer.key) ?? -1)) {
+      chosen.set(peer.key, one);
+      ranks.set(peer.key, rank);
+    }
   }
   return [...chosen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -357,16 +400,14 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   let clicks = 0;
   let last: PagePointer | DocPointer | BlockPointer | null = null;
   const seenClicks = new Map<string, number | undefined>();
-  const seenMotion = new Map<string, number>();
+  // The new gestures the layer has to draw (each agent's, by its key), until it draws them.
+  const gesturing = new Map<string, number>();
   const marks = new Map<string, HTMLElement>();
   let frame = 0;
   // An agent's place moves as its document changes under it (text typed
   // before it, a node moved): looked at again while one is drawn there.
   let locating = 0;
   let scrolledTo = "";
-  // What the room showed when the page came is not done again: a click an
-  // agent made before is not made again for a page that comes after it.
-  let primed = false;
 
   const send = (pointer: PagePointer | DocPointer | BlockPointer | null): void => {
     if (!share) return;
@@ -505,7 +546,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       marks.set(one.key, mark);
       // An agent's new gesture takes the time it said; its other moves (it
       // types, its place follows) are short; with reduced motion, none.
-      const gesture = one.motion && seenMotion.get(one.key) !== one.motion.seq ? one.motion : null;
+      const gesture = one.motion && gesturing.get(one.key) === one.motion.seq ? one.motion : null;
       if (reduced) mark.style.transitionDuration = "0ms";
       else if (gesture) mark.style.transitionDuration = `${gesture.ms}ms`;
       else if (one.kind === "agent") mark.style.transitionDuration = "150ms";
@@ -527,10 +568,10 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
         button.setAttribute("aria-label", `Go to ${one.name}`);
       }
       // A click rings once, where it is made; a person who comes with one
-      // already made does not. An agent's rings when it gets there.
+      // already made does not. An agent's rings when it gets there, and one
+      // it made before the page came is not made again (gestureTracker).
       if (gesture) {
-        seenMotion.set(one.key, gesture.seq);
-        if (primed && gesture.gesture === "click") window.setTimeout(() => clicked(one, mark), reduced ? 0 : gesture.ms);
+        if (gesture.gesture === "click") window.setTimeout(() => clicked(one, mark), reduced ? 0 : gesture.ms);
       } else {
         const click = one.pointer?.click ?? one.click;
         if (known && click !== undefined && seenClicks.get(one.key) !== click) clicked(one, mark);
@@ -544,7 +585,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
         marks.delete(key);
       }
     }
-    primed = true;
+    gesturing.clear();
     carry(into);
     const located = people.some((one) => !one.away && !!onThisPage(one).doc);
     if (located && !locating) locating = window.setInterval(schedule, 250);
@@ -678,6 +719,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   return {
     draw(next: Pointing[]): void {
       people = next;
+      for (const one of next) if (one.motion?.fresh) gesturing.set(one.key, one.motion.seq);
       schedule();
     },
     stop(): void {

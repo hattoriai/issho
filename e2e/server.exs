@@ -49,25 +49,39 @@ end
 defmodule IsshoE2E.Agent do
   @moduledoc false
   # One agent, whose participants live as long as the server: each tool
-  # runs in this process, as an MCP session's would.
+  # runs in this process, as an MCP session's would. A test names a session
+  # of its own for a context of its own (the agent at work for someone).
   use GenServer
 
   def start_link(_), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
-  def call(tool, arguments), do: GenServer.call(__MODULE__, {tool, arguments}, 30_000)
+
+  def call(tool, arguments, session \\ "a", on_behalf_of \\ nil),
+    do: GenServer.call(__MODULE__, {tool, arguments, session, on_behalf_of}, 30_000)
 
   @impl true
-  def init(nil) do
-    {:ok, Issho.Tool.Context.new(IsshoE2E.Issho, %{id: "agent:e2e", name: "Agent", kind: :agent})}
+  def init(nil), do: {:ok, %{}}
+
+  @impl true
+  def handle_call({tool, arguments, session, on_behalf_of}, _from, contexts) do
+    opts = if on_behalf_of, do: [on_behalf_of: %{id: on_behalf_of, name: on_behalf_of}], else: []
+
+    context =
+      Map.get_lazy(contexts, session, fn ->
+        Issho.Tool.Context.new(
+          IsshoE2E.Issho,
+          %{id: "agent:e2e", name: "Agent", kind: :agent},
+          opts
+        )
+      end)
+
+    {:reply, Issho.Tools.call(Issho.Tools.room(), tool, arguments, context),
+     Map.put(contexts, session, context)}
   end
-
-  @impl true
-  def handle_call({tool, arguments}, _from, context),
-    do: {:reply, Issho.Tools.call(Issho.Tools.room(), tool, arguments, context), context}
 end
 
 defmodule IsshoE2E.AgentPlug do
   @moduledoc false
-  # POST /agent {"tool": ..., "arguments": {...}}
+  # POST /agent {"tool": ..., "arguments": {...}, "session": "a", "on_behalf_of": "Ada"}
   @behaviour Plug
   def init(opts), do: opts
 
@@ -75,7 +89,12 @@ defmodule IsshoE2E.AgentPlug do
     %{"tool" => tool, "arguments" => arguments} = conn.body_params
 
     reply =
-      case IsshoE2E.Agent.call(tool, arguments) do
+      case IsshoE2E.Agent.call(
+             tool,
+             arguments,
+             conn.body_params["session"] || "a",
+             conn.body_params["on_behalf_of"]
+           ) do
         {:ok, result} -> %{"result" => result}
         {:error, reason} -> %{"error" => inspect(reason)}
       end
@@ -118,7 +137,8 @@ end
 
 defmodule IsshoE2E.PageLive do
   @moduledoc false
-  # /one and /two: two pages of a room. ?as= the person, ?order=desc draws
+  # /one and /two: two pages of a room. ?as= the person, ?agents=on_behalf
+  # follows the agents at work for them, ?order=desc draws
   # the block's items the other way round, ?long=1 puts it below the fold,
   # ?far=1 puts the block of another room (#elsewhere) below the fold.
   use Phoenix.LiveView
@@ -134,7 +154,8 @@ defmodule IsshoE2E.PageLive do
      assign(socket,
        room: room,
        name: name,
-       query: Map.take(params, ["room", "as", "order", "far"]),
+       query: Map.take(params, ["room", "as", "order", "far", "agents"]),
+       follow_agents: if(params["agents"] == "on_behalf", do: "on_behalf"),
        order: if(params["order"] == "desc", do: "desc", else: "asc"),
        long: params["long"] == "1",
        far: params["far"] == "1",
@@ -163,7 +184,7 @@ defmodule IsshoE2E.PageLive do
     <.link id="next" navigate={"/two?" <> URI.encode_query(@query)} data-issho-anchor="next" data-issho-follow>
       Next page
     </.link>
-    <Issho.Components.pointers id="pointers" grant={@grant} />
+    <Issho.Components.pointers id="pointers" grant={@grant} follow_agents={@follow_agents} />
     """
   end
 end

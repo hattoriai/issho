@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fractions, place, pointing, roomOf, within } from "../src/pointers";
+import { fractions, gestureTracker, place, pointing, roomOf, within } from "../src/pointers";
 import type { Person } from "../src/presence";
 import type { Peer } from "../src/awareness";
 
@@ -68,4 +68,33 @@ test("a pointer in a block of another room is that room's: the page hears which 
 test("the room of a document is the part of its id before the first slash", () => {
   assert.equal(roomOf("notebook:7/intro/a"), "notebook:7");
   assert.equal(roomOf("canvas:9"), "canvas:9");
+});
+
+test("each gesture of an agent is new once, per session; one made before the page came is not", () => {
+  const track = gestureTracker();
+  const gesture = (seq: number, gesture = "click") => ({ motion: { to: { anchor: "edit" }, gesture, ms: 300, seq } });
+  // The room's states reach the page late: none at first, then an agent
+  // that clicked before the page came (it was there when the page joined),
+  // and one that has only joined.
+  const there = new Set(["old"]);
+  const wasThere = (session: string) => there.has(session);
+  assert.deepEqual([...track([], wasThere).fresh], []);
+  let peers: Peer[] = [
+    { session: "old", key: "claude", state: gesture(12) },
+    { session: "new", key: "claude", state: { status: "Joined" } },
+  ];
+  assert.deepEqual([...track(peers, wasThere).fresh], []);
+  assert.deepEqual([...track(peers, wasThere).fresh], []);
+  // The second session's first gesture is new, once; the first one's stays done.
+  peers = [peers[0]!, { session: "new", key: "claude", state: gesture(1, "point") }];
+  const gestures = track(peers, wasThere);
+  assert.deepEqual([...gestures.fresh], ["new"]);
+  assert.equal(gestures.latest.get("claude"), "new");
+  assert.deepEqual([...track(peers, wasThere).fresh], []);
+  // Drawn: the session of its last gesture, and that it is new.
+  const drawn = pointing(peers, [person("claude", { kind: "agent" })], "ada", gestures);
+  assert.deepEqual(drawn[0]?.motion, { gesture: "point", ms: 300, seq: 1, fresh: true });
+  assert.equal(pointing(peers, [person("claude", { kind: "agent" })], "ada", track(peers, wasThere))[0]?.motion?.fresh, undefined);
+  // An agent that comes after the page, with a gesture at once: it is new.
+  assert.deepEqual([...track([...peers, { session: "later", key: "gemini", state: gesture(1, "navigate") }], wasThere).fresh], ["later"]);
 });

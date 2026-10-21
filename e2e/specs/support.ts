@@ -17,9 +17,12 @@ export async function open(page: Page, path: string, room: string, as: string, e
 /** The pointer of someone on a page. */
 export const pointer = (page: Page, key: string) => page.locator(`.issho-pointer[data-key="${key}"]`);
 
-/** The agent of the test server calls a room tool. */
-export async function agent(request: APIRequestContext, tool: string, args: Record<string, unknown>): Promise<unknown> {
-  const response = await request.post("/agent", { data: { tool, arguments: args } });
+/**
+ * The agent of the test server calls a room tool, in one of its sessions
+ * ("a" unless given), the first call of a session saying for whom it works.
+ */
+export async function agent(request: APIRequestContext, tool: string, args: Record<string, unknown>, session = "a", onBehalfOf?: string): Promise<unknown> {
+  const response = await request.post("/agent", { data: { tool, arguments: args, session, on_behalf_of: onBehalfOf } });
   const reply = (await response.json()) as { result?: unknown; error?: string };
   if (reply.error) throw new Error(`${tool}: ${reply.error}`);
   return reply.result;

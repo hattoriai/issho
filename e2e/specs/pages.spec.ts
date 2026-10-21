@@ -120,6 +120,37 @@ test("an agent navigates to another page, and takes its followers along", async 
   await other.context().close();
 });
 
+// A person's agent is followed when it starts to move (follow_agents
+// "on_behalf"). A page that comes after its click neither follows it at
+// once nor makes that click again; its next gesture is followed, and takes
+// the person along.
+test("a person's agent is followed when it moves, and its click before the page came is not made again", async ({ browser, request }) => {
+  const room = newRoom();
+  const page = await (await browser.newContext()).newPage();
+  await open(page, "/one", room, "Ada", "&agents=on_behalf");
+  await agent(request, "join_room", { room: `page:${room}` }, "for-ada", "Ada");
+  await agent(request, "point", { room: `page:${room}`, anchor: "next" }, "for-ada");
+  await expect(page.locator("#people .issho-following")).toContainText("Following Agent");
+  await agent(request, "click", { room: `page:${room}`, anchor: "next" }, "for-ada");
+  await expect(page.locator("#title")).toHaveText("Page two");
+  await page.context().close();
+
+  // Ada comes in another window.
+  const later = await (await browser.newContext()).newPage();
+  await open(later, "/one", room, "Ada", "&agents=on_behalf");
+  await later.waitForTimeout(1_000);
+  await expect(later.locator("#title")).toHaveText("Page one");
+  await expect(later.locator("#people .issho-following")).toBeHidden();
+
+  await agent(request, "point", { room: `page:${room}`, document: `page:${room}/list`, at: { path: ["item", "3"] } }, "for-ada");
+  await expect(later.locator("#people .issho-following")).toContainText("Following Agent");
+  await later.waitForTimeout(500);
+  await expect(later.locator("#title")).toHaveText("Page one");
+  await agent(request, "click", { room: `page:${room}`, anchor: "next" }, "for-ada");
+  await expect(later.locator("#title")).toHaveText("Page two");
+  await later.context().close();
+});
+
 // A block of another room in the page (a canvas shared in its own room, in
 // a document): that room draws its people there. Over it, the page's room
 // hears only that the pointer is in it, and draws none.

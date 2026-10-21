@@ -66,3 +66,16 @@ test("keeps peers per node: full frames replace, gone sessions leave, silent nod
   time.advance(1500);
   assert.deepEqual(keys(), []);
 });
+
+test("the sessions that were in the room when this browser joined it: each node's first full frame", () => {
+  const awareness = new Awareness(async () => undefined);
+  awareness.receive({ node: "a", full: false, states: { moved: { key: "ada", state: { p: 1 } } }, gone: [] });
+  awareness.receive({ node: "a", full: true, states: { moved: { key: "ada", state: { p: 1 } }, idle: { key: "ken", state: { p: 2 } } }, gone: [] });
+  awareness.receive({ node: "a", full: true, states: { later: { key: "mei", state: { p: 3 } } }, gone: [] });
+  awareness.receive({ node: "b", full: true, states: { far: { key: "kai", state: { p: 4 } } }, gone: [] });
+  assert.deepEqual(["moved", "idle", "later", "far"].map((s) => awareness.wasThere(s)), [true, true, false, true]);
+  // Joined again, after a disconnect: what is there then.
+  awareness.reset();
+  awareness.receive({ node: "a", full: true, states: { later: { key: "mei", state: { p: 3 } } }, gone: [] });
+  assert.deepEqual(["idle", "later"].map((s) => awareness.wasThere(s)), [false, true]);
+});
