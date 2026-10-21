@@ -1,6 +1,6 @@
 {
   "name": "issho",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Collaboration for Phoenix: rooms, presence, awareness and shared documents in the browser.",
   "license": "MIT",
   "module": "./priv/static/issho.esm.js",

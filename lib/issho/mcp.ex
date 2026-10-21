@@ -410,9 +410,11 @@ defmodule Issho.MCP do
   :agent` with `on_behalf_of` that person.
   """
 
+  @version Mix.Project.config()[:version]
+
   use Sake.Server,
     name: "issho",
-    version: "0.1.0",
+    version: @version,
     instructions: """
     Rooms where people and agents work together live. join_room first:
     the people there see you. look_around says who is here and where.

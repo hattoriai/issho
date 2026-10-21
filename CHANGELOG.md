@@ -5,7 +5,12 @@ All notable changes to Issho are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-21
+
+Agents, and pages of many components. An agent joins a room over MCP
+(with Sake) and works as a person does, in each component's own terms;
+the components of a page share one room: its connection, its people, its
+grant, its form barrier and its undo. Kotoba and Hakushi run on it.
 
 ### Added
 
