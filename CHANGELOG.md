@@ -31,7 +31,7 @@ Kotoba, Hakushi and Masu run on it.
   [Sake](https://hex.pm/packages/sake) server, served as the app serves
   MCP (HTTP or stdio, its own authorization or none); who a caller is
   comes from the call or the endpoint (`Issho.MCP.Session`,
-  `Issho.MCP.Setup`). Sake is an optional dependency. With Sake 0.5, a
+  `Issho.MCP.Setup`). Sake is an optional dependency. With Sake 0.4.4, a
   tool gets its arguments as the client sent them (`absent: :omit`).
 - `Issho.Agents`: an agent's lasting presence in a room for front ends
   without a lasting connection (an MCP server, a webhook), from its first

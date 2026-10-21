@@ -167,7 +167,7 @@ if Code.ensure_loaded?(Sake.Server) do
           quote do
             alias Issho.MCP.Session
 
-            # The arguments as the client sent them (Sake 0.5): an Issho
+            # The arguments as the client sent them (Sake 0.4.4): an Issho
             # tool casts them itself (Issho.Tool), and an older Sake, which
             # ignores the option, fills what was left out with nil.
             use Sake.Tool,
