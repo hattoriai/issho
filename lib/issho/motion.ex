@@ -57,7 +57,9 @@ defmodule Issho.Motion do
   @doc """
   Goes to a target. Options: `:gesture` (`:move`), `:place` (whether a
   document's target is also the agent's place, its selection there:
-  true), and `:travel` (a component's own setting: true).
+  true), `:travel` (a component's own setting: true), and `:aware`, more
+  of the agent's awareness state that changes with the gesture, in the
+  same message (a canvas's cursor and selection).
   """
   @spec go(GenServer.server(), target(), keyword()) :: :ok | {:error, term()}
   def go(participant, target, opts \\ []) do
@@ -80,6 +82,8 @@ defmodule Issho.Motion do
         do: Map.put(changes, "place", Map.take(target, ["doc", "at"])),
         else: changes
 
+    changes = Map.merge(Keyword.get(opts, :aware, %{}), changes)
+
     with :ok <- Participant.aware(participant, changes) do
       wait(if gesture == "click" and ms > 0, do: ms + setting(:click, 150), else: ms)
     end
@@ -98,6 +102,18 @@ defmodule Issho.Motion do
   def drag(participant, from, to, opts \\ []) do
     with :ok <- go(participant, from, Keyword.put(opts, :gesture, :press)),
          do: go(participant, to, Keyword.put(opts, :gesture, :release))
+  end
+
+  @doc """
+  A moment on a target, before what the agent does there, so that the
+  people see what will change: taken only when someone sees it, within
+  the tool call's budget. Options: `:travel`.
+  """
+  @spec pause(GenServer.server(), target(), non_neg_integer(), keyword()) :: :ok
+  def pause(participant, target, ms, opts \\ []) do
+    if Keyword.get(opts, :travel, true) and travel?() and watched?(participant, target),
+      do: wait(fit(ms)),
+      else: :ok
   end
 
   @doc """
