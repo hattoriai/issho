@@ -37,6 +37,10 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   colours from `--issho-person-1` to `-8`.
 - `releaseRoom`: each component that asked for a room holds it, and the
   page leaves the room when the last lets go.
+- `holdForm`: a form with shared components publishes what the server
+  accepted. On submit it locks them, waits for each to send what it has
+  and note the accepted revision in its own field, then submits again; a
+  component that cannot stops the submit, with its reason.
 
 - `upgrade/1`, an engine's optional callback: a stored document of
   another engine version, or one a library saved before Issho, opens
