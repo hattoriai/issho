@@ -1,8 +1,6 @@
 defmodule Issho.ParticipantTest do
   use ExUnit.Case, async: false
 
-  import IsshoTest.Eventually
-
   alias Issho.{Participant, Presence, Transaction}
 
   @instance IsshoTest.Issho
@@ -42,13 +40,13 @@ defmodule Issho.ParticipantTest do
     {:ok, _} = Participant.open(ada, room)
 
     place = %{"doc" => room, "at" => %{"path" => ["title"]}}
+    # Ada's state reaches the room's awareness before lock/2 returns, so
+    # Claude sees the lock at once, and its release.
     :ok = Participant.lock(ada, [place])
-
-    # Claude's process receives Ada's frame, and the room's locks show it.
-    eventually(do: assert([{^place, "user:ada"}] = Participant.locks(claude)))
+    assert [{^place, "user:ada"}] = Participant.locks(claude)
 
     :ok = Participant.lock(ada, [])
-    eventually(do: assert(Participant.locks(claude) == []))
+    assert Participant.locks(claude) == []
   end
 
   test "a read-only agent cannot lock or write", %{room: room} do
@@ -65,7 +63,15 @@ defmodule Issho.ParticipantTest do
   test "an agent's leaving takes it out of the room", %{room: room} do
     {:ok, claude} = Issho.join_as(@instance, @claude, room)
     assert Map.has_key?(Presence.people(room), "agent:claude")
+    Phoenix.PubSub.subscribe(IsshoTest.PubSub, Presence.topic(room))
+
     :ok = Participant.leave(claude)
-    eventually(do: refute(Map.has_key?(Presence.people(room), "agent:claude")))
+
+    assert_receive %Phoenix.Socket.Broadcast{
+      event: "presence_diff",
+      payload: %{leaves: %{"agent:claude" => _}}
+    }
+
+    refute Map.has_key?(Presence.people(room), "agent:claude")
   end
 end

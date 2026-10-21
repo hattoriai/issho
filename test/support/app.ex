@@ -166,28 +166,15 @@ defmodule IsshoTest.UnhookedLive do
   def render(assigns), do: ~H"<p>unhooked</p>"
 end
 
-defmodule IsshoTest.Eventually do
+defmodule IsshoTest.Sync do
   @moduledoc false
-  # Retries an assertion until it passes or a second goes by: for what
-  # happens after a message another process sends, never a fixed sleep.
-  defmacro eventually(do: block) do
-    quote do
-      IsshoTest.Eventually.retry(
-        fn -> unquote(block) end,
-        System.monotonic_time(:millisecond) + 1_000
-      )
-    end
-  end
-
-  def retry(fun, deadline) do
-    fun.()
-  rescue
-    error in [ExUnit.AssertionError] ->
-      if System.monotonic_time(:millisecond) > deadline do
-        reraise error, __STACKTRACE__
-      else
-        Process.sleep(10)
-        retry(fun, deadline)
-      end
+  # Waits until a process has handled every message already in its
+  # mailbox, and the messages it sent itself while doing so (a LiveView's
+  # send_update): each :sys.get_state/1 is answered in mailbox order. For
+  # waiting on another process without a sleep.
+  def settle(pid) do
+    :sys.get_state(pid)
+    :sys.get_state(pid)
+    :ok
   end
 end

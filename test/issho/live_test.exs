@@ -4,7 +4,7 @@ defmodule Issho.LiveTest do
   import Phoenix.ConnTest
   import Phoenix.LiveViewTest
 
-  import IsshoTest.Eventually
+  import IsshoTest.Sync
 
   alias Issho.Transaction
 
@@ -31,19 +31,44 @@ defmodule Issho.LiveTest do
     assert render(ada) =~ "Q3 plan"
   end
 
+  # Presence sends its diffs to every subscriber at once: once the test has
+  # one, so has each LiveView, and settle/1 waits for it to be handled.
   test "people come and go, as the components see them", %{conn: conn, room: room} do
+    Phoenix.PubSub.subscribe(IsshoTest.PubSub, Issho.Presence.topic(room))
     {:ok, ada, _} = board(conn, room, "user:ada")
     {:ok, ken, _} = board(conn, room, "user:ken")
-    eventually(do: assert(render(ada) =~ "people: 2"))
+
+    assert_receive %Phoenix.Socket.Broadcast{
+      event: "presence_diff",
+      payload: %{joins: %{"user:ken" => _}}
+    }
+
+    settle(ada.pid)
+    assert render(ada) =~ "people: 2"
 
     GenServer.stop(ken.pid)
-    eventually(do: assert(render(ada) =~ "people: 1"))
+
+    assert_receive %Phoenix.Socket.Broadcast{
+      event: "presence_diff",
+      payload: %{leaves: %{"user:ken" => _}}
+    }
+
+    settle(ada.pid)
+    assert render(ada) =~ "people: 1"
   end
 
   test "the LiveView itself can receive the room's events", %{conn: conn, room: room} do
+    Phoenix.PubSub.subscribe(IsshoTest.PubSub, Issho.Presence.topic(room))
     {:ok, ada, _} = board(conn, room, "user:ada")
     {:ok, _ken, _} = board(conn, room, "user:ken")
-    eventually(do: assert(render(ada) =~ "presence_diff"))
+
+    assert_receive %Phoenix.Socket.Broadcast{
+      event: "presence_diff",
+      payload: %{joins: %{"user:ken" => _}}
+    }
+
+    settle(ada.pid)
+    assert render(ada) =~ "presence_diff"
   end
 
   test "a revoked person's components hear why", %{conn: conn, room: room} do
