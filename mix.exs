@@ -1,7 +1,7 @@
 defmodule Issho.MixProject do
   use Mix.Project
 
-  @version "0.2.1"
+  @version "0.3.0"
   @source_url "https://github.com/hattoriai/issho"
 
   def project do
@@ -95,7 +95,13 @@ defmodule Issho.MixProject do
       source_ref: "v#{@version}",
       source_url: @source_url,
       assets: %{"media" => "media"},
-      extras: ["README.md", "guides/architecture.md", "guides/agents.md", "CHANGELOG.md"],
+      extras: [
+        "README.md",
+        "guides/architecture.md",
+        "guides/agents.md",
+        "guides/components.md",
+        "CHANGELOG.md"
+      ],
       groups_for_modules: [
         Contracts: [
           Issho.Actor,

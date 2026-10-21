@@ -5,20 +5,54 @@ All notable changes to Issho are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.1] - 2026-10-21
+## [0.3.0] - 2026-10-21
+
+Agents that move as people do, and a page that is one live space across
+its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 
 ### Added
 
-- An agent's pointer goes where it works on the page, and glides there:
-  a component says where a place of its document is (`locate(element,
-  at => box)` in the `issho` package), and the pointer of an agent at
-  work in it goes to that box (its caret, a node, a cell), follows it as
-  the document changes, and moves from place to place, and from component
-  to component, as a hand would (`--issho-agent-glide`, 320ms).
-- At a place a component located, the pointer is the arrow only: the
-  component names the agent there (Kotoba's caret has its name), so the
-  name is not shown twice.
-- `Pointing` carries the agent's place in its document (`at`).
+- `Issho.Motion`: an agent goes where it works as a hand would, in
+  gestures (move, press, drag, release, click) to a place of a document
+  or an element of the page (`data-issho-anchor`). Only where it goes is
+  sent, once for each gesture; each browser draws the way there; the agent
+  waits as long as that takes, within a tool call's time budget, and only
+  when someone of the room sees it (a browser that says nothing, or a room
+  without presence, counts as watching). `pause/4`, a moment before a
+  change. `config :issho, Issho.Motion, travel:, flight:, step:, click:,
+  budget:`.
+- Each browser with Issho's pointers tells the room what it shows: the
+  page in the foreground, the components on the screen, its person's
+  motion, whom it follows, and the page's anchors.
+- Room tools: `point` at an anchor, `click` an anchor; `look_around` lists
+  the anchors of the people's pages.
+- One pointer across the page's blocks: a component says where a place of
+  its document is on the screen (`locate`) and which place is under a
+  pointer (`point`), and a pointer over it is a place of its document,
+  drawn where it is on each screen; an agent's pointer glides there in the
+  time its gesture says, and rings where it clicks. At a place a component
+  located, the pointer is the arrow only (the component names the agent).
+- Following, a room's: the people list follows on a click (`follow={false}`
+  for one that does not), with "Following Ada · Stop"; the page keeps the
+  one followed on the screen; a link or a button with `data-issho-follow`
+  they click is clicked for their followers. The state is the page's
+  (`data-issho-following`, the `issho:following` event), so a block
+  follows with or without Issho's script; `follow`, `following`,
+  `onFollow` and `stopOnOwnWay` in the `issho` package.
+- The person's motion is the app's to say: `motion` on the pointers,
+  `setMotion` in the `issho` package, or `data-issho-motion` on the root
+  element; else the browser's setting. `motion_switch/1`, an optional
+  switch for it (the `IsshoMotion` hook).
+- `Issho.Participant.key/1`.
+- A guide for components built on Issho: [Building a component on
+  Issho](guides/components.md).
+
+### Changed
+
+- `Issho.Tools.run/3` runs each tool within its time budget
+  (`Issho.Motion.within/2`).
+- The people list's avatars of others are buttons (`.issho-person-follow`,
+  `aria-pressed`).
 
 ## [0.2.0] - 2026-10-21
 
