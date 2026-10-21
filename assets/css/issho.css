@@ -199,6 +199,11 @@
   color: var(--issho-color, var(--issho-person-1));
 }
 
+/* An agent goes from place to place: it glides, as a hand would move. */
+.issho-pointer[data-kind="agent"] {
+  transition: transform var(--issho-agent-glide, 320ms) cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
 .issho-pointer-arrow {
   display: block;
   width: 1rem;

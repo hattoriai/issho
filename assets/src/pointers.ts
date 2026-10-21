@@ -13,7 +13,9 @@
 // over. Over an element with `data-issho-private`, or a password field, this
 // browser shares no pointer at all, nor while its window is in the
 // background. An agent has no pointer: one with a place in a document is
-// drawn at the component of that document (`data-issho-doc`).
+// drawn where that place is, when the component of the document says
+// where (`locate`: the caret, a node, a cell), else at the component's top
+// end (`data-issho-doc`). It glides from place to place, across the page.
 //
 // This browser's pointer goes into the room's awareness as `pointer`:
 // `{ anchor, x, y, click? }`, `click` a number that changes with each click.
@@ -50,9 +52,31 @@ export interface Pointing {
   name: string;
   color: string;
   kind: string;
-  /** A pointer of the page, or the document an agent works in. */
+  /** A pointer of the page, or the document an agent works in, and where in it. */
   pointer: PagePointer | null;
   doc: string | null;
+  at?: unknown;
+}
+
+/** Where a place of a document is in the viewport (its `at`), or `null`. */
+export type Locator = (at: unknown) => Box | null;
+
+// On the element itself, under a symbol of the whole page: a component
+// whose bundle has a copy of this module finds the same.
+const LOCATOR = Symbol.for("issho.locator");
+type Located = Element & { [LOCATOR]?: Locator };
+
+/**
+ * Says where the places of the document of a component are on the page: the
+ * element of the component (with `data-issho-doc`), and a function of a
+ * place's `at` that gives its box in the viewport (a caret, a node, a cell).
+ * An agent's pointer goes there. Gives a function that takes it back.
+ */
+export function locate(element: Element, locator: Locator): () => void {
+  (element as Located)[LOCATOR] = locator;
+  return () => {
+    if ((element as Located)[LOCATOR] === locator) delete (element as Located)[LOCATOR];
+  };
 }
 
 const round = (value: number): number => Math.round(value * 10_000) / 10_000;
@@ -104,6 +128,7 @@ export function pointing(peers: Peer[], everyone: Person[], self: string): Point
       kind: person?.kind ?? "human",
       pointer,
       doc: pointer ? null : doc,
+      ...(pointer ? {} : { at: atOf(peer.state.place) }),
     };
     const before = chosen.get(peer.key);
     // A pointer wins over a place: the session that moved is the one with a pointer.
@@ -118,6 +143,10 @@ function asPointer(value: unknown): PagePointer | null {
   if (typeof anchor !== "string" || typeof x !== "number" || typeof y !== "number") return null;
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return { anchor, x: clamp(x, 0, 1), y: clamp(y, 0, 1), ...(typeof click === "number" ? { click } : {}) };
+}
+
+function atOf(place: unknown): unknown {
+  return typeof place === "object" && place !== null ? (place as { at?: unknown }).at : undefined;
 }
 
 function docOf(place: unknown): string | null {
@@ -187,6 +216,9 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   const seenClicks = new Map<string, number | undefined>();
   const marks = new Map<string, HTMLElement>();
   let frame = 0;
+  // An agent's place moves as its document changes under it (text typed
+  // before it, a node moved): looked at again while one is drawn there.
+  let follow = 0;
 
   const send = (pointer: PagePointer | null): void => {
     if (!share) return;
@@ -257,6 +289,12 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
         marks.delete(key);
       }
     }
+    const located = people.some((one) => !one.pointer && one.doc);
+    if (located && !follow) follow = window.setInterval(schedule, 250);
+    if (!located && follow) {
+      clearInterval(follow);
+      follow = 0;
+    }
   }
 
   function spotOf(one: Pointing, viewport: { width: number; height: number }): Spot | null {
@@ -268,7 +306,10 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     if (one.doc) {
       const element = document.querySelector(`[data-issho-doc="${CSS.escape(one.doc)}"]`);
       if (!element) return null;
-      // An agent at work in a component: at its top end.
+      // An agent at work in a component: where its place is (the end of
+      // its selection, a node, a cell), else at the component's top end.
+      const box = one.at === undefined ? null : (element as Located)[LOCATOR]?.(one.at);
+      if (box) return place(box, { x: 1, y: 1 }, viewport);
       return place(boxOf(element), { x: 1, y: 0 }, viewport);
     }
     return null;
@@ -321,6 +362,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       window.removeEventListener("scroll", schedule, { capture: true });
       window.removeEventListener("resize", schedule);
       if (frame) cancelAnimationFrame(frame);
+      if (follow) clearInterval(follow);
       for (const mark of marks.values()) mark.remove();
       marks.clear();
     },

@@ -5,6 +5,18 @@ All notable changes to Issho are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-21
+
+### Added
+
+- An agent's pointer goes where it works on the page, and glides there:
+  a component says where a place of its document is (`locate(element,
+  at => box)` in the `issho` package), and the pointer of an agent at
+  work in it goes to that box (its caret, a node, a cell), follows it as
+  the document changes, and moves from place to place, and from component
+  to component, as a hand would (`--issho-agent-glide`, 320ms).
+- `Pointing` carries the agent's place in its document (`at`).
+
 ## [0.2.0] - 2026-10-21
 
 Agents, and pages of many components. An agent joins a room, however it

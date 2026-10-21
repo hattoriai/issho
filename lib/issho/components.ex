@@ -51,9 +51,12 @@ if Code.ensure_loaded?(Phoenix.Component) do
     its people itself) the component takes over. Over an element with
     `data-issho-private`, or a password field, the browser shares nothing,
     nor while its window is in the background. An agent at work in a
-    document is drawn at its component, the element with
-    `data-issho-doc` of the document's id. `share={false}` shows the others
-    without sharing this person's pointer.
+    document is drawn where it works: its caret, the node or the cell it
+    is at, where the component says (`locate` in the `issho` package), else
+    at its component, the element with `data-issho-doc` of the document's
+    id; it glides from place to place across the page
+    (`--issho-agent-glide`). `share={false}` shows the others without
+    sharing this person's pointer.
     """
 
     use Phoenix.Component
