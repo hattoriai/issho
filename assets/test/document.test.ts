@@ -249,3 +249,101 @@ test("browsers that change at once converge on the server's state", async () => 
     }
   }
 });
+
+function batched(server: FakeServer, author: string, batch: { delay: number; maxOps?: number }): SharedDocument {
+  const link: DocumentLink = { send: (_id, tx) => server.commit(tx, author) };
+  let n = 0;
+  const doc = new SharedDocument(server.snapshot(), link, { author, newId: () => `${author}-${++n}`, batch });
+  server.browsers.push({ doc, author, inbox: [] });
+  return doc;
+}
+
+test("changes close together go as one transaction, after the delay", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer();
+  const ada = batched(server, "ada", { delay: 80 });
+
+  ada.change([inc("n")]);
+  ada.change([inc("n")]);
+  const last = ada.change([set("title", "Plan")]);
+  assert.deepEqual(ada.state, { n: 2, title: "Plan" });
+  assert.equal(ada.pending.length, 1);
+  assert.ok(last.ok && last.transaction.ops.length === 3);
+
+  t.mock.timers.tick(79);
+  await server.settle();
+  assert.deepEqual(server.sends, []);
+
+  t.mock.timers.tick(1);
+  await server.settle();
+  assert.deepEqual(server.sends, ["ada-1"]);
+  assert.equal(ada.pending.length, 0);
+  assert.deepEqual(server.state, { n: 2, title: "Plan" });
+});
+
+test("a sent transaction never changes; the next change starts another", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer();
+  const ada = batched(server, "ada", { delay: 80 });
+
+  ada.change([inc("n")]);
+  ada.flush();
+  assert.deepEqual(server.sends, ["ada-1"]);
+  ada.change([inc("n")]);
+  assert.equal(ada.pending.length, 2);
+  assert.deepEqual(ada.pending[0].ops, [inc("n")]);
+
+  t.mock.timers.tick(80);
+  await server.settle();
+  assert.deepEqual(server.sends, ["ada-1", "ada-2"]);
+  assert.deepEqual(server.state, { n: 2 });
+});
+
+test("a batch holds at most maxOps operations, and not across others' changes", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer({ a: 0 });
+  const ada = batched(server, "ada", { delay: 80, maxOps: 2 });
+  const ken = server.connect("ken");
+
+  ada.change([inc("n")]);
+  ada.change([inc("n")]);
+  ada.change([inc("n")]);
+  assert.deepEqual(
+    ada.pending.map((tx) => tx.ops.length),
+    [2, 1],
+  );
+
+  ken.change([inc("a")]);
+  await server.settle();
+  // Ada's accepted state moved on: her next change makes a new transaction.
+  ada.change([inc("n")]);
+  assert.deepEqual(
+    ada.pending.map((tx) => tx.ops.length),
+    [1, 1],
+  );
+
+  t.mock.timers.tick(80);
+  await server.settle();
+  assert.equal(ada.pending.length, 0);
+  assert.deepEqual(server.state, { a: 1, n: 4 });
+});
+
+test("held, changes show and batch but do not go until released", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer();
+  const ada = batched(server, "ada", { delay: 80 });
+
+  ada.hold();
+  ada.change([set("t", "k")]);
+  t.mock.timers.tick(500);
+  await server.settle();
+  ada.change([set("t", "ka")]);
+  assert.deepEqual(server.sends, []);
+  assert.deepEqual(ada.state, { t: "ka" });
+  assert.equal(ada.pending.length, 1);
+
+  ada.release();
+  await server.settle();
+  assert.deepEqual(server.sends, ["ada-1"]);
+  assert.deepEqual(server.state, { t: "ka" });
+});

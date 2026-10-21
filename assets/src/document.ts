@@ -10,6 +10,12 @@
 // it. A gap in the revisions, another epoch, or a transaction the engine
 // cannot apply means this copy is out of step: the room opens the
 // document again (`reset`).
+//
+// With `batch`, changes made close together go as one transaction: a
+// change joins the last transaction while it has not been sent, and the
+// state it was made on is still the accepted one. `hold()` keeps
+// transactions from going (while a person composes text with an input
+// method), and `release()` lets them go.
 
 import { engine as engineNamed, type Engine, type Operation, type State } from "./engine";
 
@@ -71,6 +77,11 @@ export interface DocumentOptions {
    * sent.
    */
   pending?: Transaction[];
+  /**
+   * Changes made within `delay` milliseconds of the first go as one
+   * transaction, of at most `maxOps` operations (900).
+   */
+  batch?: { delay: number; maxOps?: number };
 }
 
 export class SharedDocument {
@@ -84,6 +95,11 @@ export class SharedDocument {
   // reply usually comes first. They are not sent again.
   private acked = new Set<string>();
   private online = true;
+  private held = false;
+  // Transactions handed to the link once: they never change again.
+  private sent = new Set<string>();
+  // The last transaction, while it waits for the batch's delay.
+  private batching: { id: string; timer: ReturnType<typeof setTimeout> } | null = null;
   private listeners = new Set<(event: DocumentEvent) => void>();
   private settledWaiters: (() => void)[] = [];
 
@@ -96,6 +112,8 @@ export class SharedDocument {
     if (options.pending && options.pending.length > 0) {
       const accepted = new Set(snapshot.accepted ?? []);
       this.queue = options.pending.filter((tx) => tx.epoch === snapshot.epoch && !accepted.has(tx.id));
+      // A draft may have been sent before the reload.
+      for (const tx of this.queue) this.sent.add(tx.id);
       this.replay();
       queueMicrotask(() => this.pump());
     }
@@ -133,19 +151,29 @@ export class SharedDocument {
     const applied = this.engine.apply(this.view, ops, this.options.author);
     if (!applied.ok) return applied;
 
-    const transaction: Transaction = {
-      id: (this.options.newId ?? newId)(),
-      epoch: this.accepted.epoch,
-      base_revision: this.accepted.revision,
-      ops,
-    };
-
-    this.queue.push(transaction);
+    const transaction = this.joinLast(ops) ?? this.newTransaction(ops);
     this.view = applied.state;
     this.persist();
     this.emit({ type: "change", state: this.view, origin: "local" });
     this.pump();
     return { ok: true, transaction };
+  }
+
+  /** Keeps transactions from going until `release()`; changes still show, and batch. */
+  hold(): void {
+    this.held = true;
+  }
+
+  /** Lets held transactions go. */
+  release(): void {
+    this.held = false;
+    this.pump();
+  }
+
+  /** Sends the batching transaction now, without waiting for its delay. */
+  flush(): void {
+    this.endBatch();
+    this.pump();
   }
 
   /** A transaction the server accepted, pushed to every browser with the document open. */
@@ -161,6 +189,7 @@ export class SharedDocument {
     const own = this.queue.findIndex((tx) => tx.id === event.id);
     if (own >= 0) this.queue.splice(own, 1);
     this.acked.delete(event.id);
+    this.sent.delete(event.id);
     if (this.sending === event.id) this.sending = null;
 
     this.replay();
@@ -184,6 +213,8 @@ export class SharedDocument {
     // Transactions of another epoch can never apply: they are refused here.
     const stale = epochChanged ? this.queue : [];
     this.queue = epochChanged ? [] : this.queue.filter((tx) => !accepted.has(tx.id));
+    if (this.batching && !this.queue.some((tx) => tx.id === this.batching?.id)) this.endBatch();
+    this.sent = new Set(this.queue.filter((tx) => this.sent.has(tx.id)).map((tx) => tx.id));
     for (const transaction of stale) this.emit({ type: "refused", transaction, reason: "epoch_mismatch" });
 
     this.replay();
@@ -197,6 +228,46 @@ export class SharedDocument {
     this.online = online;
     if (!online) this.sending = null;
     this.pump();
+  }
+
+  // The last transaction with these operations too, when it can take them.
+  private joinLast(ops: Operation[]): Transaction | null {
+    const batch = this.options.batch;
+    const last = this.queue[this.queue.length - 1];
+    if (!batch || !last || this.sent.has(last.id)) return null;
+    if (last.epoch !== this.accepted.epoch || last.base_revision !== this.accepted.revision) return null;
+    if (last.ops.length + ops.length > (batch.maxOps ?? 900)) return null;
+
+    const joined = { ...last, ops: [...last.ops, ...ops] };
+    this.queue[this.queue.length - 1] = joined;
+    return joined;
+  }
+
+  private newTransaction(ops: Operation[]): Transaction {
+    const transaction: Transaction = {
+      id: (this.options.newId ?? newId)(),
+      epoch: this.accepted.epoch,
+      base_revision: this.accepted.revision,
+      ops,
+    };
+
+    // The one before goes now; this one waits for the others of its batch.
+    this.endBatch();
+    this.queue.push(transaction);
+
+    const delay = this.options.batch?.delay ?? 0;
+    if (delay > 0) {
+      const timer = setTimeout(() => {
+        if (this.batching?.id === transaction.id) this.flush();
+      }, delay);
+      this.batching = { id: transaction.id, timer };
+    }
+    return transaction;
+  }
+
+  private endBatch(): void {
+    if (this.batching) clearTimeout(this.batching.timer);
+    this.batching = null;
   }
 
   /** Resolves when every pending transaction has been accepted. */
@@ -225,11 +296,12 @@ export class SharedDocument {
       for (const resolve of waiters) resolve();
       return;
     }
-    if (!this.online || this.sending) return;
+    if (!this.online || this.held || this.sending) return;
 
     const transaction = this.queue.find((tx) => !this.acked.has(tx.id));
-    if (!transaction) return;
+    if (!transaction || transaction.id === this.batching?.id) return;
     this.sending = transaction.id;
+    this.sent.add(transaction.id);
 
     this.link.send(this.id, transaction).then(
       (receipt) => this.acknowledged(transaction, receipt),
@@ -245,6 +317,7 @@ export class SharedDocument {
     const index = this.queue.findIndex((tx) => tx.id === transaction.id);
     if (index >= 0 && receipt.revision <= this.accepted.revision) {
       this.queue.splice(index, 1);
+      this.sent.delete(transaction.id);
       this.replay();
       this.persist();
     } else if (index >= 0) {
@@ -258,6 +331,7 @@ export class SharedDocument {
 
     if (error instanceof Refused) {
       this.queue = this.queue.filter((tx) => tx.id !== transaction.id);
+      this.sent.delete(transaction.id);
       this.replay();
       this.persist();
       this.emit({ type: "refused", transaction, reason: error.reason });

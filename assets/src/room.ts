@@ -8,6 +8,7 @@ import {
   SharedDocument,
   type AcceptedTransaction,
   type DocumentLink,
+  type DocumentOptions,
   type Receipt,
   type Snapshot,
   type Transaction,
@@ -100,9 +101,11 @@ export class Room {
 
   /**
    * Opens a document of the room (the room itself, or a path under it),
-   * once for every component that asks.
+   * once for every component that asks. `batch` makes changes close
+   * together one transaction (see `DocumentOptions`); the first open's
+   * options hold.
    */
-  open(documentId: string): Promise<SharedDocument> {
+  open(documentId: string, options: { batch?: DocumentOptions["batch"] } = {}): Promise<SharedDocument> {
     const open = this.documents.get(documentId);
     if (open) return Promise.resolve(open);
     const opening = this.opening.get(documentId);
@@ -129,6 +132,7 @@ export class Room {
       const document = new SharedDocument(snapshot, link, {
         author: this.options.self,
         pending: restore,
+        batch: options.batch,
         persist: key ? (accepted, pending) => this.keep(key, accepted, pending) : undefined,
       });
       document.on((event) => {

@@ -20,6 +20,7 @@ export {
   type Receipt,
   type DocumentLink,
   type DocumentEvent,
+  type DocumentOptions,
 } from "./document";
 export { Presence, type Person, type PresenceEvent } from "./presence";
 export { Awareness, type AwarenessState, type Peer, type Frame } from "./awareness";

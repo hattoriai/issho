@@ -5,6 +5,18 @@ All notable changes to Issho are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `upgrade/1`, an engine's optional callback: a stored document of
+  another engine version, or one a library saved before Issho, opens
+  upgraded and is saved upgraded with its next transaction.
+- Batching in the browser: `room.open(id, { batch: { delay, maxOps } })`
+  makes changes close together one transaction, while it has not been
+  sent. `SharedDocument#hold()` and `release()` keep transactions from
+  going while a person composes text; `flush()` sends the batch now.
+
 ## [0.1.0] - 2026-10-21
 
 The first release: the server core, `Issho.Live`, agents from Elixir,
