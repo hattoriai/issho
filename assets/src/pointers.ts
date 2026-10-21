@@ -498,14 +498,6 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       }
       if (followed === one.key) keepInView(one, spot, viewport);
     }
-    // Following someone here: the page has a frame of their colour.
-    const frame = followed ? people.find((one) => one.key === followed && keep.has(one.key)) : undefined;
-    if (frame) {
-      layer.dataset.following = "";
-      layer.style.setProperty("--issho-follow-color", frame.color);
-    } else {
-      delete layer.dataset.following;
-    }
     for (const [key, mark] of marks) {
       if (!keep.has(key)) {
         mark.remove();

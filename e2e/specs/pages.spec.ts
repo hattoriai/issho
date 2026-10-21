@@ -31,10 +31,7 @@ test("following someone: the pill, the frame, and Stop", async ({ page, browser 
   await open(page, "/one", room, "Ada");
   const other = await (await browser.newContext()).newPage();
   await open(other, "/one", room, "Grace");
-  // Grace's pointer on the page, so that it is drawn (and the frame with it).
-  const box = await item(other, 2);
-  await other.mouse.move(box.x + 10, box.y + 10);
-
+  // Grace's pointer is nowhere on the page: the frame does not wait for it.
   const avatar = page.locator("#people .issho-person-follow");
   await expect(avatar).toHaveCount(1);
   await avatar.click();
