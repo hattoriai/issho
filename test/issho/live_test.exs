@@ -104,6 +104,19 @@ defmodule Issho.LiveTest do
       refute render(ken) =~ "Q3 plan"
     end
 
+    test "a component's browser half releases it when it goes", %{conn: conn, room: room} do
+      {:ok, ada, _} = board(conn, room, "user:ada")
+      {:ok, ken, _} = board(conn, room, "user:ken")
+
+      render_hook(ken, "issho:release", %{"room" => room, "component" => "title"})
+      render_click(ada, "rename", %{"title" => "Q3 plan"})
+      settle(ken.pid)
+
+      refute render(ken) =~ "Q3 plan"
+      # The LiveView itself still listens: it is in the room.
+      assert Map.has_key?(Issho.Presence.list(Issho.Presence.topic(room)), "user:ken")
+    end
+
     test "a released document lets its authority go", %{conn: conn, room: room} do
       {:ok, ken, _} = board(conn, room, "user:ken")
       pid = Issho.Documents.whereis(IsshoTest.Issho, room)

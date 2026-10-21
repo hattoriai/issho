@@ -113,6 +113,14 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       {:halt, reply, socket}
     end
 
+    # A component's browser half says it went (its hook's `destroyed`): its
+    # room is released for it, as `release/2` does, and for no other.
+    def __handle_event__("issho:release", %{"room" => room, "component" => id}, socket)
+        when is_binary(room) and is_binary(id) do
+      for {module, ^id} = target <- targets(room), is_atom(module), do: release(room, target)
+      {:halt, socket}
+    end
+
     def __handle_event__(_event, _params, socket), do: {:cont, socket}
 
     @doc """
@@ -174,6 +182,14 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     (or the LiveView, `:self`); when none is left in the room, leaves it
     (`leave/1`). For a component that goes from the page while the
     LiveView stays: a canvas deleted from a document, a panel closed.
+
+    A LiveComponent hears nothing when it goes, so its browser half says
+    it, from its hook's `destroyed`, and Issho's hook releases the room for
+    the component of that id:
+
+        destroyed() {
+          this.pushEvent("issho:release", { room: "board:42", component: "board" })
+        }
     """
     @spec release(String.t(), target()) :: :ok
     def release(room, target) do
