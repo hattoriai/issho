@@ -19,9 +19,16 @@
 //
 // This browser's pointer goes into the room's awareness as `pointer`:
 // `{ anchor, x, y, click? }`, `click` a number that changes with each click.
+//
+// A page may have blocks of other rooms in it (a canvas shared in its own
+// room, embedded in a document): such a block is its room's, which draws
+// its people there (the block itself, or that room's own layer). Over it,
+// this room hears only that the pointer is in it (`{ block }`), and draws
+// nothing: following someone who goes into it scrolls to the block and
+// follows them in its room too, so that the block shows where they are.
 
 import type { Peer } from "./awareness";
-import { following } from "./follow";
+import { follow, following } from "./follow";
 import { motion as motionPreference, onMotion } from "./motion";
 import type { Person } from "./presence";
 import { currentLook } from "./theme";
@@ -39,6 +46,17 @@ export type DocPointer = {
   at: unknown;
   click?: number;
 };
+
+/** A pointer over a block of another room (its document): that room draws it. */
+export type BlockPointer = {
+  block: string;
+};
+
+/** The room of a document: the part of its id before the first `/`. */
+export function roomOf(doc: string): string {
+  const slash = doc.indexOf("/");
+  return slash === -1 ? doc : doc.slice(0, slash);
+}
 
 export interface Box {
   left: number;
@@ -71,6 +89,8 @@ export interface Pointing {
   motion?: { gesture: string; ms: number; seq: number };
   /** An agent's place in a document, where it is drawn when the element it went to is not on this page. */
   place?: { doc: string; at: unknown };
+  /** In a block of another room (`doc`): not drawn here, that room draws them. */
+  away?: true;
 }
 
 /** Where a place of a document is in the viewport (its `at`), or `null`. */
@@ -160,8 +180,9 @@ export function pointing(peers: Peer[], everyone: Person[], self: string): Point
     const target = motion?.to;
     const shared = target ? null : asPointer(peer.state.pointer);
     const over = shared && "doc" in shared ? shared : null;
+    const away = shared && "block" in shared ? shared.block : null;
     const pointer = target && typeof target.anchor === "string" ? { anchor: target.anchor, x: fraction(target.x), y: fraction(target.y) } : shared && "anchor" in shared ? shared : null;
-    const doc = pointer ? null : over ? over.doc : typeof target?.doc === "string" ? target.doc : docOf(peer.state.place);
+    const doc = pointer ? null : over ? over.doc : away ?? (typeof target?.doc === "string" ? target.doc : docOf(peer.state.place));
     if (!pointer && !doc) continue;
     const at = !doc ? undefined : over ? over.at : docOf(peer.state.place) === doc ? atOf(peer.state.place) : target?.at;
     const person = people.get(peer.key);
@@ -172,7 +193,8 @@ export function pointing(peers: Peer[], everyone: Person[], self: string): Point
       kind: person?.kind ?? "human",
       pointer,
       doc,
-      ...(pointer ? {} : { at }),
+      ...(pointer || away ? {} : { at }),
+      ...(away ? { away: true as const } : {}),
       ...(over?.click !== undefined ? { click: over.click } : {}),
       ...(motion ? { motion: { gesture: motion.gesture, ms: motion.ms, seq: motion.seq } } : {}),
       ...(pointer && target && docOf(peer.state.place) ? { place: { doc: docOf(peer.state.place) as string, at: atOf(peer.state.place) } } : {}),
@@ -202,9 +224,10 @@ export function within(at: unknown): { x: number; y: number } {
 
 const fraction = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? clamp(value, 0, 1) : 0.5);
 
-function asPointer(value: unknown): PagePointer | DocPointer | null {
+function asPointer(value: unknown): PagePointer | DocPointer | BlockPointer | null {
   if (typeof value !== "object" || value === null) return null;
-  const { anchor, x, y, click, doc, at } = value as Record<string, unknown>;
+  const { anchor, x, y, click, doc, at, block } = value as Record<string, unknown>;
+  if (typeof block === "string" && block !== "") return { block };
   if (typeof doc === "string" && at !== undefined && at !== null) return { doc, at, ...(typeof click === "number" ? { click } : {}) };
   if (typeof anchor !== "string" || typeof x !== "number" || typeof y !== "number") return null;
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
@@ -285,10 +308,16 @@ function boxOf(element: Element): Box {
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
 }
 
-/** This browser's pointer at a point of the viewport, over an element. */
-export function pointerAt(target: Element | null, clientX: number, clientY: number): PagePointer | DocPointer | null {
-  // Over a component that says what is under the point: a place of its document.
+/**
+ * This browser's pointer at a point of the viewport, over an element, for
+ * the room `room` (any room's, when `null`).
+ */
+export function pointerAt(target: Element | null, clientX: number, clientY: number, room: string | null = null): PagePointer | DocPointer | BlockPointer | null {
   const component = target?.closest?.<HTMLElement>("[data-issho-doc]");
+  // Over a block of another room: that room's, which hears where in it.
+  const blockDoc = component?.dataset.isshoDoc;
+  if (room !== null && blockDoc && roomOf(blockDoc) !== room) return target!.closest("[data-issho-private]") ? null : { block: blockDoc };
+  // Over a component that says what is under the point: a place of its document.
   const pointer = component ? (component as Pointed)[POINTER] : undefined;
   if (component && pointer && !target!.closest("[data-issho-private]")) {
     const at = pointer(clientX, clientY);
@@ -326,7 +355,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   const room = options.room ?? null;
   let people: Pointing[] = [];
   let clicks = 0;
-  let last: PagePointer | DocPointer | null = null;
+  let last: PagePointer | DocPointer | BlockPointer | null = null;
   const seenClicks = new Map<string, number | undefined>();
   const seenMotion = new Map<string, number>();
   const marks = new Map<string, HTMLElement>();
@@ -339,7 +368,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
   // agent made before is not made again for a page that comes after it.
   let primed = false;
 
-  const send = (pointer: PagePointer | DocPointer | null): void => {
+  const send = (pointer: PagePointer | DocPointer | BlockPointer | null): void => {
     if (!share) return;
     if (pointer === null && last === null) return;
     last = pointer;
@@ -348,12 +377,12 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
 
   const onMove = (event: PointerEvent): void => {
     if (event.pointerType === "touch") return;
-    const pointer = pointerAt(event.target as Element | null, event.clientX, event.clientY);
-    send(pointer && last?.click !== undefined ? { ...pointer, click: last.click } : pointer);
+    const pointer = pointerAt(event.target as Element | null, event.clientX, event.clientY, room);
+    send(pointer && !("block" in pointer) && last && "click" in last && last.click !== undefined ? { ...pointer, click: last.click } : pointer);
   };
   const onDown = (event: PointerEvent): void => {
-    const pointer = pointerAt(event.target as Element | null, event.clientX, event.clientY);
-    if (pointer) send({ ...pointer, click: ++clicks });
+    const pointer = pointerAt(event.target as Element | null, event.clientX, event.clientY, room);
+    if (pointer) send("block" in pointer ? pointer : { ...pointer, click: ++clicks });
   };
   const onLeave = (): void => send(null);
   const onVisibility = (): void => {
@@ -455,8 +484,19 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     const reduced = motionPreference() === "reduced";
     const followed = room ? following(room) : null;
     const keep = new Set<string>();
+    let into: { room: string; key: string } | null = null;
     for (const someone of people) {
       const one = onThisPage(someone);
+      // In a block of another room, which draws them: the page keeps the
+      // block on the screen for those who follow them.
+      if (one.away) {
+        const block = one.doc ? docElement(one.doc) : null;
+        if (followed === one.key && block && one.doc) {
+          into = { room: roomOf(one.doc), key: one.key };
+          keepInView(one, place(boxOf(block), { x: 0.5, y: 0.5 }, viewport), viewport);
+        }
+        continue;
+      }
       const spot = spotOf(one, viewport);
       if (!spot) continue;
       keep.add(one.key);
@@ -505,12 +545,24 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
       }
     }
     primed = true;
-    const located = people.some((one) => !!onThisPage(one).doc);
+    carry(into);
+    const located = people.some((one) => !one.away && !!onThisPage(one).doc);
     if (located && !locating) locating = window.setInterval(schedule, 250);
     if (!located && locating) {
       clearInterval(locating);
       locating = 0;
     }
+  }
+
+  // Following someone into a block of another room follows them in its room
+  // too, once, while they are in it: the block shows where they are. They
+  // go out of it, or the page follows no one, and the block stops.
+  let carried: { room: string; key: string } | null = null;
+  function carry(to: { room: string; key: string } | null): void {
+    if (carried?.room === to?.room && carried?.key === to?.key) return;
+    if (carried && following(carried.room) === carried.key) follow(carried.room, null);
+    carried = to;
+    if (to) follow(to.room, to.key);
   }
 
   // A click of someone: it rings, and when this page follows them, a link
@@ -630,6 +682,7 @@ export function pointerLayer(layer: HTMLElement, options: PointerLayerOptions): 
     },
     stop(): void {
       send(null);
+      carry(null);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerdown", onDown);
       document.documentElement.removeEventListener("pointerleave", onLeave);

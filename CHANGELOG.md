@@ -12,6 +12,20 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 
 ### Added
 
+- A page with blocks of other rooms: a canvas shared in its own room,
+  embedded in a document. Over a block of another room, the page's
+  pointers share only that the pointer is in it, and draw no one there:
+  the block's own room draws its people (the canvas, or that room's
+  pointers). Following someone who goes into such a block keeps it on
+  the screen and follows them in its room too, until they come out.
+  `Issho.Components.pointers/1` says its room (`data-room`), so a block
+  knows whether a layer of its own room draws its people.
+- `Issho.Live.release/2` and `Issho.Live.leave/1`: a component that goes
+  while its LiveView stays (an embed deleted from a document) releases
+  its room, and the LiveView leaves it with its last component: its
+  people see it go, its awareness clears, and its documents let it go.
+  A component's hook says it went with the `"issho:release"` event
+  (`room`, `component`), which Issho's hook takes.
 - One look for following, everywhere: `--issho-following-background`,
   `--issho-following-text` and `--issho-following-ring` restyle the
   "Following Ada" pill and the ring of Issho's people list and pointers,

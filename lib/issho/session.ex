@@ -57,6 +57,33 @@ defmodule Issho.Session do
   end
 
   @doc false
+  # Ends the session while its process goes on (a LiveView whose last
+  # component in the room went): as if the process had ended, for the
+  # room's people, its awareness and the documents it opened.
+  @spec leave(t()) :: :ok
+  def leave(%__MODULE__{} = session) do
+    config = Config.get(session.instance)
+    Awareness.put(session.instance, session.room, session.identity.key, nil)
+
+    if config.presence,
+      do: :ok = Presence.untrack(self(), Presence.topic(session.room), session.identity.key)
+
+    for {document_id, pid} <- session.documents do
+      :ok = Phoenix.PubSub.unsubscribe(config.pubsub, Authority.topic(document_id))
+      Authority.leave(pid, self())
+    end
+
+    for topic <- [
+          Awareness.topic(session.room),
+          room_topic(session.room),
+          Presence.topic(session.room)
+        ],
+        do: :ok = Phoenix.PubSub.unsubscribe(config.pubsub, topic)
+
+    :ok
+  end
+
+  @doc false
   # The people of the room now, for the session's first push.
   @spec people(t()) :: map()
   def people(%__MODULE__{instance: instance, room: room}) do

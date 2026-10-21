@@ -71,6 +71,63 @@ defmodule Issho.LiveTest do
     assert render(ada) =~ "presence_diff"
   end
 
+  describe "release" do
+    test "a component released while the LiveView listens keeps it in the room", %{
+      conn: conn,
+      room: room
+    } do
+      {:ok, ken, _} = board(conn, room, "user:ken")
+      render_click(ken, "release", %{})
+
+      assert Map.has_key?(Issho.Presence.list(Issho.Presence.topic(room)), "user:ken")
+    end
+
+    test "the last one released, the LiveView leaves the room and its document", %{
+      conn: conn,
+      room: room
+    } do
+      Phoenix.PubSub.subscribe(IsshoTest.PubSub, Issho.Presence.topic(room))
+      {:ok, ada, _} = board(conn, room, "user:ada")
+      {:ok, ken, _} = board(conn, room, "user:ken")
+      assert_receive %Phoenix.Socket.Broadcast{payload: %{joins: %{"user:ken" => _}}}
+
+      render_click(ken, "release", %{"self" => "true"})
+
+      assert_receive %Phoenix.Socket.Broadcast{payload: %{leaves: %{"user:ken" => _}}}
+      settle(ada.pid)
+      assert render(ada) =~ "people: 1"
+
+      # Ken's LiveView goes on, and hears the room no more.
+      render_click(ada, "rename", %{"title" => "Q3 plan"})
+      settle(ken.pid)
+      assert Process.alive?(ken.pid)
+      refute render(ken) =~ "Q3 plan"
+    end
+
+    test "a component's browser half releases it when it goes", %{conn: conn, room: room} do
+      {:ok, ada, _} = board(conn, room, "user:ada")
+      {:ok, ken, _} = board(conn, room, "user:ken")
+
+      render_hook(ken, "issho:release", %{"room" => room, "component" => "title"})
+      render_click(ada, "rename", %{"title" => "Q3 plan"})
+      settle(ken.pid)
+
+      refute render(ken) =~ "Q3 plan"
+      # The LiveView itself still listens: it is in the room.
+      assert Map.has_key?(Issho.Presence.list(Issho.Presence.topic(room)), "user:ken")
+    end
+
+    test "a released document lets its authority go", %{conn: conn, room: room} do
+      {:ok, ken, _} = board(conn, room, "user:ken")
+      pid = Issho.Documents.whereis(IsshoTest.Issho, room)
+      assert map_size(:sys.get_state(pid).members) == 1
+
+      render_click(ken, "release", %{"self" => "true"})
+
+      assert map_size(:sys.get_state(pid).members) == 0
+    end
+  end
+
   test "a revoked person's components hear why", %{conn: conn, room: room} do
     {:ok, ada, _} = board(conn, room, "user:ada")
     Issho.revoke(IsshoTest.Issho, room, "user:ada")

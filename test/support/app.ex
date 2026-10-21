@@ -156,6 +156,15 @@ defmodule IsshoTest.BoardLive do
     {:noreply, socket}
   end
 
+  # The title goes from the page, and with it, the LiveView's last
+  # reason to be in the room unless it listens itself.
+  def handle_event("release", params, socket) do
+    room = socket.assigns.room
+    Issho.Live.release(room, {IsshoTest.TitleComponent, "title"})
+    if params["self"], do: Issho.Live.release(room, :self)
+    {:noreply, assign(socket, :snapshot, nil)}
+  end
+
   @impl true
   def handle_info({Issho.Live, event, _key, _payload}, socket),
     do: {:noreply, update(socket, :messages, &[event | &1])}

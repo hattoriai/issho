@@ -119,3 +119,46 @@ test("an agent navigates to another page, and takes its followers along", async 
   await expect(agent(request, "navigate", { room: `page:${room}`, path: "//example.com/" })).rejects.toThrow(/navigate/);
   await other.context().close();
 });
+
+// A block of another room in the page (a canvas shared in its own room, in
+// a document): that room draws its people there. Over it, the page's room
+// hears only that the pointer is in it, and draws none.
+test("a pointer in a block of another room is not drawn by the page's room", async ({ page, browser }) => {
+  const room = newRoom();
+  await open(page, "/one", room, "Ada");
+  const other = await (await browser.newContext()).newPage();
+  await open(other, "/one", room, "Grace");
+
+  const mine = await item(page, 2);
+  await page.mouse.move(mine.x + 10, mine.y + 10);
+  await expect(pointer(other, "Ada")).toBeVisible();
+
+  const block = (await page.locator("#elsewhere").boundingBox())!;
+  await page.mouse.move(block.x + 40, block.y + 40);
+  await expect(pointer(other, "Ada")).toHaveCount(0);
+  await other.context().close();
+});
+
+// Following someone who goes into a block of another room: the page keeps
+// the block on the screen, and follows them in its room too (the block
+// shows where they are), until they come out.
+test("following someone into a block of another room follows them there too", async ({ page, browser }) => {
+  const room = newRoom();
+  await open(page, "/one", room, "Ada");
+  const other = await (await browser.newContext()).newPage();
+  await other.setViewportSize({ width: 800, height: 500 });
+  await open(other, "/one", room, "Grace", "&far=1");
+  await other.locator("#people .issho-person-follow").click();
+  await expect(other.locator("#people .issho-following")).toContainText("Following Ada");
+
+  const following = () => other.evaluate(() => JSON.parse(document.documentElement.dataset.isshoFollowing ?? "{}"));
+  const block = (await page.locator("#elsewhere").boundingBox())!;
+  await page.mouse.move(block.x + 40, block.y + 40);
+  await expect.poll(following).toEqual({ [`page:${room}`]: "Ada", [`other:page:${room}`]: "Ada" });
+  await expect(other.locator("#elsewhere")).toBeInViewport();
+
+  const mine = await item(page, 2);
+  await page.mouse.move(mine.x + 10, mine.y + 10);
+  await expect.poll(following).toEqual({ [`page:${room}`]: "Ada" });
+  await other.context().close();
+});
