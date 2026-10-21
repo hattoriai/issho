@@ -83,7 +83,12 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
            {:ok, snapshot, session} <-
              Session.open(session, document_id, [], Keyword.take(opts, [:spec])) do
         put_session(session)
-        if target = opts[:notify], do: subscribe(document_id, target) && subscribe(room, target)
+
+        if target = opts[:notify] do
+          subscribe(document_id, target)
+          subscribe(room, target)
+        end
+
         {:ok, snapshot}
       end
     end
