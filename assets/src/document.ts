@@ -65,6 +65,12 @@ export interface DocumentOptions {
   newId?: () => string;
   /** Called after every change of the pending queue, to keep it (an offline store). */
   persist?: (snapshot: Snapshot, pending: Transaction[]) => void;
+  /**
+   * Pending transactions kept from before (a draft), of the snapshot's
+   * epoch: those the snapshot's `accepted` does not name are replayed and
+   * sent.
+   */
+  pending?: Transaction[];
 }
 
 export class SharedDocument {
@@ -86,6 +92,13 @@ export class SharedDocument {
     this.engine = engineNamed(snapshot.engine);
     this.accepted = { ...snapshot };
     this.view = snapshot.state;
+
+    if (options.pending && options.pending.length > 0) {
+      const accepted = new Set(snapshot.accepted ?? []);
+      this.queue = options.pending.filter((tx) => tx.epoch === snapshot.epoch && !accepted.has(tx.id));
+      this.replay();
+      queueMicrotask(() => this.pump());
+    }
   }
 
   /** The state people see: the accepted state with this browser's pending changes. */

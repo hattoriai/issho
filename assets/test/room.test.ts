@@ -158,3 +158,98 @@ test("bye ends the room with its reason", async () => {
   transport.restore();
   assert.equal(room.status, "ended");
 });
+
+import { MemoryDraftStore, claimSession } from "../src/drafts";
+
+// One tab's session storage, and Web Locks the test holds by hand.
+function tab() {
+  const storage = new Map<string, string>();
+  const held = new Set<string>();
+  return {
+    storage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v) },
+    locks: {
+      request: (name: string, _opts: unknown, callback: (lock: unknown) => unknown) => {
+        if (held.has(name)) return Promise.resolve(callback(null));
+        held.add(name);
+        return Promise.resolve(callback({ name }));
+      },
+    } as never,
+    copy() {
+      // A duplicated tab: the same session storage, the same locks.
+      return { storage: this.storage, locks: this.locks };
+    },
+  };
+}
+
+test("unsent changes survive a reload, and are sent once", async () => {
+  const transport = new FakeTransport();
+  const drafts = new MemoryDraftStore();
+  const session = tab();
+  const before = new Room(transport, { self: "ada", room: "board:1", drafts, session });
+  await before.connect();
+  const doc = await before.open("board:1");
+
+  transport.drop();
+  doc.change([{ op: "increment", path: ["n"], by: 1 }]);
+  doc.change([{ op: "increment", path: ["n"], by: 2 }]);
+  // One reached the server before the drop; its reply was lost.
+  transport.commit("board:1", doc.pending[0], "ada", false);
+  await before.flushDrafts();
+  assert.equal(drafts.drafts.size, 1);
+
+  // The reload: a new room in the same tab, online again.
+  transport.connected = true;
+  const after = new Room(transport, { self: "ada", room: "board:1", drafts, session: { ...session, locks: null } });
+  await after.connect();
+  const reopened = await after.open("board:1");
+  assert.deepEqual(reopened.state, { n: 3 });
+  await tick();
+  await after.flushDrafts();
+
+  assert.deepEqual(transport.doc("board:1").state, { n: 3 });
+  assert.equal(reopened.pending.length, 0);
+  assert.equal(drafts.drafts.size, 0);
+});
+
+test("a draft of another epoch is reported and kept aside, never sent", async () => {
+  const transport = new FakeTransport();
+  const drafts = new MemoryDraftStore();
+  const session = tab();
+  const before = new Room(transport, { self: "ada", room: "board:1", drafts, session });
+  await before.connect();
+  const doc = await before.open("board:1");
+  transport.drop();
+  doc.change([{ op: "set", path: ["mine"], value: "draft" }]);
+  await before.flushDrafts();
+
+  // The document was replaced meanwhile.
+  transport.connected = true;
+  transport.doc("board:1").epoch = "e2";
+  const after = new Room(transport, { self: "ada", room: "board:1", drafts, session: { ...session, locks: null } });
+  const stale: string[] = [];
+  after.onStaleDraft(({ document, draft, reason }) => stale.push(`${document}:${reason}:${draft.pending.length}`));
+  await after.connect();
+  const reopened = await after.open("board:1");
+  await tick();
+
+  assert.deepEqual(stale, ["board:1:epoch_mismatch:1"]);
+  assert.equal(reopened.pending.length, 0);
+  assert.deepEqual(transport.doc("board:1").state, {});
+  assert.equal([...drafts.drafts.keys()].filter((k) => k.endsWith(":stale")).length, 1);
+
+  await after.discardStaleDraft("board:1");
+  assert.equal([...drafts.drafts.keys()].filter((k) => k.endsWith(":stale")).length, 0);
+});
+
+test("a tab keeps its session across reloads; a duplicated tab gets its own", async () => {
+  const first = tab();
+  let n = 0;
+  const id = () => `s${++n}`;
+  const session = await claimSession("scope", { ...first, newId: id });
+  // The same tab after a reload: its lock went with the old page.
+  const reloaded = await claimSession("scope", { storage: first.storage, locks: null, newId: id });
+  assert.equal(reloaded, session);
+  // A duplicated tab copied the storage, but the first tab holds the lock.
+  const duplicate = await claimSession("scope", { ...first.copy(), newId: id });
+  assert.notEqual(duplicate, session);
+});

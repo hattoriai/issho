@@ -3,6 +3,7 @@
 
 import { registerEngine } from "./engine";
 import { mapEngine } from "./engines/map";
+import { defaultDraftStore } from "./drafts";
 import { phoenixTransport, type PhoenixTransportOptions } from "./phoenix";
 import { Room, type RoomOptions } from "./room";
 
@@ -24,6 +25,15 @@ export { Presence, type Person, type PresenceEvent } from "./presence";
 export { Awareness, type AwarenessState, type Peer, type Frame } from "./awareness";
 export { Room, type RoomTransport, type RoomStatus, type RoomOptions } from "./room";
 export { phoenixTransport, type PhoenixTransportOptions } from "./phoenix";
+export {
+  MemoryDraftStore,
+  IndexedDraftStore,
+  defaultDraftStore,
+  claimSession,
+  type Draft,
+  type DraftStore,
+} from "./drafts";
+export type { StaleDraft } from "./room";
 
 const rooms = new Map<string, Room>();
 
@@ -36,7 +46,11 @@ export function joinRoom(room: string, options: PhoenixTransportOptions & RoomOp
   const existing = rooms.get(room);
   if (existing) return Promise.resolve(existing);
 
-  const joined = new Room(phoenixTransport(room, options), options);
+  const joined = new Room(phoenixTransport(room, options), {
+    ...options,
+    room,
+    drafts: options.drafts ?? defaultDraftStore().store,
+  });
   rooms.set(room, joined);
   joined.onStatus((status) => {
     if (status === "ended") rooms.delete(room);

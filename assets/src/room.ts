@@ -12,6 +12,7 @@ import {
   type Snapshot,
   type Transaction,
 } from "./document";
+import { claimSession, draftKey, draftOf, type Draft, type DraftStore, type SessionEnvironment } from "./drafts";
 import { Presence } from "./presence";
 
 /**
@@ -35,7 +36,20 @@ export type RoomStatus = "connecting" | "live" | "offline" | "ended";
 export interface RoomOptions {
   /** This actor's key, as the server knows it. */
   self: string;
+  /** The room's name, for the drafts' keys. */
+  room?: string;
   awareness?: AwarenessOptions;
+  /** Where pending transactions are kept across reloads; none unless given. */
+  drafts?: DraftStore;
+  /** For tests: the tab session's storage and locks. */
+  session?: SessionEnvironment;
+}
+
+/** A draft the server can no longer take: its transactions, for the app to offer back. */
+export interface StaleDraft {
+  document: string;
+  draft: Draft;
+  reason: "epoch_mismatch";
 }
 
 export class Room {
@@ -48,6 +62,9 @@ export class Room {
   private statusValue: RoomStatus = "connecting";
   private statusListeners = new Set<(status: RoomStatus, reason?: string) => void>();
   private joinedOnce = false;
+  private tabSession: Promise<string> | null = null;
+  private writes = new Map<string, Promise<void>>();
+  private draftListeners = new Set<(stale: StaleDraft) => void>();
 
   constructor(private readonly transport: RoomTransport, private readonly options: RoomOptions) {
     this.presence = new Presence(options.self);
@@ -92,11 +109,28 @@ export class Room {
     if (opening) return opening;
 
     const promise = (async () => {
-      const snapshot = (await this.transport.push("open", { doc: documentId, pending: [] })) as Snapshot;
+      const key = await this.draftKey(documentId);
+      const draft = key ? await this.options.drafts!.load(key) : null;
+      const pendingIds = draft?.pending.map((tx) => tx.id) ?? [];
+      const snapshot = (await this.transport.push("open", { doc: documentId, pending: pendingIds })) as Snapshot;
       const link: DocumentLink = {
         send: (doc, transaction) => this.transport.push("tx", { doc, tx: transaction }) as Promise<Receipt>,
       };
-      const document = new SharedDocument(snapshot, link, { author: this.options.self });
+
+      // A draft of another epoch can never apply: report it, keep it aside.
+      let restore: Transaction[] = [];
+      if (draft && key && draft.epoch !== snapshot.epoch) {
+        await this.options.drafts!.save(`${key}:stale`, draft);
+        for (const listener of this.draftListeners) listener({ document: documentId, draft, reason: "epoch_mismatch" });
+      } else if (draft) {
+        restore = draft.pending;
+      }
+
+      const document = new SharedDocument(snapshot, link, {
+        author: this.options.self,
+        pending: restore,
+        persist: key ? (accepted, pending) => this.keep(key, accepted, pending) : undefined,
+      });
       document.on((event) => {
         if (event.type === "out_of_step") void this.reopen(document);
       });
@@ -106,6 +140,41 @@ export class Room {
 
     this.opening.set(documentId, promise);
     return promise.finally(() => this.opening.delete(documentId));
+  }
+
+  /** Called with each draft the server could no longer take, when its document opens. */
+  onStaleDraft(listener: (stale: StaleDraft) => void): () => void {
+    this.draftListeners.add(listener);
+    return () => this.draftListeners.delete(listener);
+  }
+
+  /** Throws away a document's stale draft, once the app has offered it back. */
+  async discardStaleDraft(documentId: string): Promise<void> {
+    const key = await this.draftKey(documentId);
+    if (key) await this.options.drafts!.remove(`${key}:stale`);
+  }
+
+  // Writes of one draft go in order; an empty queue leaves nothing behind.
+  private keep(key: string, accepted: Snapshot, pending: Transaction[]): void {
+    const store = this.options.drafts!;
+    const previous = this.writes.get(key) ?? Promise.resolve();
+    const next = previous
+      .then(() => (pending.length > 0 ? store.save(key, draftOf(accepted, [...pending])) : store.remove(key)))
+      .catch(() => undefined);
+    this.writes.set(key, next);
+  }
+
+  /** Resolves when every draft write so far is done. */
+  async flushDrafts(): Promise<void> {
+    await Promise.all(this.writes.values());
+  }
+
+  private async draftKey(documentId: string): Promise<string | null> {
+    if (!this.options.drafts) return null;
+    const room = this.options.room ?? "";
+    this.tabSession ??= claimSession(JSON.stringify([room, this.options.self]), this.options.session);
+    const session = await this.tabSession;
+    return draftKey({ room, document: documentId, actor: this.options.self, session });
   }
 
   /** Sets keys of this browser's awareness state: `place`, `locks`, `status`, your own. */
