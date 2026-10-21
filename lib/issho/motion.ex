@@ -127,9 +127,9 @@ defmodule Issho.Motion do
     self_key = Participant.key(participant)
     people = Participant.people(participant)
 
-    # A room that knows no one, not even this agent (no presence): it cannot
-    # tell who sees it, so someone may.
-    not Map.has_key?(people, self_key) or
+    # A room whose presence does not know this agent (none, or not yet): it
+    # cannot tell who sees it, so someone may.
+    not match?(%{^self_key => %{"person" => %{"kind" => _}}}, people) or
       people
       |> Enum.reject(fn {key, %{"person" => person}} ->
         key == self_key or person["kind"] in ["agent", :agent]
