@@ -26,6 +26,9 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
   people see it go, its awareness clears, and its documents let it go.
   A component's hook says it went with the `"issho:release"` event
   (`room`, `component`), which Issho's hook takes.
+  `Issho.Live.subscribe/3` takes `:on_release`, which runs when the
+  component is released: for what it put in the session's awareness,
+  which stays while the LiveView is in the room for its other components.
 - One look for following, everywhere: `--issho-following-background`,
   `--issho-following-text` and `--issho-following-ring` restyle the
   "Following Ada" pill and the ring of Issho's people list and pointers,

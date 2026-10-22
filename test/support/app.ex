@@ -156,6 +156,17 @@ defmodule IsshoTest.BoardLive do
     {:noreply, socket}
   end
 
+  # The title says when it is released (its awareness of its own, say).
+  def handle_event("watch", _params, socket) do
+    parent = self()
+
+    Issho.Live.subscribe(socket.assigns.room, {IsshoTest.TitleComponent, "title"},
+      on_release: fn -> send(parent, {:released, "title"}) end
+    )
+
+    {:noreply, socket}
+  end
+
   # The title goes from the page, and with it, the LiveView's last
   # reason to be in the room unless it listens itself.
   def handle_event("release", params, socket) do
@@ -166,6 +177,9 @@ defmodule IsshoTest.BoardLive do
   end
 
   @impl true
+  def handle_info({:released, what}, socket),
+    do: {:noreply, update(socket, :messages, &["released: " <> what | &1])}
+
   def handle_info({Issho.Live, event, _key, _payload}, socket),
     do: {:noreply, update(socket, :messages, &[event | &1])}
 
