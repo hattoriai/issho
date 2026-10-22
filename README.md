@@ -2,19 +2,26 @@
 
 ![Issho — Collaboration for Phoenix](https://raw.githubusercontent.com/hattoriai/issho/main/media/banner.png)
 
-Issho (一緒, "together") is collaboration for Phoenix: one engine for
-people and agents working together live, under every component on a page.
-Build apps like Notion, Figma or Linear, and bring any UI that follows the
-Issho contract: Kotoba's rich text, Masu's grids, Hakushi's canvas, or
-your own.
+Issho (一緒, "together") is an open-source collaboration toolkit for
+Phoenix that makes it easier to build applications where people and AI
+agents work together in real time.
+
+It provides the shared foundations (rooms, participants, presence,
+authorization, documents, synchronization and agent participation), so
+that developers can focus on their applications instead of rebuilding
+collaboration features. Bring your own components, your own agents and
+your own application logic.
+
+**Issho owns collaboration semantics. Applications and component
+libraries own their behavior and presentation.**
 
 > **Status: early release.** Rooms, documents, LiveView sessions, grants,
 > the browser client, the people list and theme, the page's pointers and
 > following, agents however they connect (MCP, your app's own model) and
 > how they move, undo across a page, blocks of other rooms in a page (live
-> embeds), and the bindings of Kotoba, Hakushi and Masu are here. Comments
-> and the installer come next (see the roadmap); before 1.0, a minor
-> version may change the API.
+> embeds), and the bindings of Kotoba, Hakushi and Masu are here. Before
+> 1.0, a minor version may change the API; see the roadmap for what comes
+> next.
 
 Live collaboration in the Hattori libraries is Issho's: Kotoba's shared
 editing (from 0.6), Masu's grids' people (from 0.4) and Hakushi's
@@ -155,93 +162,118 @@ room.presence.on(() => drawPeople(room.presence.others))
 
 ## Roadmap
 
-### Collaboration features
+Three priorities first, because they prove Issho's promise most
+directly: components from anyone working together on one page, ordinary
+Phoenix developers building collaborative features without designing a
+document engine, and agents as participants everywhere.
 
-* **Comments and threads.** A thread on a place of any component, as
-  each already names its places (`Issho.Place`): a range of text, a
-  canvas's node, a grid's cell. Replies, @mentions of people and agents,
-  reactions, resolve and reopen, attachments; a composer, a thread and
-  an all-comments panel, and each component marking where its threads
-  are. A commenter between a reader and a writer, in the policy. An agent
-  mentioned in a thread answers there, and does what it asks.
-* **Notifications and an inbox.** Mentions, replies, assignments and an
-  app's own kinds, unread until seen, live in the page and batched to
-  email through the app's own mailer. Phoenix makes the plumbing easy;
-  what Issho can offer out of the box is still to decide (an inbox
-  component, a schema, the events comments emit).
-* **Version history (to explore).** The authority keeps every accepted
-  transaction, and replays a document at an earlier revision. What it
-  could become: named versions, a document as it was, restore, and each
-  component's diff (text, canvas, grid), beyond Kotoba's own undo
-  history.
-* **A chat for agents (maybe).** Agents are participants of the room,
-  with presence, motion and tools; a chat component of the page, in its
-  room, could be where people ask them, beside the components they work
-  in.
+### 1. The component contract, for every author
 
-* **Shared state without an engine.** A component of text, a canvas or
-  a grid needs its own engine (Kotoba's, Hakushi's, Masu's). Most shared
-  things of an app do not: a retro board, planning poker, a poll, a
-  checklist, the order of a kanban's columns, who presents, a game's
-  turn. A ready engine for an app's state (maps, ordered lists by id,
-  counters), defined in the policy like any document, with your checks
-  and `on_change`, used from a LiveView as an assign
-  (`Issho.State.assign/3`, `Issho.State.change/3`) and from the browser:
-  concurrent adds, moves and votes merge, the server orders and checks
-  them, and agents change it with one tool. Utilities and abstractions
-  so that the shared parts of an app, simple or intricate, are easy to
-  build.
+Kotoba, Masu and Hakushi are built on Issho, but another author should
+not have to copy their patterns to do the same. The contract between a
+component and Issho (its engine and places, `locate` and `point`,
+following, motion, agents' tools, releasing a room, a block of another
+room) becomes the center:
 
-### The framework
+* **A stable, versioned contract**, documented on its own (the
+  Components guide is its start), that Issho keeps across releases.
+* **A conformance kit**: tests a component author runs against their
+  component (`Issho.Test` for engines grows into checks for places,
+  locating, following and tools, in Elixir and in the browser).
+* **A generator and a reference component**: `mix issho.gen.component`
+  for the binding, the hook and the tools, and a small component outside
+  the Hattori libraries that shows the whole contract.
+* **Components inside components.** A canvas or a grid embedded in a
+  text works today, each in its own room. The other way is to come: a
+  rich text in a canvas's node, its body a document of the canvas's room
+  (`board:42/n7/body`), with one people list, a cursor that goes from the
+  canvas into the text, and an agent that drags the note and writes in
+  it (hattoriai/hakushi#2).
 
-* **Room events.** Events at Issho's level that components and the app
-  act on: a person joins or leaves, a document changes, a thread is
-  created, an agent finishes, and an app's own (a reaction, a toast).
-  Broadcast to the room's components in the browser, given to the app on
-  the server (callbacks and `:telemetry`), and to agents: an agent that
-  waits on the room's events (someone selects text and asks it, a row
-  changes, a card lands on a frame) answers by itself, through a tool
-  that waits and MCP notifications through Sake.
+### 2. Developer experience, and shared state without an engine
+
+An ordinary Phoenix developer should build a collaborative checklist or
+kanban board in an afternoon, without designing a document engine:
+
+* **Shared state without an engine.** A ready engine for an app's own
+  shared state (maps, ordered lists by id, counters), defined in the
+  policy like any document, with your checks and `on_change`, used from a
+  LiveView as an assign (`Issho.State.assign/3`, `Issho.State.change/3`)
+  and from the browser. Concurrent adds, moves and votes merge, the
+  server orders and checks them, and agents change it with one tool: a
+  retro board, a poll, a checklist, a kanban's order, a game's turn,
+  simple or intricate.
+* **Getting started.** An installer (`mix issho.install`) and
+  generators, a guide from nothing to a collaborative page in minutes,
+  and example apps (Notebook, the demo of Kotoba, Hakushi and Masu on
+  Issho).
 * **Rooms from the server.** The rooms running, who is in each, and
   their documents, read and changed from your code, for an admin page, a
   job or a test.
 * **Dev tools and a LiveDashboard page.** Rooms, documents, people,
   pending queues and transactions, in the browser while you build and in
   LiveDashboard in production.
-* **Following across the app.** A room is a page today: following takes
-  people along the links and navigations of the one they follow
-  (`data-issho-follow`, `Issho.Motion.navigate/2`) within a room. One
-  level above (an app's or a workspace's room, joined on every page)
-  would hold where each person is, so that following reaches someone on
-  any page, and each component of the new page reveals their place in
-  it: the paragraph, the node.
-* **Components inside components.** A canvas or a grid embedded in a
-  text works today, in its own room. The other way is to come: a rich
-  text in a canvas's node, its body a document of the canvas's room
-  (`board:42/n7/body`), with one people list, a cursor that goes from the
-  canvas into the text, and an agent that drags the note and writes in
-  it (hattoriai/hakushi#2).
-* **Embeds from another app.** Embedding a block of another page of the
-  same app works today (a read grant for its room). For an app outside
-  the cluster: a remote grant, signed by the owning app for its room, and
-  the browser opens the room on that app's socket, across origins. The
-  transport already takes a socket URL and a token; what is to come is
-  issuing grants from app to app, and their policy.
+
+### 3. Agents through everything
+
+Agents are participants of every room, with presence, places, motion and
+tools, under the same policy as people. What makes that foundational,
+before any agent chat interface:
+
+* **Room events, and subscriptions.** Events at Issho's level (a person
+  joins, a document changes, a thread is created, an agent finishes, an
+  app's own), broadcast to components, given to the app (callbacks and
+  `:telemetry`), and subscribed to by agents: an agent that waits on what
+  people do (someone selects text and asks it, a row changes, a card
+  lands on a frame) and answers by itself, through MCP notifications too.
+* **Scoped tools.** An agent gets the tools, rooms and documents it is
+  given, no more: per agent, per room and per person it acts for.
+* **Attribution.** Every change records who made it: a person, an agent,
+  and for whom an agent acts, carried through to history, comments and
+  the components' own views.
+* **Interruption.** People stop or pause an agent at work, and an agent
+  cancels or hands back what it was doing, without leaving half a
+  change.
+* **Observable actions.** What an agent is doing and about to do, seen
+  in the page as it happens (its pointer and motion today, its plan and
+  progress next), so people can follow it and step in.
+
+### Next, on that foundation
+
+* **Comments and threads.** A thread on a place of any component, as
+  each already names its places (`Issho.Place`): a range of text, a
+  canvas's node, a grid's cell. Replies, @mentions of people and agents,
+  reactions, resolve and reopen, attachments; a composer, a thread and an
+  all-comments panel, each component marking where its threads are. An
+  agent mentioned in a thread answers there.
+* **Version history (to explore).** The authority keeps every accepted
+  transaction and replays a document at an earlier revision. What it
+  could become: named versions, a document as it was, restore, and each
+  component's diff.
+* **Following across the app.** Following takes people along the links
+  and navigations of the one they follow within a room
+  (`data-issho-follow`, `Issho.Motion.navigate/2`). An app's or a
+  workspace's room, joined on every page, would hold where each person
+  is, so that following reaches someone on any page.
 * **Settings for a page or a room.** What a page allows its components
   (no undo in this space, for example), carried in the room's signed
-  grant, so every component follows it. Undo stays a choice of the
-  interface: what a room must refuse belongs in its policy or its
-  document's checks on the server.
-* **Permissions (to think about).** Roles (viewer, commenter, editor)
-  and access per room would save every app writing its policy from
-  nothing, but apps have their own permission systems: what Issho offers
-  must fit them, not replace them.
+  grant, so every component follows it.
 
-### Getting started
+### Later, on purpose
 
-* **An installer** (`mix issho.install`) and generators, a guide from
-  nothing to a collaborative page in minutes, and example apps
-  (Notebook, the demo of Kotoba, Hakushi and Masu on Issho).
+Useful, but they do not prove the central promise as directly as
+components working together do, and they are easy to get wrong early:
+
+* **A universal notification system.** The events comments and agents
+  emit come first; an app's inbox and emails are a few Phoenix pieces on
+  top of them.
+* **An opinionated roles framework.** Apps have their own permission
+  systems; Issho's policy fits them, and a commenter between a reader
+  and a writer comes with comments.
+* **Federation across applications.** Embeds of another page of the same
+  app work today; signing grants from one app to another comes later.
+* **A built-in agent chat.** Agents act in the components people use;
+  an app adds a chat of its own if it wants one.
 
 ### What stays Issho's
 

@@ -59,7 +59,7 @@ defmodule Issho.MixProject do
   end
 
   defp description do
-    "Collaboration for Phoenix: one engine for people and agents working together live, under every component on a page."
+    "An open-source collaboration toolkit for Phoenix: rooms, presence, documents and agent participation, for apps where people and AI agents work together in real time."
   end
 
   defp package do
