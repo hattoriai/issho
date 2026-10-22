@@ -59,13 +59,20 @@ defmodule Issho.Authority do
   def snapshot(server), do: GenServer.call(server, :snapshot)
 
   @doc """
-  Commits a transaction of the actor `author` (its key). Gives
-  `{:ok, %{"id" => id, "revision" => revision}}`, with `"duplicate" =>
-  true` for a retry, or `{:error, reason}`.
+  Commits a transaction of an author: its identity (`Issho.Identity`), or
+  only its key. The key is what the journal and the receipts keep; the
+  identity, when given, is what the document's hook gets as `:by` (who
+  made the change: a person, an agent and whom it acts for, a service).
+  Gives `{:ok, %{"id" => id, "revision" => revision}}`, with `"duplicate"
+  => true` for a retry, or `{:error, reason}`.
   """
-  @spec commit(GenServer.server(), Transaction.t(), String.t()) :: {:ok, map()} | {:error, term()}
-  def commit(server, transaction, author),
-    do: GenServer.call(server, {:commit, transaction, author}, 15_000)
+  @spec commit(GenServer.server(), Transaction.t(), String.t() | Issho.Identity.t()) ::
+          {:ok, map()} | {:error, term()}
+  def commit(server, transaction, %Issho.Identity{} = by),
+    do: GenServer.call(server, {:commit, transaction, by}, 15_000)
+
+  def commit(server, transaction, author) when is_binary(author),
+    do: commit(server, transaction, Issho.Identity.service(author))
 
   @doc "Which of these transaction ids the author already has accepted, after a reconnect."
   @spec accepted(GenServer.server(), [String.t()], String.t()) :: [String.t()]
@@ -238,9 +245,10 @@ defmodule Issho.Authority do
     {:reply, accepted, state}
   end
 
-  def handle_call({:commit, transaction, author}, _from, state) do
+  def handle_call({:commit, transaction, %Issho.Identity{} = by}, _from, state) do
     started = System.monotonic_time()
-    result = commit_transaction(state, transaction, author)
+    author = by.key
+    result = commit_transaction(state, transaction, by)
 
     :telemetry.execute(
       [:issho, :transaction, :commit],
@@ -255,8 +263,9 @@ defmodule Issho.Authority do
     end
   end
 
-  defp commit_transaction(state, transaction, author) do
+  defp commit_transaction(state, transaction, by) do
     document = state.document
+    author = by.key
 
     with :ok <- Transaction.check(transaction, document["epoch"], document["revision"]),
          digest = Transaction.digest(transaction, author),
@@ -267,7 +276,7 @@ defmodule Issho.Authority do
            ]),
          {:ok, content} <- Engine.validate(state.engine, engine_state, state.opts),
          revision = document["revision"] + 1,
-         :ok <- hook(state, transaction, author, engine_state, revision) do
+         :ok <- hook(state, transaction, by, engine_state, revision) do
       event =
         transaction
         |> Map.take(["id", "epoch", "base_revision", "ops"])
@@ -283,7 +292,7 @@ defmodule Issho.Authority do
           "author" => author
         })
 
-      persist(state, next, content, event)
+      persist(state, next, content, event, by)
     else
       {:duplicate, revision} ->
         {:ok, %{"id" => transaction["id"], "revision" => revision, "duplicate" => true}, state}
@@ -295,12 +304,13 @@ defmodule Issho.Authority do
 
   # The document's transaction hook, once per accepted transaction, before
   # it is saved: the app can save it in its own tables, or refuse it.
-  defp hook(%{hook: nil}, _transaction, _author, _after, _revision), do: :ok
+  defp hook(%{hook: nil}, _transaction, _by, _after, _revision), do: :ok
 
-  defp hook(state, transaction, author, after_state, revision) do
+  defp hook(state, transaction, by, after_state, revision) do
     context = %{
       document: state.id,
-      author: author,
+      author: by.key,
+      by: by,
       revision: revision,
       before: state.document["state"],
       after: after_state
@@ -330,7 +340,7 @@ defmodule Issho.Authority do
     end
   end
 
-  defp persist(state, next, content, event) do
+  defp persist(state, next, content, event, by) do
     expected = {state.document["epoch"], state.document["revision"]}
 
     result =
@@ -345,6 +355,15 @@ defmodule Issho.Authority do
           topic(state.id),
           {Issho, :transaction, state.id, event}
         )
+
+        Issho.Events.broadcast(state.config.pubsub, %Issho.Event{
+          name: "document.changed",
+          room: Issho.Policy.room(state.id),
+          document: state.id,
+          by: by,
+          data: %{revision: event["revision"]},
+          at: DateTime.utc_now()
+        })
 
         {:ok, %{"id" => event["id"], "revision" => event["revision"]},
          %{state | document: next, content: content}}

@@ -42,6 +42,72 @@ place in it (`Issho.Place`): a caret, a node, a cell.
 
 Your app's policy names it as a document's engine (`Issho.Policy`).
 
+### Places are a contract
+
+A place is stored and sent: in a person's state, in an agent's motion,
+and, to come, in comments, history and following across pages, which
+keep places in an app's tables. So a component's place format is part of
+its public API, documented and kept across releases like any other: say
+what its `at` is (Kotoba a caret, `%{"anchor" => point, "focus" =>
+point}`; Hakushi a node or a point; Masu a cell, `[row_id, key]`),
+validate it with its `Issho.Place`, and only add to it.
+
+## Joining: one `issho` option
+
+An app makes every component collaborative the same way: an `issho`
+option with the same keys, which the component checks with
+`Issho.Join.new!/2`.
+
+    <.kotoba    issho={[instance: MyApp.Issho, document: "page:1/body"]} user={@user} />
+    <.canvas    issho={[instance: MyApp.Issho, document: "page:2"]} user={@user} />
+    <.data_grid issho={[instance: MyApp.Issho, document: "page:3/rows"]} user={@user} />
+
+`instance` and `document` (whose room is the part before the first
+`"/"`), `can`, `people`, `follow`, `on_behalf_of` and `claims`, and the
+component's own besides, which it names (`Issho.Join.new!(opts,
+[:undo])`); any other key is an error. The person is the component's
+`user`, as `Issho.Actor` says them. `Issho.Join.grant_opts/1` gives what
+`Issho.Live.grant/4` and `Issho.Live.join/4` take.
+
+## A person's state: Issho's keys, and a component's
+
+A person's awareness state is shared by every component of their page.
+Issho owns its top-level keys (`place`, `locks`, `status`, `pointer`,
+`view`, `motion`, `path`, `blocks`); a component keeps its own (a
+cursor, a viewport, a selection of its own) under its document, in
+`blocks`:
+
+    Issho.Live.merge_block(room, "board:42", %{"cursor" => [10, 20]})
+    Issho.Participant.aware_block(agent, "board:42", %{"cursor" => [10, 20]})
+    Issho.Awareness.block(state, "board:42")      # => %{"cursor" => [10, 20]}
+
+    room.awareBlock("board:42", { cursor: [10, 20] })
+    blockOf(peer.state, "board:42")
+
+So two components of a page, or a component and Issho, never write over
+each other's keys.
+
+## Who made a change
+
+Every change has an author, an `Issho.Identity`: a person, an agent and
+whom it acts for (`on_behalf_of`), or a service (your server's own,
+`"server"`). A document's hook gets it as `:by`, beside the `:author`
+key the journal keeps; a component gives it to its app's callbacks the
+same way, so an app knows who did what, whichever component it was.
+Your server's changes name theirs: `Issho.transact/4`'s `:author`, an
+actor or a key.
+
+## Events
+
+Something that happened in a room is an `Issho.Event`: a dotted name, the
+room, the document, who (`by`) and data. Every document emits
+`"document.changed"`; the other names Issho and its components use are
+reserved (`Issho.Event`), and an app's own take names of their own.
+Subscribe with `Issho.Events.subscribe/2`, and emit with
+`Issho.Events.emit/4`: a component that keeps its data outside Issho's
+documents (a grid of an app's tables) emits `"document.changed"` for its
+own saves, so the room hears of every change the same way.
+
 ## The page: where a block is
 
 The element that shows a document carries its id:

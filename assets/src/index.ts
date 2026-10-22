@@ -20,7 +20,7 @@ export {
   type DocumentOptions,
 } from "./document";
 export { Presence, type Person, type PresenceEvent } from "./presence";
-export { Awareness, type AwarenessState, type Peer, type Frame } from "./awareness";
+export { Awareness, blockOf, type AwarenessState, type Peer, type Frame } from "./awareness";
 export { Room, type RoomTransport, type RoomStatus, type RoomOptions } from "./room";
 export { phoenixTransport, type PhoenixTransportOptions } from "./phoenix";
 export {

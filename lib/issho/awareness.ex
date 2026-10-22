@@ -23,11 +23,50 @@ defmodule Issho.Awareness do
 
   It stops when its node has no session left in the room.
 
-  A state is a map of the binding's choosing; Issho reads `"place"` (an
-  `Issho.Place`), `"locks"` (a list of places) and `"status"`.
+  ## A state's keys
+
+  Issho owns a state's top-level keys: `"place"` (an `Issho.Place`),
+  `"locks"` (a list of places), `"status"`, `"pointer"` (the page's
+  pointer), `"view"` (what the page shows), `"motion"` (an agent's last
+  gesture), `"path"` (the page an agent is on) and `"blocks"`. A
+  component keeps its own keys (a canvas's cursor and viewport, a
+  selection of its own) under its document, in `"blocks"`:
+  `%{"blocks" => %{"board:42" => %{"cursor" => [10, 20]}}}`, set with
+  `Issho.Live.merge_block/3`, `Issho.Participant.aware_block/3` or the
+  browser's `room.awareBlock`, and read with `block/2`. So two
+  components of a page, or a component and Issho, never write over each
+  other's keys.
   """
 
   use GenServer, restart: :temporary
+
+  @doc """
+  A component's own keys in a state: what it set under its document in
+  `"blocks"` (an empty map for none).
+  """
+  @spec block(map() | nil, String.t()) :: map()
+  def block(state, document) when is_binary(document) do
+    case state do
+      %{"blocks" => %{^document => %{} = own}} -> own
+      _ -> %{}
+    end
+  end
+
+  @doc false
+  # A state with a component's keys merged into its block; a key whose
+  # value is nil goes.
+  @spec put_block(map(), String.t(), map()) :: map()
+  def put_block(state, document, changes) when is_map(state) and is_binary(document) do
+    own =
+      state
+      |> block(document)
+      |> Map.merge(changes)
+      |> Map.reject(fn {_key, value} -> is_nil(value) end)
+
+    blocks = Map.get(state, "blocks") || %{}
+    blocks = if own == %{}, do: Map.delete(blocks, document), else: Map.put(blocks, document, own)
+    if blocks == %{}, do: Map.delete(state, "blocks"), else: Map.put(state, "blocks", blocks)
+  end
 
   alias Issho.Config
 

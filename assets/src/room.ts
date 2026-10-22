@@ -2,7 +2,7 @@
 // its people, its awareness, and the documents of the room this browser has
 // open. Every component of a page that shares the room shares this object.
 
-import { Awareness, type AwarenessOptions, type AwarenessState, type Frame } from "./awareness";
+import { Awareness, withBlock, type AwarenessOptions, type AwarenessState, type Frame } from "./awareness";
 import {
   Refused,
   SharedDocument,
@@ -184,6 +184,15 @@ export class Room {
   /** Sets keys of this browser's awareness state: `place`, `locks`, `status`, your own. */
   aware(changes: AwarenessState): void {
     this.awareness.set(changes);
+  }
+
+  /**
+   * Sets a component's own keys, under its document (`blocks`), so that the
+   * page's components and Issho's own keys never write over each other's;
+   * `null` removes a key. Read the others' with `blockOf(peer.state, doc)`.
+   */
+  awareBlock(doc: string, changes: AwarenessState): void {
+    this.awareness.set({ blocks: withBlock(this.awareness.state, doc, changes) });
   }
 
   leave(): void {

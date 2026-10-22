@@ -70,6 +70,14 @@ defmodule Issho.Participant do
   @spec aware(GenServer.server(), map()) :: :ok | {:error, term()}
   def aware(participant, changes), do: GenServer.call(participant, {:aware, changes})
 
+  @doc """
+  Merges a component's own keys into the participant's state, under its
+  document (`"blocks"`, see `Issho.Awareness`); a key set to `nil` goes.
+  """
+  @spec aware_block(GenServer.server(), String.t(), map()) :: :ok | {:error, term()}
+  def aware_block(participant, document, changes) when is_binary(document) and is_map(changes),
+    do: GenServer.call(participant, {:aware_block, document, changes})
+
   @doc "The participant's own awareness state: its place, its locks, its status."
   @spec awareness(GenServer.server()) :: map()
   def awareness(participant), do: GenServer.call(participant, :awareness)
@@ -151,6 +159,21 @@ defmodule Issho.Participant do
   def handle_call({:aware, changes}, _from, state) do
     aware = Map.merge(state.aware, changes)
 
+    case Session.aware(state.session, aware) do
+      {:ok, session} -> {:reply, :ok, %{state | session: session, aware: aware}}
+      {:error, _} = error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:aware_block, document, changes}, from, state) do
+    handle_call(
+      {:replace_aware, Issho.Awareness.put_block(state.aware, document, changes)},
+      from,
+      state
+    )
+  end
+
+  def handle_call({:replace_aware, aware}, _from, state) do
     case Session.aware(state.session, aware) do
       {:ok, session} -> {:reply, :ok, %{state | session: session, aware: aware}}
       {:error, _} = error -> {:reply, error, state}
