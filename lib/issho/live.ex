@@ -170,10 +170,20 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       end
     end
 
-    @doc "Sends the room's events to a component, or the LiveView, without opening a document."
-    @spec subscribe(String.t(), target()) :: true
-    def subscribe(key, target) do
+    @doc """
+    Sends the room's events to a component, or the LiveView, without
+    opening a document. `:on_release`, a function of no argument, runs when
+    the component is released (`release/2`), before the LiveView leaves the
+    room if it was the last: for what the component put in the session's
+    awareness, which stays while the LiveView is in the room.
+    """
+    @spec subscribe(String.t(), target(), keyword()) :: true
+    def subscribe(key, target, opts \\ []) do
       Process.put({__MODULE__, :targets, key}, MapSet.put(targets(key), target))
+
+      if on_release = opts[:on_release],
+        do: Process.put({__MODULE__, :on_release, key, target}, on_release)
+
       true
     end
 
@@ -194,6 +204,11 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     @spec release(String.t(), target()) :: :ok
     def release(room, target) do
       keys = [room | open_documents(room)]
+
+      for key <- keys,
+          on_release = Process.delete({__MODULE__, :on_release, key, target}),
+          do: on_release.()
+
       for key <- keys, do: unsubscribe(key, target)
       if Enum.all?(keys, &(MapSet.size(targets(&1)) == 0)), do: leave(room)
       :ok

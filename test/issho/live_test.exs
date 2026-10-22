@@ -117,6 +117,17 @@ defmodule Issho.LiveTest do
       assert Map.has_key?(Issho.Presence.list(Issho.Presence.topic(room)), "user:ken")
     end
 
+    test "a component released says so first, for what it put in the awareness", %{
+      conn: conn,
+      room: room
+    } do
+      {:ok, ken, _} = board(conn, room, "user:ken")
+      render_click(ken, "watch", %{})
+      render_click(ken, "release", %{})
+
+      assert render(ken) =~ "released: title"
+    end
+
     test "a released document lets its authority go", %{conn: conn, room: room} do
       {:ok, ken, _} = board(conn, room, "user:ken")
       pid = Issho.Documents.whereis(IsshoTest.Issho, room)
