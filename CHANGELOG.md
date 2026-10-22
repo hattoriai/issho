@@ -18,7 +18,8 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
   Kotoba, Hakushi, Masu and yours.
 - A component's own keys in a person's state go under its document
   (`"blocks"`): `Issho.Live.merge_block/3`,
-  `Issho.Participant.aware_block/3`, `Issho.Awareness.block/2`, and
+  `Issho.Participant.aware_block/3`, `Issho.Motion.go/3`'s `:block`,
+  `Issho.Awareness.block/2`, and
   `room.awareBlock` and `blockOf` in the browser. Issho owns a state's
   top-level keys.
 - A room's events: `Issho.Event` and `Issho.Events` (subscribe, emit),

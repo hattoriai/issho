@@ -57,9 +57,11 @@ defmodule Issho.Motion do
   @doc """
   Goes to a target. Options: `:gesture` (`:move`), `:place` (whether a
   document's target is also the agent's place, its selection there:
-  true), `:travel` (a component's own setting: true), and `:aware`, more
-  of the agent's awareness state that changes with the gesture, in the
-  same message (a canvas's cursor and selection).
+  true), `:travel` (a component's own setting: true), and `:block`, the
+  component's own keys of the target's document that change with the
+  gesture, in the same message (a canvas's cursor and selection, under
+  the document in `blocks`: `Issho.Awareness`). `:aware` is the same for
+  Issho's own top-level keys.
   """
   @spec go(GenServer.server(), target(), keyword()) :: :ok | {:error, term()}
   def go(participant, target, opts \\ []) do
@@ -84,10 +86,19 @@ defmodule Issho.Motion do
 
     changes = Map.merge(Keyword.get(opts, :aware, %{}), changes)
 
+    changes =
+      case {Keyword.get(opts, :block), target} do
+        {nil, _target} -> changes
+        {block, %{"doc" => doc}} -> Map.put(changes, "blocks", blocks(aware, doc, block))
+      end
+
     with :ok <- Participant.aware(participant, changes) do
       wait(if gesture == "click" and ms > 0, do: ms + setting(:click, 150), else: ms)
     end
   end
+
+  defp blocks(aware, doc, block),
+    do: aware |> Issho.Awareness.put_block(doc, block) |> Map.get("blocks", %{})
 
   @doc "Goes to a target and clicks it: the people see it ring."
   @spec click(GenServer.server(), target(), keyword()) :: :ok | {:error, term()}

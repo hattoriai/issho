@@ -52,6 +52,23 @@ defmodule Issho.MotionTest do
              Participant.awareness(agent)
   end
 
+  test "a component's own keys change with the gesture, under its document", %{
+    room: room,
+    doc: doc,
+    agent: agent
+  } do
+    other = room <> "/canvas"
+    :ok = Participant.aware_block(agent, other, %{"selected" => ["a"]})
+    :ok = Motion.go(agent, %{"doc" => doc, "at" => 1}, block: %{"cursor" => [1, 2]})
+
+    assert %{"blocks" => %{^doc => %{"cursor" => [1, 2]}, ^other => %{"selected" => ["a"]}}} =
+             Participant.awareness(agent)
+
+    :ok = Motion.go(agent, %{"doc" => doc, "at" => 2}, block: %{"cursor" => nil})
+    assert %{"blocks" => blocks} = Participant.awareness(agent)
+    refute Map.has_key?(blocks, doc)
+  end
+
   test "it moves for someone who sees it, and not for no one", %{doc: doc, ken: ken, agent: agent} do
     target = %{"doc" => doc, "at" => 1}
 
