@@ -123,7 +123,7 @@ defmodule Issho.Session do
     with true <- session.can == :write || {:error, :read_only},
          {:ok, pid} <- Map.fetch(session.documents, document_id) |> or_error(:not_open),
          :ok <- Policy.authorize(config.policy, session.identity, session.room, :write) do
-      Authority.commit(pid, transaction, session.identity.key)
+      Authority.commit(pid, transaction, session.identity)
     end
   end
 

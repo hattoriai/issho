@@ -63,6 +63,13 @@ defmodule Issho.Identity do
     }
   end
 
+  @doc """
+  The identity of a service, known only by its key (`"server"`, `"app"`):
+  the author of changes your own code makes with no actor.
+  """
+  @spec service(String.t()) :: t()
+  def service(key) when is_binary(key), do: %__MODULE__{key: key, name: key, kind: :service}
+
   defp behalf(opts, default) do
     case Keyword.fetch(opts, :on_behalf_of) do
       {:ok, nil} -> nil

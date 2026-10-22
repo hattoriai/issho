@@ -303,6 +303,16 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     def merge(room, changes) when is_map(changes),
       do: aware(room, Map.merge(awareness(room), changes))
 
+    @doc """
+    Merges a component's own keys into this session's state, under its
+    document (`"blocks"`, see `Issho.Awareness`), so that the LiveView's
+    components, and Issho's own keys, never write over each other's; a
+    key set to `nil` goes.
+    """
+    @spec merge_block(String.t(), String.t(), map()) :: :ok | {:error, term()}
+    def merge_block(room, document, changes) when is_binary(document) and is_map(changes),
+      do: aware(room, Issho.Awareness.put_block(awareness(room), document, changes))
+
     @doc "This session's own awareness state (an empty map for none)."
     @spec awareness(String.t()) :: map()
     def awareness(room), do: Process.get({__MODULE__, :aware, room}) || %{}

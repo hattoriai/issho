@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Awareness, type AwarenessState } from "../src/awareness";
+import { Awareness, blockOf, withBlock, type AwarenessState } from "../src/awareness";
 
 // A clock and timers the test moves by hand.
 function clock() {
@@ -78,4 +78,18 @@ test("the sessions that were in the room when this browser joined it: each node'
   awareness.reset();
   awareness.receive({ node: "a", full: true, states: { later: { key: "mei", state: { p: 3 } } }, gone: [] });
   assert.deepEqual(["idle", "later"].map((s) => awareness.wasThere(s)), [false, true]);
+});
+
+test("a component's own keys go under its document, apart from Issho's and the others'", () => {
+  let state: AwarenessState = { place: { doc: "board:1", at: {} } };
+  state = { ...state, blocks: withBlock(state, "board:1", { cursor: [1, 2], viewport: [0, 0, 9, 9] }) };
+  state = { ...state, blocks: withBlock(state, "board:1/rows", { view: "mine" }) };
+  assert.deepEqual(blockOf(state, "board:1"), { cursor: [1, 2], viewport: [0, 0, 9, 9] });
+  assert.deepEqual(blockOf(state, "board:1/rows"), { view: "mine" });
+  assert.deepEqual(blockOf(state, "elsewhere"), {});
+  assert.deepEqual(state.place, { doc: "board:1", at: {} });
+  // null removes a key; a block with none goes, and then the blocks.
+  state = { ...state, blocks: withBlock(state, "board:1", { cursor: null, viewport: null }) };
+  assert.deepEqual(Object.keys(state.blocks as object), ["board:1/rows"]);
+  assert.equal(withBlock(state, "board:1/rows", { view: null }), null);
 });

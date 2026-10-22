@@ -12,6 +12,20 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 
 ### Added
 
+- One way for every component to join: `Issho.Join`, the `issho`
+  option's keys (`instance`, `document`, `can`, `people`, `follow`,
+  `on_behalf_of`, `claims`, and a component's own), checked, the same in
+  Kotoba, Hakushi, Masu and yours.
+- A component's own keys in a person's state go under its document
+  (`"blocks"`): `Issho.Live.merge_block/3`,
+  `Issho.Participant.aware_block/3`, `Issho.Motion.go/3`'s `:block`,
+  `Issho.Awareness.block/2`, and
+  `room.awareBlock` and `blockOf` in the browser. Issho owns a state's
+  top-level keys.
+- A room's events: `Issho.Event` and `Issho.Events` (subscribe, emit),
+  with `"document.changed"` from every document and Issho's names
+  reserved.
+- `Issho.Identity.service/1`, the author of your server's own changes.
 - A page with blocks of other rooms: a canvas shared in its own room,
   embedded in a document. Over a block of another room, the page's
   pointers share only that the pointer is in it, and draw no one there:
@@ -83,6 +97,10 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 
 ### Changed
 
+- A document's hook gets who made each change as `:by`, an
+  `Issho.Identity` (a person, an agent and whom it acts for, a service),
+  beside the `:author` key. `Issho.Authority.commit/3` takes an identity
+  or a key, and `Issho.transact/4`'s `:author` an actor or a key.
 - A document is what your policy's `document/2` says, whoever opens it
   first; a component's own spec (`Issho.Live.open/3`'s `:spec`) is used
   only for a document the policy does not know (`{:error, _}`). Before, a

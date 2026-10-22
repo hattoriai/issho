@@ -11,6 +11,32 @@ import type { Json } from "./engine";
 
 export type AwarenessState = { [key: string]: Json };
 
+/**
+ * A component's own keys in a state: what it set under its document in
+ * `blocks` (an empty object for none). Issho owns a state's top-level keys
+ * (`place`, `locks`, `status`, `pointer`, `view`, `motion`, `path`,
+ * `blocks`); a component keeps its own under its document.
+ */
+export function blockOf(state: AwarenessState | null | undefined, doc: string): AwarenessState {
+  const blocks = state?.blocks;
+  if (typeof blocks !== "object" || blocks === null || Array.isArray(blocks)) return {};
+  const own = (blocks as AwarenessState)[doc];
+  return typeof own === "object" && own !== null && !Array.isArray(own) ? (own as AwarenessState) : {};
+}
+
+/** A state's blocks with a component's keys merged into its own (`null` removes a key). */
+export function withBlock(state: AwarenessState | null | undefined, doc: string, changes: AwarenessState): Json {
+  const own: AwarenessState = { ...blockOf(state, doc) };
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === null) delete own[key];
+    else own[key] = value;
+  }
+  const blocks = { ...((typeof state?.blocks === "object" && state.blocks !== null && !Array.isArray(state.blocks)) ? (state.blocks as AwarenessState) : {}) };
+  if (Object.keys(own).length === 0) delete blocks[doc];
+  else blocks[doc] = own;
+  return Object.keys(blocks).length === 0 ? null : blocks;
+}
+
 export interface Peer {
   session: string;
   key: string;

@@ -126,8 +126,9 @@ defmodule Issho do
 
   @doc """
   Commits operations to a document from your server (a job, an import),
-  through the same checks and authority as everyone else's. `author` is
-  the key it is recorded under (`"server"` unless given).
+  through the same checks and authority as everyone else's. `:author` is
+  who made it: an actor (`Issho.Actor`, your user or an agent, as the
+  hook's `:by` gets it) or a key (`"server"` unless given, a service).
   """
   @spec transact(atom(), String.t(), [map()], keyword()) :: {:ok, map()} | {:error, term()}
   def transact(instance, document_id, ops, opts \\ []) when is_list(ops) do
@@ -140,7 +141,10 @@ defmodule Issho do
         "ops" => ops
       }
 
-      Issho.Authority.commit(pid, transaction, Keyword.get(opts, :author, "server"))
+      Issho.Authority.commit(pid, transaction, author(Keyword.get(opts, :author, "server")))
     end
   end
+
+  defp author(key) when is_binary(key), do: Issho.Identity.service(key)
+  defp author(actor), do: Issho.Identity.new(actor)
 end
