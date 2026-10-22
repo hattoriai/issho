@@ -27,6 +27,8 @@ defmodule Issho.LiveTest do
 
     render_click(ada, "rename", %{"title" => "Q3 plan"})
 
+    # Ken's LiveView hears the change from the room: once it has handled it.
+    settle(ken.pid)
     assert render(ken) =~ "Q3 plan"
     assert render(ada) =~ "Q3 plan"
   end
@@ -142,6 +144,7 @@ defmodule Issho.LiveTest do
   test "a revoked person's components hear why", %{conn: conn, room: room} do
     {:ok, ada, _} = board(conn, room, "user:ada")
     Issho.revoke(IsshoTest.Issho, room, "user:ada")
+    settle(ada.pid)
     assert render(ada) =~ "bye: revoked"
   end
 
