@@ -8,13 +8,22 @@ class FakeForm {
   submitted = 0;
   addEventListener(_type: string, listener: (event: SubmitEvent) => void): void { this.listeners.push(listener); }
   removeEventListener(_type: string, listener: (event: SubmitEvent) => void): void { this.listeners = this.listeners.filter((l) => l !== listener); }
-  requestSubmit(): void { this.submit(); }
+  // A browser is firing a submit's events until the task that fired it ends, its microtasks
+  // included: a requestSubmit then does nothing.
+  firing = false;
+  requestSubmit(): void { if (!this.firing) this.submit(); }
   submit(): { prevented: boolean } {
     const result = { prevented: false };
     const event = { submitter: null, preventDefault: () => { result.prevented = true; }, stopImmediatePropagation: () => {} } as unknown as SubmitEvent;
     for (const listener of this.listeners) listener(event);
     if (!result.prevented) this.submitted++;
     return result;
+  }
+  /** A person's click on the submit button: its submit is fired until its task ends. */
+  click(): { prevented: boolean } {
+    this.firing = true;
+    setTimeout(() => { this.firing = false; }, 0);
+    return this.submit();
   }
 }
 
@@ -35,6 +44,15 @@ test("a submit waits for every member, locked, then goes once", async () => {
   await tick();
   assert.equal(form.submitted, 1);
   assert.deepEqual(log, ["lock a", "lock b", "flush a", "flush b", "unlock a", "unlock b"]);
+});
+
+test("a click goes, though no member has anything to send", async () => {
+  const form = new FakeForm();
+  holdForm(form as unknown as HTMLFormElement, member([], "a"));
+
+  assert.equal(form.click().prevented, true);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(form.submitted, 1);
 });
 
 test("a member that cannot stops the submit, with its reason", async () => {

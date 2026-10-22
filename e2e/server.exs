@@ -189,6 +189,30 @@ defmodule IsshoE2E.PageLive do
   end
 end
 
+defmodule IsshoE2E.FormLive do
+  @moduledoc false
+  # /form: a form with a shared component in it (E2EForm, a member of
+  # Issho's holdForm with nothing to send), and how many times it went.
+  use Phoenix.LiveView
+
+  @impl true
+  def mount(_params, _session, socket), do: {:ok, assign(socket, saved: 0)}
+
+  @impl true
+  def handle_event("save", _params, socket), do: {:noreply, update(socket, :saved, &(&1 + 1))}
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <form id="form" phx-submit="save">
+      <div id="member" phx-hook="E2EForm"></div>
+      <button id="publish" type="submit">Publish</button>
+    </form>
+    <p id="saved">Saved {@saved}</p>
+    """
+  end
+end
+
 defmodule IsshoE2E.Router do
   @moduledoc false
   use Phoenix.Router
@@ -210,6 +234,7 @@ defmodule IsshoE2E.Router do
     live_session :pages do
       live "/one", IsshoE2E.PageLive
       live "/two", IsshoE2E.PageLive
+      live "/form", IsshoE2E.FormLive
     end
   end
 end

@@ -88,6 +88,13 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 - The people list's avatars of others are buttons (`.issho-person-follow`,
   `aria-pressed`).
 
+### Fixed
+
+- A form with shared components in it (`holdForm`) goes on a person's
+  click when its components have nothing to send: it asked for the
+  submit again while the browser still fired the one it stopped, which
+  browsers ignore, and the form did not go.
+
 ## [0.2.0] - 2026-10-21
 
 Agents, and pages of many components. An agent joins a room, however it
