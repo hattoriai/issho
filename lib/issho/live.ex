@@ -151,8 +151,8 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     @doc """
     Opens a document of the room. Options: `:notify`, a component
     (`{module, id}`) or `:self`, for its transactions and the room's events;
-    and `:spec`, what the document is if this opens it first (see
-    `Issho.Documents.open/4`).
+    and `:spec`, what the document is if this opens it first and your
+    policy's `document/2` does not say (see `Issho.Documents.open/4`).
     """
     @spec open(String.t(), String.t(), keyword()) :: {:ok, map()} | {:error, term()}
     def open(room, document_id, opts \\ []) do

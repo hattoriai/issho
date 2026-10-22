@@ -63,7 +63,47 @@ pointers of the page's room hear only that a pointer is in it
 Someone in both rooms (on this page, in the document and in its canvas) is
 in both rooms' lists, each list its room's.
 
-A component in a LiveView that may go while the LiveView stays (an embed
+### One document, many places
+
+The same document often shows in more than one place: a canvas on its own
+page, and the same canvas embedded in a document of another page (a Kotoba
+embed), each rendered by its own LiveView. They are one canvas because
+they open one document (`"board:42"`), and the document's authority, not
+either LiveView, holds it: it runs while anyone has it open, wherever,
+and a page that opens it later gets it as it is. Nobody needs to be on the
+canvas's own page for its embed to be live.
+
+Three things make it safe:
+
+* **Define the document once, in your policy.** Issho starts a document
+  from your policy's `document/2` (`Issho.Policy`) whoever opens it first:
+  the page, the embed, an agent. A component may bring its own spec (its
+  initial content and hook, `Issho.Live.open/3`'s `:spec`), but it is
+  used only when the policy does not know the document, and then the
+  first component to open it gives it, whatever the others bring. Two
+  places that build their spec apart (another `on_change`, other rules)
+  would differ only by who came first; in the policy, they cannot.
+
+      def document(_who, "board:" <> id) do
+        board = MyApp.Boards.get!(id)
+        Hakushi.Issho.document(board.graph, on_change: &MyApp.Boards.on_change(board, &1, &2))
+      end
+
+* **One document id, an element id of each place.** Every copy opens the
+  same document id; each has its own DOM id (an embed's slot id, such as
+  `"board-" <> embed.id`), since the same document can be embedded twice
+  in one page.
+* **A reference is the person's input.** An embed keeps only which
+  document it shows (a `ref`), and whoever edits the text can put any ref
+  there. Load what it shows as the document's own page does, with the
+  viewer's permission (`MyApp.Boards.get_for(user, ref)`), and your
+  policy's `authorize/3` guards the room as for any page.
+
+Defined in the policy, a document is also open to agents with no browser
+at all: an agent's tools open it from `document/2`, and the changes it
+makes go through the same hook as everyone's.
+
+
 deleted from a document) releases its room when it goes
 (`Issho.Live.release/2`, from its hook's `destroyed`): the LiveView leaves
 the room with its last component, and the room's people see it go.

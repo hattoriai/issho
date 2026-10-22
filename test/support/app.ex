@@ -1,6 +1,7 @@
 defmodule IsshoTest.Policy do
   @moduledoc false
-  # The test app's policy: rooms "board:*" are maps; an actor whose key is
+  # The test app's policy: rooms "board:*" are maps, "canvas:*" its
+  # components' (no document of the policy's); an actor whose key is
   # in the denied set may do nothing, and "readonly:*" rooms refuse :write.
   @behaviour Issho.Policy
 
@@ -19,6 +20,8 @@ defmodule IsshoTest.Policy do
 
   @impl true
   def document(_identity, "missing:" <> _), do: {:error, :not_found}
+  # A canvas's document is its component's (a spec it gives as it opens).
+  def document(_identity, "canvas:" <> _), do: {:error, :not_found}
 
   def document(_identity, id) do
     {:ok, %{engine: IsshoTest.Binding, initial: %{"title" => "Untitled", "doc" => id}}}

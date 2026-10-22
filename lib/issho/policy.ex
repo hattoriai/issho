@@ -44,7 +44,12 @@ defmodule Issho.Policy do
 
   `document/2` says what a document is when it opens for the first time on
   a node: its engine (`Issho.Engine`), its initial content from your
-  server (a browser never seeds a document), and the engine's options. A
+  server (a browser never seeds a document), and the engine's options.
+  What it says is the document, whoever opens it first: a page, the same
+  document embedded in another page, an agent with no browser at all. A
+  component's own spec (`Issho.Live.open/3`'s `:spec`) is used only for a
+  document `document/2` does not know (it answers `{:error, _}`), so
+  define here a document that opens in more than one place. A
   room's documents are the room itself (`"board:42"`) and paths under it
   (`"board:42/n7/body"`), so the nested documents of a canvas share the
   room's people and authorization.
