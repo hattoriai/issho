@@ -144,7 +144,11 @@ if Code.ensure_loaded?(Sake.Server) do
     Options: those of `use Sake.Server` (`:name`, `:version`,
     `:instructions`...), and `:tools`, a list of `Issho.Tool` modules.
     Sake is an optional dependency of Issho: add `{:sake, "~> 0.4"}` to
-    serve MCP.
+    serve MCP, and start `{Sake, ...}` in your supervision tree, before
+    the endpoint (Sake's streams and tasks run there): without it, a
+    client that listens for changes (`subscriptions/listen`, as Claude
+    Code does on connecting) fails with "Sake.Plug.Streams is not
+    running". See the Agents guide.
     """
 
     @doc false

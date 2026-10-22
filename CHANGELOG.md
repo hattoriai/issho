@@ -5,6 +5,14 @@ All notable changes to Issho are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The Agents guide and `Issho.MCP` say to start `{Sake, ...}` in the
+  supervision tree: without it, an MCP client that listens for changes
+  failed with "Sake.Plug.Streams is not running".
+
 ## [0.3.0] - 2026-10-21
 
 Agents that move as people do, and a page that is one live space across
