@@ -1,7 +1,19 @@
 if Code.ensure_loaded?(Phoenix.Component) do
   defmodule Issho.Components do
     @moduledoc ~S"""
-    Issho's pieces of a page, in HEEx. Style them with Issho's theme:
+    Issho's pieces of a page, in HEEx. Import them where your app imports
+    its own components (`html_helpers` in `MyAppWeb`), and use them as
+    yours, `<.people>` and `<.pointers>`:
+
+        defp html_helpers do
+          quote do
+            import Issho.Components
+            # ...
+          end
+        end
+
+    (`import Issho.Components, only: [pointers: 1]` when your app has a
+    component of the same name.) Style them with Issho's theme:
     `issho.css`, and `issho-sumi.css` after it for the Sumi theme (in the
     package's `priv/static`).
 
@@ -15,12 +27,12 @@ if Code.ensure_loaded?(Phoenix.Component) do
     With a grant (`Issho.Live.grant/4`), the browser keeps it live (the
     `IsshoPeople` hook of `Hooks` from `issho`, in your LiveSocket):
 
-        <Issho.Components.people id="people" grant={@grant} />
+        <.people id="people" grant={@grant} />
 
     In a LiveView that is in the room itself (`Issho.Live.join/4`), the
     server renders it, from `Issho.Live.people/1`:
 
-        <Issho.Components.people id="people" people={Issho.Live.people(@room)} self={@me} />
+        <.people id="people" people={Issho.Live.people(@room)} self={@me} />
 
     ## The look
 
@@ -41,7 +53,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
     colour, with their name, over any part of the page: Issho's components
     and plain HEEx alike (the `IsshoPointers` hook):
 
-        <Issho.Components.pointers id="pointers" grant={@grant} />
+        <.pointers id="pointers" grant={@grant} />
 
     A pointer is a point of an element, not of the screen, so each person
     sees it on the same part of their own page, whatever its size and

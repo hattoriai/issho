@@ -123,6 +123,13 @@ token = Issho.Token.sign(MyApp.Issho, current_user, "board:42",
   can: :write, claims: %{"user_id" => current_user.id})
 ```
 
+```heex
+<%!-- With `import Issho.Components` in your app's html_helpers: the room's
+     people, and everyone's pointer over the page. --%>
+<.people id="people" grant={@grant} />
+<.pointers id="pointers" grant={@grant} />
+```
+
 ```elixir
 # An agent joins the same room:
 {:ok, claude} = Issho.join_as(MyApp.Issho, agent, "board:42", on_behalf_of: current_user)
@@ -171,6 +178,19 @@ room.presence.on(() => drawPeople(room.presence.others))
   with presence, motion and tools; a chat component of the page, in its
   room, could be where people ask them, beside the components they work
   in.
+
+* **Shared state without an engine.** A component of text, a canvas or
+  a grid needs its own engine (Kotoba's, Hakushi's, Masu's). Most shared
+  things of an app do not: a retro board, planning poker, a poll, a
+  checklist, the order of a kanban's columns, who presents, a game's
+  turn. A ready engine for an app's state (maps, ordered lists by id,
+  counters), defined in the policy like any document, with your checks
+  and `on_change`, used from a LiveView as an assign
+  (`Issho.State.assign/3`, `Issho.State.change/3`) and from the browser:
+  concurrent adds, moves and votes merge, the server orders and checks
+  them, and agents change it with one tool. Utilities and abstractions
+  so that the shared parts of an app, simple or intricate, are easy to
+  build.
 
 ### The framework
 
