@@ -79,11 +79,21 @@ end
 ```
 
 ```elixir
+# In your application's supervision tree, before the endpoint: Sake's
+# streams (a client's `subscriptions/listen`) and tasks run there.
+{Sake, secret_key_base: {MyAppWeb.Endpoint, :config, [:secret_key_base]}, pubsub: MyApp.PubSub}
+```
+
+```elixir
 # In your router, with any of Sake's options: its OAuth, your own
 # authorization server, or none.
 import Sake.Router
 sake_endpoint "/mcp", server: MyApp.MCP
 ```
+
+Without `{Sake, ...}`, tool calls work but the first client that listens
+for changes fails with "Sake.Plug.Streams is not running". Claude Code
+does that as soon as it connects.
 
 ```elixir
 # config/config.exs
