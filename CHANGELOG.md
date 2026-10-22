@@ -7,6 +7,8 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-22
+
 ### Fixed
 
 - The Agents guide and `Issho.MCP` say to start `{Sake, ...}` in the
