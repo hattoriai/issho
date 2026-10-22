@@ -28,6 +28,21 @@ defmodule Issho.DocumentSpecTest do
     assert {:ok, ^pid} = Documents.open(@instance, id, nil, spec: other)
   end
 
+  test "the policy's document is what it is, whoever opens it first and whatever spec they give" do
+    id = "board:" <> Transaction.id()
+    component = %{engine: Issho.Engine.Map, initial: %{"from" => "a component"}, store: :none}
+    {:ok, pid} = Documents.open(@instance, id, nil, spec: component)
+    assert {:ok, %{"state" => %{"title" => "Untitled", "doc" => ^id}}} = Authority.snapshot(pid)
+  end
+
+  test "a document the policy does not know is the spec given, and without one it does not open" do
+    id = "missing:" <> Transaction.id()
+    spec = %{engine: Issho.Engine.Map, initial: %{"from" => "server"}, store: :none}
+    assert {:error, :not_found} = Documents.open(@instance, id)
+    {:ok, pid} = Documents.open(@instance, id, nil, spec: spec)
+    assert {:ok, %{"state" => %{"from" => "server"}}} = Authority.snapshot(pid)
+  end
+
   test "the hook runs once for each accepted transaction, before it is confirmed" do
     test = self()
     id = "canvas:" <> Transaction.id()
@@ -140,7 +155,7 @@ defmodule Issho.DocumentSpecTest do
   end
 
   test "a document saved before Issho opens upgraded, and saves upgraded" do
-    id = "doc:" <> Transaction.id()
+    id = "canvas:" <> Transaction.id()
     legacy = %{"v" => 1, "fields" => %{"title" => "Old"}, "epoch" => "e1", "revision" => 7}
     {Issho.Store.Memory, store} = spec_store = legacy_store(id, legacy)
 
@@ -172,7 +187,7 @@ defmodule Issho.DocumentSpecTest do
   end
 
   test "a document of another engine version opens upgraded, with its journal" do
-    id = "doc:" <> Transaction.id()
+    id = "canvas:" <> Transaction.id()
 
     {:ok, old} =
       Documents.open(@instance, id, nil, spec: %{engine: Issho.Engine.Map, store: :none})
@@ -182,7 +197,7 @@ defmodule Issho.DocumentSpecTest do
     stored = :sys.get_state(old).document
     assert stored["engine_version"] == 1
 
-    other = "doc:" <> Transaction.id()
+    other = "canvas:" <> Transaction.id()
     spec = %{engine: UpgradingEngine, store: legacy_store(other, stored)}
     {:ok, pid} = Documents.open(@instance, other, nil, spec: spec)
 
@@ -193,17 +208,17 @@ defmodule Issho.DocumentSpecTest do
   test "a stored document the engine cannot upgrade does not open" do
     unknown = %{"v" => 9, "epoch" => "e", "revision" => 0}
 
-    id = "doc:" <> Transaction.id()
+    id = "canvas:" <> Transaction.id()
     spec = %{engine: UpgradingEngine, store: legacy_store(id, unknown)}
     assert {:error, :unknown_format} = Documents.open(@instance, id, nil, spec: spec)
 
-    id = "doc:" <> Transaction.id()
+    id = "canvas:" <> Transaction.id()
     spec = %{engine: Issho.Engine.Map, store: legacy_store(id, unknown)}
     assert {:error, :unsupported_document} = Documents.open(@instance, id, nil, spec: spec)
   end
 
   test "a store with the content and no document yet starts one from it" do
-    id = "doc:" <> Transaction.id()
+    id = "canvas:" <> Transaction.id()
     store = start_supervised!({Issho.Store.Memory, name: :"store_#{System.unique_integer()}"})
 
     defmodule SeededStore do
@@ -237,7 +252,7 @@ defmodule Issho.DocumentSpecTest do
   end
 
   test "an earlier revision replays each transaction as it was accepted" do
-    id = "doc:" <> Transaction.id()
+    id = "canvas:" <> Transaction.id()
     {:ok, pid} = Documents.open(@instance, id, nil, spec: %{engine: StrictEngine, store: :none})
     for _ <- 1..3, do: {:ok, _} = Authority.commit(pid, tx(pid, [:a, :b]), "u")
     {:ok, %{"epoch" => epoch}} = Authority.snapshot(pid)

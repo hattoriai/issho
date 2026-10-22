@@ -50,6 +50,11 @@ Every document of a room is the room (`"board:42"`) or a path under it
 (`"board:42/n7/body"`): the nested documents of a canvas share the room's
 people, its policy and its awareness.
 
+What a document is (its engine, its initial content, its hook) comes from
+the policy's `document/2` when it says, whoever opens it first; a
+component's own spec only when it does not. See
+[One document, many places](components.md#one-document-many-places).
+
 ## The browser
 
 A page joins each room once (`joinRoom`), however many components share

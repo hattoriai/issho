@@ -83,6 +83,13 @@ its blocks. Kotoba 0.7, Hakushi 0.3 and Masu 0.5 run on it.
 
 ### Changed
 
+- A document is what your policy's `document/2` says, whoever opens it
+  first; a component's own spec (`Issho.Live.open/3`'s `:spec`) is used
+  only for a document the policy does not know (`{:error, _}`). Before, a
+  component's spec won over the policy, so the same document in two
+  places (a canvas's page and an embed of it) was whatever the first to
+  open it brought. See "One document, many places" in the Components
+  guide.
 - `Issho.Tools.run/3` runs each tool within its time budget
   (`Issho.Motion.within/2`).
 - The people list's avatars of others are buttons (`.issho-person-follow`,

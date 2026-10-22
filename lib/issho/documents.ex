@@ -23,11 +23,16 @@ defmodule Issho.Documents do
   @doc """
   The authority of a document, started if it is not running anywhere.
 
-  What the document is (its spec) comes from the first open: the policy's
-  `c:Issho.Policy.document/2`, asked with the identity of whoever opens
-  it, or a `:spec` given by your server's own code, such as a component
-  that holds the document's initial content and its hook. A browser never
-  gives a spec.
+  What the document is (its spec) comes from the policy's
+  `c:Issho.Policy.document/2`, asked with the identity of whoever opens it
+  first, whoever that is: a page, an embed of the same document in another
+  page, an agent. A `:spec` given by your server's own code (a component
+  that holds the document's initial content and its hook) is what the
+  document is only when the policy does not say (it answers
+  `{:error, _}`, or has no `document/2`). Defined in the policy, a
+  document is the same wherever it opens first; given by components, the
+  first to open it gives its spec, and the others' are not used. A browser
+  never gives a spec.
 
   A spec is a map:
 
@@ -76,11 +81,14 @@ defmodule Issho.Documents do
     end
   end
 
-  defp given_or_policy(%{engine: engine} = spec, _policy, _identity, _id) when is_atom(engine),
-    do: {:ok, spec}
-
-  defp given_or_policy(nil, policy, identity, document_id),
-    do: spec(policy, identity, document_id)
+  # The policy's, when it says what the document is; else the spec given.
+  defp given_or_policy(given, policy, identity, document_id) do
+    case {spec(policy, identity, document_id), given} do
+      {{:ok, spec}, _given} -> {:ok, spec}
+      {{:error, _reason}, %{engine: engine} = spec} when is_atom(engine) -> {:ok, spec}
+      {{:error, _reason} = error, _given} -> error
+    end
+  end
 
   defp spec(policy, identity, document_id) do
     Code.ensure_loaded(policy)
