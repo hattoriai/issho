@@ -77,7 +77,18 @@ defmodule Issho.Motion do
         do: fit(duration(before, target)),
         else: 0
 
-    changes = %{"motion" => %{"to" => target, "gesture" => gesture, "ms" => ms, "seq" => seq}}
+    motion = %{"to" => target, "gesture" => gesture, "ms" => ms, "seq" => seq}
+    changes = changes(aware, target, motion, opts)
+
+    with :ok <- Participant.aware(participant, changes) do
+      wait(if gesture == "click" and ms > 0, do: ms + setting(:click, 150), else: ms)
+    end
+  end
+
+  # The gesture's changes of the agent's state: its motion, its place in
+  # a document (unless `place: false`), and what changes with it.
+  defp changes(aware, target, motion, opts) do
+    changes = %{"motion" => motion}
 
     changes =
       if Map.has_key?(target, "doc") and Keyword.get(opts, :place, true),
@@ -86,14 +97,9 @@ defmodule Issho.Motion do
 
     changes = Map.merge(Keyword.get(opts, :aware, %{}), changes)
 
-    changes =
-      case {Keyword.get(opts, :block), target} do
-        {nil, _target} -> changes
-        {block, %{"doc" => doc}} -> Map.put(changes, "blocks", blocks(aware, doc, block))
-      end
-
-    with :ok <- Participant.aware(participant, changes) do
-      wait(if gesture == "click" and ms > 0, do: ms + setting(:click, 150), else: ms)
+    case {Keyword.get(opts, :block), target} do
+      {nil, _target} -> changes
+      {block, %{"doc" => doc}} -> Map.put(changes, "blocks", blocks(aware, doc, block))
     end
   end
 

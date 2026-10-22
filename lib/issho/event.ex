@@ -17,7 +17,9 @@ defmodule Issho.Event do
   every app and component means the same by them:
 
     * `"document.changed"`: a document accepted a change (`data`:
-      `%{revision: n}`). Every document emits it.
+      `%{revision: n}`). Every document emits it, and so does a component
+      whose content is its own, not an Issho document's (Masu's rows:
+      `data: %{op: :update, count: n}`).
     * `"person.joined"` and `"person.left"`: someone entered or left the
       room (to come).
     * `"selection.changed"`: someone's place in a document changed (to
