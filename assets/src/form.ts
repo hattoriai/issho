@@ -44,6 +44,9 @@ export function holdForm(form: HTMLFormElement, member: FormMember, failed: (rea
       const members = [...shared.members];
       members.forEach((one) => one.lock(true));
       void Promise.all(members.map((one) => one.flush()))
+        // A task later: members with nothing to send are done at once, while the browser still
+        // fires the submit it stopped (a click's), and a submit asked for then does nothing.
+        .then(() => new Promise((resolve) => setTimeout(resolve, 0)))
         .then(() => {
           shared.resubmit = true;
           form.requestSubmit((event.submitter as HTMLButtonElement | HTMLInputElement | null) ?? undefined);

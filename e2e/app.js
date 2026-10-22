@@ -3,7 +3,7 @@
 // (point): an item of the list, and where in it.
 import { Socket } from "phoenix";
 import { LiveSocket } from "../deps/phoenix_live_view/priv/static/phoenix_live_view.esm.js";
-import { Hooks, locate, point } from "../assets/src/index";
+import { Hooks, holdForm, locate, point } from "../assets/src/index";
 
 const E2EList = {
   mounted() {
@@ -24,7 +24,17 @@ const E2EList = {
   },
 };
 
+// A shared component in a form, with nothing to send: its form waits for it all the same.
+const E2EForm = {
+  mounted() {
+    this.leave = holdForm(this.el.closest("form"), { flush: async () => {}, lock: () => {} });
+  },
+  destroyed() {
+    this.leave();
+  },
+};
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
-const liveSocket = new LiveSocket("/live", Socket, { params: { _csrf_token: csrfToken }, hooks: { ...Hooks, E2EList } });
+const liveSocket = new LiveSocket("/live", Socket, { params: { _csrf_token: csrfToken }, hooks: { ...Hooks, E2EList, E2EForm } });
 liveSocket.connect();
 window.liveSocket = liveSocket;

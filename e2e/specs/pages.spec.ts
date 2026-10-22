@@ -193,3 +193,14 @@ test("following someone into a block of another room follows them there too", as
   await expect.poll(following).toEqual({ [`page:${room}`]: "Ada" });
   await other.context().close();
 });
+
+// A form with a shared component in it waits for it on submit, then goes:
+// a person's click too, when the component has nothing to send.
+test("a click on a form's submit goes, once its shared components have sent what they have", async ({ page }) => {
+  await page.goto("/form");
+  await expect(page.locator("[data-phx-main].phx-connected")).toBeVisible();
+  await page.locator("#publish").click();
+  await expect(page.locator("#saved")).toHaveText("Saved 1");
+  await page.locator("#publish").click();
+  await expect(page.locator("#saved")).toHaveText("Saved 2");
+});
