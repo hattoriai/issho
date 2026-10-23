@@ -106,6 +106,15 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `"exit"`); the reason is in the app's log and in the `[:issho, :agent,
   :failed]` telemetry event. `Issho.Work.failed/2`. The agents bar shows
   "Failed".
+- What was said to someone while away: `Issho.Inbox`. Each comment that
+  mentions someone (and an app's event with `mentions`) lands in their
+  inbox, in any room, kept by the store, until read, under the room's
+  policy when read. The `inbox` room tool; an agent's inbox items of the
+  comments it heard in the room (`wait_for_events`) are read. The
+  instance's `:on_mention` wakes an agent that is away, and over MCP the
+  `issho://inbox` resource (`Issho.MCP.Inbox`) tells connected clients
+  when it changes, and the server's default instructions
+  (`Issho.MCP.instructions/0`) say to read it first.
 - The @ of a comment: typing it in the composer opens a list of the
   room's people and of `mentionable`, those here first, filtered as one
   types; the arrows, Enter or Tab, and Escape, as a list box. A pick

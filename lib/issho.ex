@@ -22,6 +22,9 @@ defmodule Issho do
     * `:store`: `{module, context}`, an `Issho.Store` for documents.
     * `:registry`: `:global` (the default) or a module with
       `name(instance, document_id)`, for the documents' authorities.
+    * `:on_mention`: `{module, function}` or a function of two arguments,
+      called with the key of someone a comment mentions and the item of
+      their inbox, to wake an agent that is away (`Issho.Inbox`).
     * `:presence`: whether this instance starts `Issho.Presence` (`true`).
     * `:ttl`: how long, in milliseconds, an unused document stays open
       (30 seconds).
@@ -75,7 +78,9 @@ defmodule Issho do
           {DynamicSupervisor,
            strategy: :one_for_one, name: Config.child_name(name, Participants)},
           # An agent starts its participant under Participants: its own supervisor.
-          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Agents)}
+          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Agents)},
+          # What runs apart from the caller: delivering to inboxes.
+          {Task.Supervisor, name: Config.child_name(name, Tasks)}
         ]
 
     Supervisor.init(children, strategy: :one_for_one)

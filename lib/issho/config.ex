@@ -12,6 +12,7 @@ defmodule Issho.Config do
     :store,
     :secret_key_base,
     :endpoint,
+    :on_mention,
     registry: :global,
     presence: true,
     ttl: 30_000,
@@ -47,8 +48,16 @@ defmodule Issho.Config do
     unless opts[:secret_key_base] || opts[:endpoint],
       do: raise(ArgumentError, "Issho needs :endpoint or :secret_key_base, to sign join tokens")
 
+    check_on_mention!(opts[:on_mention])
     struct!(__MODULE__, opts)
   end
+
+  defp check_on_mention!(nil), do: :ok
+  defp check_on_mention!({module, function}) when is_atom(module) and is_atom(function), do: :ok
+  defp check_on_mention!(function) when is_function(function, 2), do: :ok
+
+  defp check_on_mention!(other),
+    do: raise(ArgumentError, "Issho's :on_mention is {module, function}, got: #{inspect(other)}")
 
   @spec put(t()) :: :ok
   def put(%__MODULE__{name: name} = config), do: :persistent_term.put({Issho, name}, config)
