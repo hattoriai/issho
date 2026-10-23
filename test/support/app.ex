@@ -236,3 +236,66 @@ defmodule IsshoTest.MCP do
   # Issho's room tools over MCP, as an app serves them.
   use Issho.MCP, name: "issho-test", version: "0.0.0", tools: Issho.Tools.room()
 end
+
+defmodule IsshoTest.RetroLive do
+  @moduledoc false
+  # A retro board: cards in columns, as shared state.
+  use Phoenix.LiveView
+
+  on_mount Issho.Live
+
+  alias Issho.State
+
+  @impl true
+  def mount(_params, %{"user" => user, "room" => room}, socket) do
+    if connected?(socket),
+      do: {:ok, _} = Issho.Live.join(IsshoTest.Issho, %{id: user, name: user}, room)
+
+    {:ok,
+     socket
+     |> assign(:room, room)
+     |> State.assign(:retro, room, nil, default: %{"static" => true})}
+  end
+
+  @impl true
+  def handle_event("add", %{"id" => id, "text" => text} = params, socket) do
+    card = %{"id" => id, "text" => text}
+    opts = if after_id = params["after"], do: [after: after_id], else: []
+    reply(socket, State.change(socket, :retro, [State.insert(["cols", "todo"], card, opts)]))
+  end
+
+  def handle_event("vote", %{"id" => id}, socket),
+    do:
+      reply(
+        socket,
+        State.change(socket, :retro, [State.increment(["cols", "todo", id, "votes"])])
+      )
+
+  def handle_event("done", %{"id" => id}, socket),
+    do:
+      reply(
+        socket,
+        State.change(socket, :retro, [State.move(["cols", "todo"], id, to: ["cols", "done"])])
+      )
+
+  def handle_event("bad", _params, socket),
+    do: reply(socket, State.change(socket, :retro, [State.set([], 1)]))
+
+  defp reply(socket, :ok), do: {:noreply, assign(socket, :error, nil)}
+  defp reply(socket, {:error, reason}), do: {:noreply, assign(socket, :error, inspect(reason))}
+
+  @impl true
+  def render(assigns) do
+    assigns = Map.put_new(assigns, :error, nil)
+
+    ~H"""
+    <p :if={@retro["static"]} id="static">static</p>
+    <p :if={@error} id="error">{@error}</p>
+    <ul :for={col <- ["todo", "done"]} id={col}>
+      <li :for={card <- State.get(@retro, ["cols", col]) || []}>
+        {card["text"]}:{card["votes"] || 0}
+      </li>
+    </ul>
+    """
+  end
+end

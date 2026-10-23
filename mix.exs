@@ -100,6 +100,7 @@ defmodule Issho.MixProject do
         "guides/architecture.md",
         "guides/agents.md",
         "guides/components.md",
+        "guides/state.md",
         "CHANGELOG.md"
       ],
       groups_for_modules: [
@@ -120,7 +121,7 @@ defmodule Issho.MixProject do
           Issho.Identity,
           Issho.Color
         ],
-        LiveView: [Issho.Live],
+        LiveView: [Issho.Live, Issho.State],
         Agents: [Issho.Participant],
         Stores: [Issho.Store.Memory, Issho.Store.None],
         Testing: [Issho.Test]
