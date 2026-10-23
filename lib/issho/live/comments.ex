@@ -10,7 +10,9 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     Everything goes through the LiveView, as the person it is in the room:
     their comments are theirs, at the server's time, under your policy's
     `:comment`. A new comment goes on what the person selected in a
-    component of the page (their place), or on the page.
+    component of the page (their place), or on the page. Their selection
+    stays theirs to comment on when they leave the component for the
+    comment box, until they select something else or comment on it.
     """
 
     use Phoenix.LiveComponent
@@ -42,8 +44,13 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     @impl true
     def update(%{issho: {"tx", _document, event}}, socket), do: {:ok, transaction(socket, event)}
 
-    def update(%{issho: {"aware", _room, _frame}}, socket),
-      do: {:ok, assign(socket, :selection, selection(socket.assigns.room, socket.assigns.me))}
+    # What the person selected: kept when they leave the component for the
+    # comment box (a text's editor lets its selection go when it loses the
+    # focus), until they select something else or comment on it.
+    def update(%{issho: {"aware", _room, _frame}}, socket) do
+      selected = selection(socket.assigns.room, socket.assigns.me)
+      {:ok, assign(socket, :selection, selected || socket.assigns.selection)}
+    end
 
     # People came or went: whom the @ offers.
     def update(%{issho: {"presence_diff", _room, _diff}}, socket),
@@ -157,8 +164,12 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       {op, ids} = Ops.start(socket.assigns.me, place, body, mentions: mentions)
 
       case commit(socket, op) do
-        {:ok, socket} -> {:noreply, assign(socket, focused: ids.thread, status: "open")}
-        {:error, socket} -> {:noreply, socket}
+        {:ok, socket} ->
+          socket = if place, do: assign(socket, :selection, nil), else: socket
+          {:noreply, assign(socket, focused: ids.thread, status: "open")}
+
+        {:error, socket} ->
+          {:noreply, socket}
       end
     end
 
