@@ -341,3 +341,33 @@ defmodule IsshoTest.CommentsLive do
     """
   end
 end
+
+defmodule IsshoTest.OwnInputCommentsLive do
+  @moduledoc false
+  # Comments written with an input of the app's own, read by the app.
+  use Phoenix.LiveView
+
+  on_mount Issho.Live
+
+  @impl true
+  def mount(_params, %{"user" => user, "room" => room}, socket) do
+    if connected?(socket),
+      do: {:ok, _} = Issho.Live.join(IsshoTest.Issho, %{id: user, name: user}, room)
+
+    {:ok, assign(socket, room: room)}
+  end
+
+  # The app's input says its words in capitals, and whom it mentions itself.
+  def read(%{"body" => body}), do: %{body: String.upcase(body), mentions: ["user:ken"]}
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Issho.Components.comments id="comments" room={@room} read={&__MODULE__.read/1}>
+      <:input :let={input}>
+        <input class="own-input" id={input.field.id} name={input.field.name} value={input.value} />
+      </:input>
+    </Issho.Components.comments>
+    """
+  end
+end

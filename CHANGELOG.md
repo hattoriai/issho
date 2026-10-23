@@ -96,6 +96,16 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A document's spec may say the events its changes make happen
   (`:events`, a function of the operations and the context, run after
   each change is saved).
+- The @ of a comment: typing it in the composer opens a list of the
+  room's people and of `mentionable`, those here first, filtered as one
+  types; the arrows, Enter or Tab, and Escape, as a list box. A pick
+  writes "@Name " and keeps the key picked, so a comment mentions who
+  was picked, not whoever has that name (`mentionPicker`,
+  `mentionQuery`, `matchCandidates`, `insertMention` in the `issho`
+  package). Issho's theme and its Sumi theme style the list.
+- `Issho.Components.comments/1`'s `:input` slot and `:read`: the
+  composer is an app's own field (a Kotoba editor, say), and `read`
+  gives its body and its mentions from the form's params.
 
 ### Changed
 
