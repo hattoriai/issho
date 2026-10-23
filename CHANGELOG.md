@@ -96,6 +96,16 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A document's spec may say the events its changes make happen
   (`:events`, a function of the operations and the context, run after
   each change is saved).
+- An agent's work under Issho: `Issho.Agents.run/5` runs a function as
+  the agent, in a process linked to it. Stop ends it at once, wherever it
+  is (`{:shutdown, {:stopped, by}}`); its idle time waits for it to end;
+  one at a time.
+- An agent's work that crashes is said in the room: its task is
+  `"failed"`, and the event `"agent.failed"` (`%{agent, title, reason}`)
+  gives the kind of failure only (`"error"`, `"timeout"`, `"killed"`,
+  `"exit"`); the reason is in the app's log and in the `[:issho, :agent,
+  :failed]` telemetry event. `Issho.Work.failed/2`. The agents bar shows
+  "Failed".
 - What was said to someone while away: `Issho.Inbox`. Each comment that
   mentions someone (and an app's event with `mentions`) lands in their
   inbox, in any room, kept by the store, until read, under the room's
@@ -118,6 +128,11 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- An agent is one in the cluster, by its name (`:global`), as a
+  document's authority is: a call on any node finds it, so an MCP
+  endpoint behind a load balancer needs no session affinity.
+  `Issho.Agents.rooms/2` gives its rooms in the cluster.
+- Agents and participants idle for 15 seconds hibernate.
 - A participant (`Issho.Participant`) and an agent in a room
   (`Issho.Agents`) are state machines (`:gen_statem`): a participant is
   present, paused or stopped, and its task says which as it enters each;

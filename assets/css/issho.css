@@ -1181,7 +1181,7 @@
   font-size: 0.8125rem;
 }
 
-/* Its state, a pill: working in its colour, paused amber, stopped red. */
+/* Its state, a pill: working in its colour, paused amber, stopped or failed red. */
 .issho-agent-state {
   display: inline-flex;
   flex: none;
@@ -1214,7 +1214,8 @@
   color: color-mix(in oklab, var(--issho-person-4) 80%, var(--issho-text));
 }
 
-.issho-agent[data-state="stopped"] .issho-agent-state {
+.issho-agent[data-state="stopped"] .issho-agent-state,
+.issho-agent[data-state="failed"] .issho-agent-state {
   background: color-mix(in oklab, var(--issho-person-6) 12%, var(--issho-surface));
   color: color-mix(in oklab, var(--issho-person-6) 85%, var(--issho-text));
 }

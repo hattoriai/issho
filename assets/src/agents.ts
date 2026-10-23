@@ -7,7 +7,7 @@ import type { Peer } from "./awareness";
 import { icon } from "./icons";
 import type { Person } from "./presence";
 
-export type TaskState = "working" | "paused" | "stopped";
+export type TaskState = "working" | "paused" | "stopped" | "failed";
 export type StepState = "pending" | "active" | "done" | "skipped";
 
 /** An agent's task, as its state in the room says it. */
@@ -238,5 +238,6 @@ function stateWords(task: Task): string {
   const by = task.by ? ` by ${task.by.name ?? task.by.key}` : "";
   if (task.state === "paused") return `Paused${by}`;
   if (task.state === "stopped") return `Stopped${by}`;
+  if (task.state === "failed") return "Failed";
   return "Working";
 }
