@@ -1,7 +1,8 @@
 /*
  * Issho's theme: the people of a room (Issho.Components.people/1, and the
- * IsshoPeople hook, which draw the same markup), and the pointers of the
- * page (Issho.Components.pointers/1).
+ * IsshoPeople hook, which draw the same markup), the pointers of the page
+ * (Issho.Components.pointers/1), and the threads of comments with their
+ * marks at their places (Issho.Components.comments/1).
  *
  * Every value is a custom property, so a page restyles it without
  * overriding rules. The markup's classes and data attributes are stable:
@@ -34,6 +35,14 @@
   --issho-pointer-radius: 0.25rem;
   --issho-pointer-font-size: 0.75rem;
   --issho-pointer-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  /* The comments: their panel, the marks at their places, a mention. */
+  --issho-comments-gap: 0.75rem;
+  --issho-comments-radius: 0.5rem;
+  --issho-comments-font-size: 0.875rem;
+  --issho-comments-focus: color-mix(in oklab, var(--issho-person-1) 10%, var(--issho-surface));
+  --issho-mark-size: 1.5rem;
+  --issho-mark-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  --issho-mention-background: color-mix(in oklab, var(--issho-person-1) 14%, transparent);
   --issho-person-1: #2563eb;
   --issho-person-2: #db2777;
   --issho-person-3: #059669;
@@ -401,4 +410,284 @@
   .issho-pointer { transition: none; }
   .issho-pointer-click { animation-duration: 1ms; }
   .issho-following { animation: none; }
+}
+
+/* The threads of comments of a room (Issho.Components.comments/1). */
+.issho-comments {
+  font-family: var(--issho-font);
+  font-size: var(--issho-comments-font-size);
+  color: var(--issho-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--issho-comments-gap);
+}
+
+.issho-comments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--issho-comments-gap);
+}
+
+.issho-comments-title {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.issho-comments-status {
+  display: inline-flex;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-comments-radius);
+  overflow: hidden;
+}
+
+.issho-comments-status button {
+  font: inherit;
+  color: var(--issho-muted);
+  background: transparent;
+  border: 0;
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+}
+
+.issho-comments-status button[aria-pressed="true"] {
+  color: var(--issho-text);
+  background: var(--issho-comments-focus);
+}
+
+.issho-comments-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--issho-muted);
+}
+
+.issho-comments-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.issho-comment-composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.issho-comment-composer textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--issho-surface);
+  flex: 1 1 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-comments-radius);
+  padding: 0.5rem;
+  resize: vertical;
+}
+
+.issho-comment-where {
+  display: flex;
+  gap: 0.75rem;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--issho-muted);
+}
+
+.issho-comment-send,
+.issho-comment-composer button,
+.issho-thread-actions button,
+.issho-comment-own button,
+.issho-thread-replies {
+  font: inherit;
+  color: var(--issho-text);
+  background: transparent;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-comments-radius);
+  padding: 0.125rem 0.5rem;
+  cursor: pointer;
+}
+
+.issho-comment-send {
+  margin-left: auto;
+}
+
+.issho-comments-error {
+  color: var(--issho-person-6);
+  margin: 0;
+}
+
+.issho-comments-note,
+.issho-comments-empty {
+  color: var(--issho-muted);
+  margin: 0;
+}
+
+.issho-threads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--issho-comments-gap);
+}
+
+.issho-thread {
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-comments-radius);
+  padding: 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.issho-thread[data-focused] {
+  background: var(--issho-comments-focus);
+}
+
+.issho-thread-place {
+  font: inherit;
+  font-size: 0.8em;
+  color: var(--issho-muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: start;
+  cursor: pointer;
+}
+
+.issho-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.issho-comment-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.issho-comment-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--issho-avatar-radius);
+  font-size: 0.7em;
+  font-weight: var(--issho-avatar-font-weight);
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 78%, var(--issho-text));
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 16%, var(--issho-surface));
+}
+
+.issho-comment[data-kind="agent"] .issho-comment-avatar,
+.issho-comment[data-kind="service"] .issho-comment-avatar {
+  border-radius: var(--issho-agent-radius);
+}
+
+.issho-comment-author {
+  font-weight: 600;
+}
+
+.issho-comment-behalf,
+.issho-comment-time,
+.issho-comment-edited {
+  color: var(--issho-muted);
+  font-size: 0.85em;
+}
+
+.issho-comment-body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.issho-mention {
+  background: var(--issho-mention-background);
+  border-radius: 0.25rem;
+  padding: 0 0.125rem;
+}
+
+.issho-comment-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.issho-reaction {
+  font: inherit;
+  font-size: 0.85em;
+  color: var(--issho-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0 0.375rem;
+  cursor: pointer;
+}
+
+.issho-reaction:hover,
+.issho-reaction:focus-visible {
+  border-color: var(--issho-line);
+}
+
+.issho-reaction[aria-pressed="true"] {
+  color: var(--issho-text);
+  border-color: var(--issho-person-1);
+}
+
+.issho-comment-own {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.issho-thread-replies {
+  align-self: flex-start;
+  color: var(--issho-muted);
+}
+
+.issho-thread-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* The marks at the threads' places, over the page. */
+.issho-comment-marks {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.issho-comment-mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: auto;
+  min-width: var(--issho-mark-size);
+  height: var(--issho-mark-size);
+  padding: 0 0.25rem;
+  font: 600 0.75rem/1 var(--issho-font);
+  color: var(--issho-pointer-text);
+  background: var(--issho-color, var(--issho-person-1));
+  border: 2px solid var(--issho-surface);
+  border-radius: 999px 999px 999px 0.25rem;
+  box-shadow: var(--issho-mark-shadow);
+  cursor: pointer;
+}
+
+.issho-comment-mark[data-focused] {
+  outline: 2px solid var(--issho-color, var(--issho-person-1));
+  outline-offset: 2px;
+}
+
+.issho-comment-mark:focus-visible {
+  outline: 2px solid var(--issho-text);
+  outline-offset: 2px;
 }

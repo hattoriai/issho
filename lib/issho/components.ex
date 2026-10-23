@@ -323,5 +323,51 @@ if Code.ensure_loaded?(Phoenix.Component) do
       </button>
       """
     end
+
+    @doc """
+    The threads of comments of a room (`Issho.Comments`): a panel of the
+    open and resolved threads, with their comments, replies, reactions,
+    edits and a composer, and a mark at each thread's place on the page,
+    where its component locates it (`locate` of the `issho` package), as
+    the pointers are. Comment on what you selected in a component, or on
+    the page. In a LiveView that is in the room (`Issho.Live.join/4`), with
+    the `IsshoComments` hook of `Hooks` in your LiveSocket:
+
+        <.comments id="comments" room={@room} />
+
+    Say what a thread's place is with the `:place` slot (it gets the place,
+    `nil` for the page, and the default words):
+
+        <.comments id="comments" room={@room}>
+          <:place :let={%{place: place, default: default}}>
+            {MyApp.Places.label(place) || default}
+          </:place>
+        </.comments>
+
+    An @ and a name in a comment mentions someone of the room, or of
+    `mentionable` (people who are not here: `[%{key: "user:42", name:
+    "Ada"}]`), who hears of it (`"comment.created"`'s `mentions`).
+    """
+    attr :id, :string, required: true
+    attr :room, :string, required: true, doc: "the room, which the LiveView has joined"
+    attr :mentionable, :list, default: [], doc: "people one may mention who are not in the room"
+    attr :marks, :boolean, default: true, doc: "whether the page marks each thread's place"
+    attr :class, :string, default: nil
+
+    slot :place, doc: "a thread's place, in words: gets `%{place: place, default: words}`"
+
+    def comments(assigns) do
+      ~H"""
+      <.live_component
+        module={Issho.Live.Comments}
+        id={@id}
+        room={@room}
+        mentionable={@mentionable}
+        marks={@marks}
+        class={@class}
+        place={@place}
+      />
+      """
+    end
   end
 end

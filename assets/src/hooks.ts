@@ -12,6 +12,7 @@ import { joinRoom, releaseRoom } from "./page";
 import { follow, following, onFollow, stopOnOwnWay } from "./follow";
 import { motion, onMotion, setMotion } from "./motion";
 import { drawPeople, someone } from "./people";
+import { commentMarkers, type Marked } from "./comments";
 import { gestureTracker, pointerLayer, pointing, type Gestures } from "./pointers";
 
 interface Hook extends LiveHook {
@@ -199,4 +200,53 @@ const IsshoMotion = {
   },
 };
 
-export const Hooks = { IsshoPeople, IsshoPointers, IsshoMotion };
+interface CommentsHook extends Hook {
+  markers?: ReturnType<typeof commentMarkers>;
+  focused?: string | null;
+  handleEvent(event: string, callback: (payload: never) => void): void;
+  pushEventTo(target: HTMLElement, event: string, payload: unknown): void;
+}
+
+// The threads of comments of a room (Issho.Components.comments/1): a mark
+// at each thread's place on the page, the times in the person's own
+// words, the page scrolled to a thread's place, and the thread chosen in
+// the panel.
+const IsshoComments = {
+  mounted(this: CommentsHook): void {
+    if (this.el.dataset.marks !== "false")
+      this.markers = commentMarkers({ open: (thread) => this.pushEventTo(this.el, "focus", { thread }) });
+    this.handleEvent("issho:comments:show", ({ doc }: { doc: string }) => {
+      const element = document.querySelector(`[data-issho-doc="${CSS.escape(doc)}"]`);
+      const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      element?.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+    });
+    IsshoComments.updated.call(this);
+  },
+
+  updated(this: CommentsHook): void {
+    const threads = JSON.parse(this.el.dataset.threads ?? "[]") as Marked[];
+    const focused = this.el.dataset.focused || null;
+    this.markers?.draw(threads, focused);
+    localTimes(this.el);
+    if (focused && focused !== this.focused) {
+      this.el.querySelector(`[data-thread="${CSS.escape(focused)}"]`)?.scrollIntoView({ block: "nearest" });
+    }
+    this.focused = focused;
+  },
+
+  destroyed(this: CommentsHook): void {
+    this.markers?.stop();
+  },
+};
+
+// The times of a page, as the server writes them (UTC), in the person's
+// own locale and time zone.
+function localTimes(root: HTMLElement): void {
+  const format = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+  for (const time of root.querySelectorAll<HTMLTimeElement>("time[datetime]")) {
+    const date = new Date(time.dateTime);
+    if (!Number.isNaN(date.getTime())) time.textContent = format.format(date);
+  }
+}
+
+export const Hooks = { IsshoPeople, IsshoPointers, IsshoMotion, IsshoComments };

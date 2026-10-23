@@ -49,6 +49,18 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The events `"thread.created"`, `"comment.created"`, `"comment.edited"`,
   `"comment.deleted"`, `"thread.resolved"` and `"thread.reopened"`. The
   [Comments](guides/comments.md) guide.
+- Comments on the page: `Issho.Components.comments/1` (the LiveComponent
+  `Issho.Live.Comments`), a panel of the open and resolved threads with
+  their comments, replies, reactions, edits and deletes, a composer that
+  comments on what the person selected or on the page, @mentions of the
+  room's people and of `mentionable`, and the `:place` slot for a place
+  in words. Its hook, `IsshoComments`, marks each open thread at its
+  place over the page, where its component locates it (`commentMarkers`,
+  `markSpot`, `locatePlace` in the `issho` package), opens a thread from
+  its mark, scrolls the page to a thread's place, and shows times in the
+  person's locale. Issho's theme styles them (`--issho-comments-*`,
+  `--issho-mark-*`, `--issho-mention-background`).
+- `Issho.Live.identity/1`: who the LiveView is in a room.
 - The policy's `:comment` action: a change to the comments asks for it,
   not `:write`, so a reader may comment when the policy allows it.
 - Agents comment: the `list_threads`, `comment` and `resolve_thread` room
