@@ -39,6 +39,8 @@ defmodule Issho.Events do
   @doc """
   Emits an event in a room. Options: `:document`, `:by` (an actor, as
   `Issho.Actor` says them, or an `Issho.Identity`) and `:data` (a map).
+  An event whose data has `mentions` (keys) lands in the inbox of each
+  (`Issho.Inbox`), as a comment's does.
   """
   @spec emit(atom(), String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def emit(instance, room, name, opts \\ [])
@@ -58,7 +60,10 @@ defmodule Issho.Events do
       at: DateTime.utc_now()
     }
 
-    broadcast(Config.get(instance).pubsub, event)
+    config = Config.get(instance)
+
+    with :ok <- broadcast(config.pubsub, event),
+         do: Issho.Inbox.deliver(config, event)
   end
 
   @doc """

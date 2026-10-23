@@ -80,7 +80,10 @@ if Code.ensure_loaded?(Sake.Server) do
 
     @doc false
     # Runs an Issho tool for an MCP call.
-    def run(tool, args, %Sake.Context{} = ctx), do: Issho.Tools.run(tool, args, context(ctx))
+    def run(tool, args, %Sake.Context{} = ctx) do
+      Issho.MCP.served(ctx.server)
+      Issho.Tools.run(tool, args, context(ctx))
+    end
 
     defp agent(ctx) do
       case setting(ctx, :agent) do
@@ -118,6 +121,37 @@ if Code.ensure_loaded?(Sake.Server) do
     end
   end
 
+  defmodule Issho.MCP.Inbox do
+    @moduledoc """
+    The caller's inbox as an MCP resource, `issho://inbox`: the comments
+    that mention it while it was away (`Issho.Inbox`), not yet read. A
+    client that subscribes hears when it changes. Reading it leaves them
+    unread: the `inbox` tool takes them.
+    """
+
+    use Sake.Resource,
+      uri: "issho://inbox",
+      name: "inbox",
+      title: "Inbox",
+      description: "What people said to you in the rooms while you were away, not yet read.",
+      mime_type: "application/json",
+      subscribe: true
+
+    alias Issho.MCP.Session
+
+    @impl true
+    def read(_params, %Sake.Context{} = ctx) do
+      Issho.MCP.served(ctx.server)
+      tool = Session.context(ctx)
+      opts = Keyword.take(tool.opts, [:on_behalf_of, :claims])
+
+      case Issho.Inbox.items(tool.instance, tool.actor, opts) do
+        {:ok, items} -> {:ok, %{"items" => items}}
+        {:error, reason} -> {:error, inspect(reason)}
+      end
+    end
+  end
+
   defmodule Issho.MCP do
     @moduledoc ~S"""
     Issho's tools over MCP, with [Sake](https://hex.pm/packages/sake): a
@@ -143,6 +177,22 @@ if Code.ensure_loaded?(Sake.Server) do
 
     Options: those of `use Sake.Server` (`:name`, `:version`,
     `:instructions`...), and `:tools`, a list of `Issho.Tool` modules.
+
+    ## The inbox
+
+    An agent that is not connected is not told anything: MCP has no way
+    to reach it. What people said to it meanwhile waits in its inbox
+    (`Issho.Inbox`): the `inbox` tool takes it, and the server's
+    instructions, unless you give your own (then add `instructions/0`
+    to them), say to read it first. The server has the resource
+    `issho://inbox` (`Issho.MCP.Inbox`), and the clients that subscribe
+    to it hear when it changes: those connected. To wake one that is
+    not, give the instance an `:on_mention`.
+
+    Issho tells the servers that answered a call on the node of the
+    comment; in a cluster, name them all in the config:
+    `config :issho, Issho.MCP, servers: [MyApp.MCP]`. A server that
+    declares its own `resources` lists `Issho.MCP.Inbox` among them.
     Sake is an optional dependency of Issho: add `{:sake, "~> 0.4"}` to
     serve MCP, and start `{Sake, ...}` in your supervision tree, before
     the endpoint (Sake's streams and tasks run there): without it, a
@@ -154,11 +204,48 @@ if Code.ensure_loaded?(Sake.Server) do
     @doc false
     defmacro __using__(opts) do
       {tools, server} = Keyword.pop(opts, :tools, [])
+      server = Keyword.put_new(server, :instructions, instructions())
 
       quote do
         use Sake.Server, unquote(server)
         tools(Issho.MCP.__wrap__(__MODULE__, unquote(tools)))
+        resources([Issho.MCP.Inbox])
       end
+    end
+
+    @doc "What Issho's servers tell an agent when it connects, unless given other instructions."
+    @spec instructions() :: String.t()
+    def instructions do
+      """
+      You work in the app's rooms with the people in them. People may
+      mention you in comments while you are away: at the start of a
+      session, and when the issho://inbox resource changes, call the
+      inbox tool, and answer each in its thread (the comment tool).
+      """
+    end
+
+    @doc false
+    # The servers that answered a call on this node, to tell of inboxes.
+    @spec served(module() | nil) :: :ok
+    def served(nil), do: :ok
+
+    def served(server) do
+      known = :persistent_term.get({__MODULE__, :servers}, [])
+      unless server in known, do: :persistent_term.put({__MODULE__, :servers}, [server | known])
+      :ok
+    end
+
+    @doc false
+    # Tells the connected clients of each server that their inbox changed.
+    @spec inbox_changed() :: :ok
+    def inbox_changed do
+      configured = Keyword.get(Application.get_env(:issho, __MODULE__, []), :servers, [])
+
+      for server <- Enum.uniq(configured ++ :persistent_term.get({__MODULE__, :servers}, [])) do
+        Sake.Server.resource_updated(server, "issho://inbox")
+      end
+
+      :ok
     end
 
     @doc false

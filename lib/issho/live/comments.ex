@@ -10,7 +10,9 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     Everything goes through the LiveView, as the person it is in the room:
     their comments are theirs, at the server's time, under your policy's
     `:comment`. A new comment goes on what the person selected in a
-    component of the page (their place), or on the page.
+    component of the page (their place), or on the page. Their selection
+    stays theirs to comment on when they leave the component for the
+    comment box, until they select something else or comment on it.
     """
 
     use Phoenix.LiveComponent
@@ -27,6 +29,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
        assign(socket,
          joined: false,
          threads: [],
+         candidates: [],
          revision: nil,
          status: "open",
          focused: nil,
@@ -41,8 +44,17 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     @impl true
     def update(%{issho: {"tx", _document, event}}, socket), do: {:ok, transaction(socket, event)}
 
-    def update(%{issho: {"aware", _room, _frame}}, socket),
-      do: {:ok, assign(socket, :selection, selection(socket.assigns.room, socket.assigns.me))}
+    # What the person selected: kept when they leave the component for the
+    # comment box (a text's editor lets its selection go when it loses the
+    # focus), until they select something else or comment on it.
+    def update(%{issho: {"aware", _room, _frame}}, socket) do
+      selected = selection(socket.assigns.room, socket.assigns.me)
+      {:ok, assign(socket, :selection, selected || socket.assigns.selection)}
+    end
+
+    # People came or went: whom the @ offers.
+    def update(%{issho: {"presence_diff", _room, _diff}}, socket),
+      do: {:ok, assign(socket, :candidates, candidates(socket))}
 
     def update(%{issho: _other}, socket), do: {:ok, socket}
 
@@ -51,11 +63,14 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
         socket
         |> assign(Map.drop(assigns, [:flash]))
         |> assign_new(:mentionable, fn -> [] end)
+        |> assign_new(:input, fn -> [] end)
+        |> assign_new(:read, fn -> nil end)
         |> assign_new(:marks, fn -> true end)
         |> assign_new(:place, fn -> [] end)
         |> assign_new(:class, fn -> nil end)
 
-      {:ok, if(socket.assigns.joined, do: socket, else: open(socket))}
+      socket = if socket.assigns.joined, do: socket, else: open(socket)
+      {:ok, assign(socket, :candidates, candidates(socket))}
     end
 
     # The room's comments, open in the LiveView's session, if it is in the room.
@@ -143,18 +158,24 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
     def handle_event("unfocus", _params, socket), do: {:noreply, assign(socket, focused: nil)}
 
-    def handle_event("start", %{"body" => body} = params, socket) do
+    def handle_event("start", params, socket) do
       place = if params["where"] == "selection", do: socket.assigns.selection
-      {op, ids} = Ops.start(socket.assigns.me, place, body, mentions: mentions(socket, body))
+      %{body: body, mentions: mentions} = read(socket, params)
+      {op, ids} = Ops.start(socket.assigns.me, place, body, mentions: mentions)
 
       case commit(socket, op) do
-        {:ok, socket} -> {:noreply, assign(socket, focused: ids.thread, status: "open")}
-        {:error, socket} -> {:noreply, socket}
+        {:ok, socket} ->
+          socket = if place, do: assign(socket, :selection, nil), else: socket
+          {:noreply, assign(socket, focused: ids.thread, status: "open")}
+
+        {:error, socket} ->
+          {:noreply, socket}
       end
     end
 
-    def handle_event("reply", %{"thread" => thread, "body" => body}, socket) do
-      {op, _ids} = Ops.reply(socket.assigns.me, thread, body, mentions: mentions(socket, body))
+    def handle_event("reply", %{"thread" => thread} = params, socket) do
+      %{body: body, mentions: mentions} = read(socket, params)
+      {op, _ids} = Ops.reply(socket.assigns.me, thread, body, mentions: mentions)
       {:noreply, socket |> commit(op) |> elem(1)}
     end
 
@@ -163,8 +184,9 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
     def handle_event("cancel", _params, socket), do: {:noreply, assign(socket, editing: nil)}
 
-    def handle_event("save", %{"thread" => thread, "comment" => comment, "body" => body}, socket) do
-      op = Ops.edit(thread, comment, body, mentions: mentions(socket, body))
+    def handle_event("save", %{"thread" => thread, "comment" => comment} = params, socket) do
+      %{body: body, mentions: mentions} = read(socket, params)
+      op = Ops.edit(thread, comment, body, mentions: mentions)
 
       case commit(socket, op) do
         {:ok, socket} -> {:noreply, assign(socket, editing: nil)}
@@ -215,34 +237,79 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     defp message(:not_joined), do: "Comments come once the page is connected."
     defp message(_reason), do: "The comment could not be saved."
 
-    # The people a body mentions: an @ and the name of someone of the room,
-    # or of `mentionable`, the longest name first.
-    defp mentions(socket, body) do
-      socket
-      |> names()
-      |> Enum.sort_by(fn {_key, name} -> -String.length(name) end)
-      |> Enum.reduce({body, []}, fn {key, name}, {rest, keys} ->
-        if String.contains?(rest, "@" <> name),
-          do: {String.replace(rest, "@" <> name, ""), keys ++ [key]},
-          else: {rest, keys}
-      end)
-      |> elem(1)
-      |> Enum.uniq()
+    # What a composer's form says: its words, and whom they mention. An
+    # app's own input (the :input slot) says it with `read`, whose mentions
+    # are its own (a Kotoba editor's, whose labels are the app's).
+    defp read(%{assigns: %{read: read}}, params) when is_function(read, 1) do
+      %{body: body} = said = read.(params)
+
+      %{
+        body: body,
+        mentions: said |> Map.get(:mentions, []) |> Enum.map(&to_string/1) |> Enum.uniq()
+      }
     end
 
-    defp names(socket) do
+    defp read(socket, params) do
+      body = params["body"] || ""
+      picked = (params["mentions"] || "") |> String.split(",", trim: true)
+      %{body: body, mentions: mentions(socket, body, picked)}
+    end
+
+    # Whom a body mentions: those picked from the @ (whose "@Name" is still
+    # in it), and an @ and the name of someone the panel offers, typed.
+    defp mentions(socket, body, picked) do
+      names = Map.new(socket.assigns.candidates, &{&1["key"], &1["name"]})
+
+      chosen =
+        for key <- picked, name = names[key], String.contains?(body, "@" <> name), do: key
+
+      typed =
+        socket.assigns.candidates
+        |> Enum.sort_by(&(-String.length(&1["name"])))
+        |> Enum.reduce({body, []}, fn %{"key" => key, "name" => name}, {rest, keys} ->
+          if String.contains?(rest, "@" <> name),
+            do: {String.replace(rest, "@" <> name, ""), keys ++ [key]},
+            else: {rest, keys}
+        end)
+        |> elem(1)
+
+      Enum.uniq(chosen ++ typed)
+    end
+
+    # Whom the @ offers: the people of the room, and `mentionable`, once each.
+    defp candidates(%{assigns: %{joined: false}} = socket), do: given(socket)
+
+    defp candidates(socket) do
       present =
         for {key, %{metas: [meta | _]}} <- Live.people(socket.assigns.room),
             is_binary(meta["name"]),
-            do: {key, meta["name"]}
+            do: %{
+              "key" => key,
+              "name" => meta["name"],
+              "kind" => meta["kind"],
+              "color" => meta["color"],
+              "palette" => meta["palette"],
+              "here" => true
+            }
 
-      given =
-        for person <- socket.assigns.mentionable,
-            key = person[:key] || person["key"],
-            name = person[:name] || person["name"],
-            do: {to_string(key), to_string(name)}
+      Enum.uniq_by(present ++ given(socket), & &1["key"])
+    end
 
-      Enum.uniq_by(present ++ given, &elem(&1, 0))
+    defp given(socket) do
+      for person <- socket.assigns.mentionable,
+          key = person[:key] || person["key"],
+          name = person[:name] || person["name"] do
+        key = to_string(key)
+
+        %{
+          "key" => key,
+          "name" => to_string(name),
+          "kind" => to_string(person[:kind] || person["kind"] || "human"),
+          "color" => nil,
+          "palette" => Color.index(key),
+          "here" => false
+        }
+      end
     end
 
     @impl true
@@ -267,6 +334,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
         data-threads={JSON.encode!(@marked)}
         data-focused={@focused}
         data-marks={to_string(@marks)}
+        data-mentionable={JSON.encode!(@candidates)}
         aria-labelledby={"#{@id}-title"}
       >
         <header class="issho-comments-header">
@@ -303,14 +371,13 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
           phx-target={@myself}
         >
           <label for={"#{@id}-new-body-#{@drafts}"} class="issho-visually-hidden">New comment</label>
-          <textarea
+          <.composer_input
+            slot={@input}
             id={"#{@id}-new-body-#{@drafts}"}
-            class="issho-composer-input"
-            name="body"
+            form={"#{@id}-new-#{@drafts}"}
             rows="2"
-            required
             placeholder="Add a comment… @ to mention"
-          ></textarea>
+          />
           <div class="issho-composer-bar">
             <fieldset :if={@selection} class="issho-composer-where">
               <legend class="issho-visually-hidden">Comment on</legend>
@@ -427,13 +494,13 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
                   <label for={"#{@id}-edit-body-#{comment["id"]}"} class="issho-visually-hidden">
                     Edit comment
                   </label>
-                  <textarea
+                  <.composer_input
+                    slot={@input}
                     id={"#{@id}-edit-body-#{comment["id"]}"}
-                    class="issho-composer-input"
-                    name="body"
+                    form={"#{@id}-edit-#{comment["id"]}"}
                     rows="2"
-                    required
-                  >{comment["body"]}</textarea>
+                    value={comment["body"]}
+                  />
                   <div class="issho-composer-bar">
                     <button type="button" class="issho-button" phx-click="cancel" phx-target={@myself}>
                       Cancel
@@ -444,7 +511,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
                 <p :if={@editing != {thread["id"], comment["id"]}} class="issho-comment-body"><.body
                     body={comment["body"]}
-                    names={mention_names(comment, @threads)}
+                    names={mention_names(comment, @threads, @candidates)}
                   /></p>
 
                 <div :if={comment["reactions"] != %{}} class="issho-reactions">
@@ -533,14 +600,13 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
               <label for={"#{@id}-reply-body-#{thread["id"]}-#{@drafts}"} class="issho-visually-hidden">
                 Reply
               </label>
-              <textarea
+              <.composer_input
+                slot={@input}
                 id={"#{@id}-reply-body-#{thread["id"]}-#{@drafts}"}
-                class="issho-composer-input"
-                name="body"
+                form={"#{@id}-reply-#{thread["id"]}-#{@drafts}"}
                 rows="1"
-                required
                 placeholder="Reply…"
-              ></textarea>
+              />
               <button
                 type="submit"
                 class="issho-icon-button issho-send"
@@ -600,17 +666,22 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     end
 
     # The names of the people a comment mentions, as the room's comments
-    # know them (an author of one), else as they are mentioned.
-    defp mention_names(%{"mentions" => []}, _threads), do: []
+    # know them (an author of one) or the @ offers them.
+    defp mention_names(%{"mentions" => []}, _threads, _candidates), do: []
 
-    defp mention_names(%{"mentions" => keys}, threads) do
-      authors =
-        for thread <- threads,
+    defp mention_names(%{"mentions" => keys}, threads, candidates) do
+      known =
+        Map.merge(
+          Map.new(candidates, &{&1["key"], &1["name"]}),
+          for(
+            thread <- threads,
             comment <- thread["comments"],
             into: %{},
             do: {comment["author"]["key"], comment["author"]["name"]}
+          )
+        )
 
-      for key <- keys, name = authors[key], is_binary(name), do: name
+      for key <- keys, name = known[key], is_binary(name), do: name
     end
 
     # The threads the page marks: those open, with a place.
@@ -634,6 +705,43 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
     defp shown(thread, focused) do
       if thread["id"] == focused, do: thread["comments"], else: Enum.take(thread["comments"], 1)
+    end
+
+    attr :slot, :list, required: true
+    attr :id, :string, required: true
+    attr :form, :string, required: true
+    attr :rows, :string, required: true
+    attr :value, :string, default: nil
+    attr :placeholder, :string, default: nil
+
+    # A composer's words: Issho's text area with its @ picker, or the app's
+    # own input (the :input slot), and the field of the mentions picked,
+    # which a render leaves as the picker set it.
+    defp composer_input(%{slot: []} = assigns) do
+      ~H"""
+      <textarea
+        id={@id}
+        class="issho-composer-input"
+        name="body"
+        rows={@rows}
+        required
+        placeholder={@placeholder}
+        data-issho-mentions
+      >{@value}</textarea>
+      <input type="hidden" id={"#{@form}-mentions"} name="mentions" value="" phx-update="ignore" />
+      """
+    end
+
+    defp composer_input(assigns) do
+      ~H"""
+      {render_slot(@slot, %{
+        id: @id,
+        name: "body",
+        value: @value,
+        placeholder: @placeholder,
+        field: Phoenix.Component.to_form(%{"body" => @value}, id: @id)[:body]
+      })}
+      """
     end
 
     attr :slot, :list, required: true

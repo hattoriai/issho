@@ -30,6 +30,18 @@ defmodule Issho.Work do
   Each is an event of the room: `"agent.interrupted"` (`data`: `%{agent:
   key, action: "pause" | "stop"}`) and `"agent.resumed"`, by the person
   who did it.
+
+  An agent whose work runs under Issho (`Issho.Agents.run/5`) is stopped
+  at once: its work ends wherever it is. One that crashes says so
+  (`failed/2`).
+
+  ## What is yours
+
+  Issho keeps the task, its state and its events; it decides nothing of
+  what a page shows of them. `Issho.Components.agents/1` is a default, to
+  use or to leave: the task is in each agent's state in the room
+  (`Issho.Awareness`), and its events are the room's (`Issho.Events`), to
+  draw your own way.
   """
 
   alias Issho.{Config, Event, Events, Identity, Participant, Policy, Presence, Session}
@@ -123,6 +135,54 @@ defmodule Issho.Work do
         else: :ok
     end
   end
+
+  @doc """
+  Says the agent's work failed: its task, if it has one, is `"failed"`,
+  and the room hears `"agent.failed"` (`data`: `%{agent: key, title:
+  title, reason: kind}`). The people in the room learn only the kind of
+  failure (`"error"`, `"timeout"`, `"killed"` or `"exit"`), not its
+  details, which may say more than they should know; your app has them
+  in the `[:issho, :agent, :failed]` telemetry event (metadata `:room`,
+  `:agent`, `:reason`), to log or to tell in its own words.
+
+  `Issho.Agents.run/5` calls it when the work it runs crashes; call it
+  yourself for a work that fails another way.
+  """
+  @spec failed(GenServer.server(), term()) :: :ok
+  def failed(participant, reason) do
+    key = Participant.key(participant)
+    room = Participant.room(participant)
+
+    :telemetry.execute(
+      [:issho, :agent, :failed],
+      %{system_time: System.system_time()},
+      %{room: room, agent: key, reason: reason}
+    )
+
+    title =
+      case Participant.awareness(participant) do
+        %{"task" => %{} = task} ->
+          _ =
+            Participant.aware(participant, %{
+              "task" => Map.merge(task, %{"state" => "failed", "by" => nil})
+            })
+
+          task["title"]
+
+        _ ->
+          nil
+      end
+
+    emit(participant, "agent.failed", %{agent: key, title: title, reason: kind(reason)})
+  end
+
+  # The kind of a failure, in a word for the people.
+  defp kind({%{__exception__: true}, _stacktrace}), do: "error"
+  defp kind(%{__exception__: true}), do: "error"
+  defp kind({:timeout, _}), do: "timeout"
+  defp kind(:timeout), do: "timeout"
+  defp kind(:killed), do: "killed"
+  defp kind(_reason), do: "exit"
 
   @doc """
   Pauses, resumes or stops the agent `key` in a room, for `by` (an actor

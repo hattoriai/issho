@@ -1,6 +1,8 @@
 children = [
   {Phoenix.PubSub, name: IsshoTest.PubSub},
   IsshoTest.Endpoint,
+  # Sake's streams: an MCP client that listens for changes (the inbox).
+  {Sake, []},
   {Issho.Store.Memory, name: IsshoTest.Store},
   {Issho,
    name: IsshoTest.Issho,

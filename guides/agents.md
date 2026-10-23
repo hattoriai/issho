@@ -57,6 +57,31 @@ frame, then file it. From Elixir, `Issho.Agents.wait/5` is the same, and
 a participant that joins with `events: true` receives the room's events
 as messages.
 
+## Mentioned while away
+
+An agent that is not in the room hears nothing, and MCP has no way to
+reach a client that is not connected. So what people say to it waits:
+each comment that mentions it lands in its inbox (`Issho.Inbox`), in any
+room, until it reads it.
+
+```text
+inbox {}
+```
+
+gives them, newest first, with the room and the thread to answer in; the
+MCP server's instructions tell an agent to read it when it starts, and a
+client that subscribes to `issho://inbox` hears when it changes. To wake
+an agent that is not running, give the instance an `:on_mention`: Issho
+calls it with the key mentioned and the item, and your app starts the
+agent, as a job, a webhook, a message to the person it works for.
+
+```elixir
+{Issho, name: MyApp.Issho, on_mention: {MyApp.Assistants, :wake}, ...}
+
+def wake("assistant:" <> _ = key, item), do: MyApp.Assistants.start(key, item["room"])
+def wake(_key, _item), do: :ok
+```
+
 ## Seen at work, and stopped
 
 People follow an agent better when they see what it is doing, and trust
@@ -83,6 +108,39 @@ left half done, and its next tool call (but those that only read) says
 who paused or stopped it and what to do: wait for `"agent.resumed"`, or
 `finish_task`. Each start, finish, pause and resume is an event of the
 room.
+
+An agent that reaches your app over MCP runs elsewhere: Issho can only
+refuse what it does next. Your app's own agent can run its work under
+Issho, and then Stop is immediate:
+
+```elixir
+{:ok, work} =
+  Issho.Agents.run(MyApp.Issho, assistant, "board:42", fn claude ->
+    :ok = Issho.Work.start(claude, "Group the cards", ["Read", "Group"])
+    # ... call the model, run its tools ...
+    Issho.Work.finish(claude, "Grouped 14 cards.")
+  end, on_behalf_of: current_user)
+```
+
+The work is a process linked to the agent. Stop ends it wherever it is,
+waiting on the model or in the middle of a tool: a BEAM process can be
+ended from outside, so your code passes no cancellation around. Monitor
+`work` to know how it ended. If it crashes, the agent stays, its task
+says it failed, and the room hears `"agent.failed"` with the kind of
+failure only; the reason is in your log and in the `[:issho, :agent,
+:failed]` telemetry event, for you to tell in your own words.
+
+Each agent is one in the cluster, by name (`:global`), so any node finds
+it, and an agent idle for a while hibernates.
+
+## What Issho decides, and what is yours
+
+Issho keeps the state and says what happened: the task and its state in
+each agent's awareness, the room's events, telemetry. It decides nothing
+of what a page shows. `Issho.Components.agents/1` is a default to use or
+to leave; draw your own from the awareness and the events, in your own
+words. What only Issho's insides use (how long an agent waits before it
+hibernates) is not an option.
 
 ## Your app's own model
 

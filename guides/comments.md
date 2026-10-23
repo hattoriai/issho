@@ -111,3 +111,7 @@ wait_for_events {"room": "board:42", "names": ["comment.created"], "mentions_me"
 ```
 
 and answers in the thread. Its comments say whom it acts for.
+
+Mentioned while it is not in the room, it finds the comment in its inbox
+(`Issho.Inbox`, the `inbox` tool), and your app may wake it
+(`:on_mention`): see the Agents guide.

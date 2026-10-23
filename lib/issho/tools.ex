@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, read what was said to you while away, write a long answer as it comes, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -42,6 +42,10 @@ defmodule Issho.Tools do
       Issho.Tools.Comment,
       Issho.Tools.ResolveThread,
       Issho.Tools.WaitForEvents,
+      Issho.Tools.Inbox,
+      Issho.Tools.StartStream,
+      Issho.Tools.AppendToStream,
+      Issho.Tools.FinishStream,
       Issho.Tools.LeaveRoom
     ]
 
@@ -811,9 +815,206 @@ defmodule Issho.Tools.WaitForEvents do
              Map.get(args, :seconds, 20) * 1_000,
              mentions_me: args[:mentions_me] == true
            ) do
+      # It heard them here: they are no news in its inbox.
+      _ = Issho.Inbox.heard(ctx.instance, Context.key(ctx), events)
       {:ok, %{"events" => Enum.map(events, &Issho.Event.to_map/1)}}
     else
       {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.Inbox do
+  @moduledoc false
+  use Issho.Tool,
+    name: "inbox",
+    description: """
+    What people said to you while you were away: the comments, in any
+    room, that mention you, newest first, with the room, the thread and
+    the comment, who wrote it, and when. Those it gives are then read,
+    unless `keep_unread`; `all` gives those read before too. Answer one
+    in its thread (the comment tool, with its room and thread). Read it
+    when you start, and when told it changed.
+    """,
+    annotations: [idempotent: false]
+
+  arg :all, :boolean, description: "Those read before too"
+  arg :keep_unread, :boolean, description: "Leave them unread"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    opts = Keyword.take(ctx.opts, [:on_behalf_of, :claims])
+
+    with {:ok, items} <-
+           Issho.Inbox.items(ctx.instance, ctx.actor, [all: args[:all] == true] ++ opts),
+         :ok <- read(args, ctx, items) do
+      {:ok, %{"items" => Enum.map(items, &item/1)}}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp read(%{keep_unread: true}, _ctx, _items), do: :ok
+
+  defp read(_args, ctx, items) do
+    case for(%{"read" => false, "id" => id} <- items, do: id) do
+      [] -> :ok
+      ids -> Issho.Inbox.mark_read(ctx.instance, Context.key(ctx), ids)
+    end
+  end
+
+  defp item(item) do
+    data = item["data"] || %{}
+
+    %{
+      "id" => item["id"],
+      "event" => item["name"],
+      "room" => item["room"],
+      "thread" => data["thread"],
+      "comment" => data["comment"],
+      "place" => data["place"],
+      "body" => data["body"],
+      "by" => item["by"] && (item["by"]["name"] || item["by"]["key"]),
+      "at" => item["at"],
+      "read" => item["read"]
+    }
+  end
+end
+
+defmodule Issho.Tools.StartStream do
+  @moduledoc false
+  use Issho.Tool,
+    name: "start_stream",
+    description: """
+    Begins a long piece of writing that people see as it comes (a
+    summary, a report, a draft for them to take or leave), in the room:
+    for the person you work for, or for everyone in the room. Write it
+    with append_to_stream, a piece at a time, and end it with
+    finish_stream. Give `document` and `at` to put it at a place of a
+    document (as its component describes places). It is not in the
+    document: the person decides what to do with it.
+    """,
+    annotations: [idempotent: false]
+
+  arg :room, :string, required: true
+
+  arg :kind, :string,
+    required: true,
+    max_length: 60,
+    description: "What it is: summary, report, draft"
+
+  arg :for, {:enum, ["person", "room"]},
+    description:
+      "Who sees it: the person you work for (person, unless you work for no one), or the room"
+
+  arg :document, :string, description: "A document of the room, for a place in it"
+  arg :at, :any, description: "The place in that document"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, participant} <- Context.join(ctx, args.room),
+         {:ok, for} <- reader(args, ctx),
+         {:ok, stream} <-
+           Issho.Streams.start(ctx.instance, args.room,
+             kind: args.kind,
+             for: for,
+             by: Issho.Participant.identity(participant),
+             place: place(args),
+             # The agent's process: the stream lives while the agent is in the room.
+             writer: Issho.Agents.whereis(ctx.instance, Context.key(ctx), args.room)
+           ) do
+      {:ok, %{"stream" => stream.id}}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp reader(%{for: "room"}, _ctx), do: {:ok, :room}
+
+  defp reader(_args, ctx) do
+    case ctx.opts[:on_behalf_of] do
+      nil -> {:ok, :room}
+      person -> {:ok, person}
+    end
+  end
+
+  defp place(%{document: document} = args), do: %{"doc" => document, "at" => args[:at]}
+  defp place(_args), do: nil
+end
+
+defmodule Issho.Tools.AppendToStream do
+  @moduledoc false
+  use Issho.Tool,
+    name: "append_to_stream",
+    description: """
+    Adds the next piece of a stream you began (start_stream): the people
+    see it at once.
+    """,
+    annotations: [idempotent: false]
+
+  arg :stream, :string, required: true
+  arg :text, :string, required: true
+
+  alias Issho.Tool.Context
+  alias Issho.Tools.FinishStream
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, stream} <- FinishStream.own(ctx, args.stream),
+         :ok <- Issho.Streams.append(stream, args.text) do
+      {:ok, "Added."}
+    else
+      {:error, :too_large} -> {:error, "The stream is too long: it failed."}
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.FinishStream do
+  @moduledoc false
+  use Issho.Tool,
+    name: "finish_stream",
+    description: """
+    Ends a stream you began (start_stream): it is complete, and the
+    people keep it until they take it or leave it. With `failed`, it
+    ends as one that did not work out, with a few words of why.
+    """,
+    annotations: [idempotent: false]
+
+  arg :stream, :string, required: true
+  arg :failed, :boolean, description: "It did not work out"
+  arg :reason, :string, max_length: 200, description: "Why, when it failed"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, stream} <- own(ctx, args.stream),
+         :ok <- finish(stream, args) do
+      {:ok, if(args[:failed], do: "Failed.", else: "Finished.")}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp finish(stream, %{failed: true} = args),
+    do: Issho.Streams.fail(stream, args[:reason] || "failed")
+
+  defp finish(stream, _args), do: Issho.Streams.finish(stream)
+
+  @doc false
+  # A stream this agent writes.
+  def own(ctx, id) do
+    case Issho.Streams.get(ctx.instance, id) do
+      {:ok, %Issho.Stream{by: %Issho.Identity{key: key}} = stream} ->
+        if key == Context.key(ctx), do: {:ok, stream}, else: {:error, "That stream is not yours."}
+
+      _ ->
+        {:error, "There is no such stream: it ended, or was closed."}
     end
   end
 end

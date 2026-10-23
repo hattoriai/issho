@@ -91,7 +91,7 @@ defmodule Issho.WorkTest do
   } do
     {:ok, _} = call(tools, ctx, "start_task", %{"room" => room, "title" => "Rename"})
     {:ok, ada} = Issho.join_as(@instance, ada(), room)
-    session = :sys.get_state(ada).session
+    {:present, %{session: session}} = :sys.get_state(ada)
 
     :ok = Issho.Session.interrupt(session, "agent:claude", :pause)
 
@@ -157,7 +157,7 @@ defmodule Issho.WorkTest do
   } do
     {:ok, _} = call(tools, ctx, "start_task", %{"room" => room, "title" => "Rename"})
     {:ok, ken} = Issho.join_as(@instance, ken(), room)
-    session = :sys.get_state(ken).session
+    {:present, %{session: session}} = :sys.get_state(ken)
 
     IsshoTest.Policy.deny_action(:interrupt)
     on_exit(fn -> IsshoTest.Policy.allow_action(:interrupt) end)

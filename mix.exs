@@ -102,6 +102,7 @@ defmodule Issho.MixProject do
         "guides/components.md",
         "guides/state.md",
         "guides/comments.md",
+        "guides/streams.md",
         "CHANGELOG.md"
       ],
       groups_for_modules: [
@@ -114,7 +115,8 @@ defmodule Issho.MixProject do
           Issho.Store
         ],
         Documents: [Issho.Authority, Issho.Documents, Issho.Transaction, Issho.Engine.Map],
-        Comments: [Issho.Comments, Issho.Comments.Ops, Issho.Engine.Comments],
+        Comments: [Issho.Comments, Issho.Comments.Ops, Issho.Engine.Comments, Issho.Inbox],
+        Streams: [Issho.Streams, Issho.Stream],
         Rooms: [
           Issho.Channel,
           Issho.Token,
@@ -124,7 +126,7 @@ defmodule Issho.MixProject do
           Issho.Color
         ],
         LiveView: [Issho.Live, Issho.State],
-        Agents: [Issho.Participant, Issho.Agents, Issho.Work],
+        Agents: [Issho.Participant, Issho.Agents, Issho.Work, Issho.MCP.Inbox],
         Stores: [Issho.Store.Memory, Issho.Store.None],
         Testing: [Issho.Test]
       ]

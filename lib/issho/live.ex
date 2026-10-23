@@ -362,6 +362,45 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       end
     end
 
+    @doc """
+    The streams of the room this LiveView may see (`Issho.Streams`), as
+    they are now, with what they hold so far; from then on, the LiveView
+    gets what comes as messages, and the room's new streams it may see:
+
+        def mount(_params, _session, socket) do
+          {:ok, outputs} = if connected?(socket), do: Issho.Live.streams(room), else: {:ok, []}
+          {:ok, assign(socket, :outputs, Map.new(outputs, &{&1.id, &1}))}
+        end
+
+        def handle_info({Issho, :stream, id, {:started, stream}}, socket), do: ...
+        def handle_info({Issho, :stream, id, {:chunk, text}}, socket), do: ...
+        def handle_info({Issho, :stream, id, :finished}, socket), do: ...
+
+    and `{:failed, reason}`, `{:closed, outcome}` and `:gone`. A page that
+    mounts while a stream is written picks it up where it got to. The
+    LiveView is in the room (`join/4`). (Not LiveView's own streams of a
+    list, `stream/4`, and not their assign: `:streams` is LiveView's.)
+    """
+    @spec streams(String.t()) :: {:ok, [Issho.Stream.t()]} | {:error, term()}
+    def streams(room) do
+      with {:ok, session} <- fetch(room) do
+        Process.put({__MODULE__, :streams, room}, true)
+        Issho.Streams.watch(session.instance, room, session.identity)
+      end
+    end
+
+    @doc """
+    Closes a stream of the room, for the person of this LiveView (Accept,
+    Reject): when they may see it (`Issho.Streams.visible?/2`).
+    """
+    @spec close_stream(String.t(), String.t(), String.t() | atom()) :: :ok | {:error, term()}
+    def close_stream(room, id, outcome) do
+      with {:ok, session} <- fetch(room),
+           {:ok, %Issho.Stream{room: ^room} = stream} <- Issho.Streams.get(session.instance, id),
+           true <- Issho.Streams.visible?(stream, session.identity) || {:error, :forbidden},
+           do: Issho.Streams.close(stream, outcome)
+    end
+
     @doc "The people of the room now: `Phoenix.Presence`'s list, by actor key."
     @spec people(String.t()) :: map()
     def people(room) do
@@ -401,6 +440,21 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
     @doc false
     # The room's messages, as the on_mount hook takes them.
+    # A new stream of a room the LiveView watches: subscribed when the
+    # LiveView may see it, and given to it as `{:started, stream}`.
+    def __handle_info__({Issho, :stream_started, room, stream}, socket) do
+      with true <- Process.get({__MODULE__, :streams, room}, false) || :not_watched,
+           %Session{instance: instance, identity: identity} <- session(room),
+           {:ok, stream} <- Issho.Streams.subscribe(instance, stream, identity) do
+        send(self(), {Issho, :stream, stream.id, {:started, stream}})
+        {:halt, socket}
+      else
+        :not_watched -> {:cont, socket}
+        # Not for this person, or gone already.
+        _refused -> {:halt, socket}
+      end
+    end
+
     def __handle_info__(message, socket) do
       case room_of(message) do
         nil ->

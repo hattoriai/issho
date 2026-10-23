@@ -348,14 +348,17 @@ defmodule Issho.Authority do
     }
 
     for {name, data} <- state.events.(event["ops"], context) do
-      Issho.Events.broadcast(state.config.pubsub, %Issho.Event{
+      event = %Issho.Event{
         name: name,
         room: Issho.Policy.room(state.id),
         document: state.id,
         by: by,
         data: data,
         at: DateTime.utc_now()
-      })
+      }
+
+      Issho.Events.broadcast(state.config.pubsub, event)
+      Issho.Inbox.deliver(state.config, event)
     end
 
     :ok

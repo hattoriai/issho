@@ -22,6 +22,9 @@ defmodule Issho do
     * `:store`: `{module, context}`, an `Issho.Store` for documents.
     * `:registry`: `:global` (the default) or a module with
       `name(instance, document_id)`, for the documents' authorities.
+    * `:on_mention`: `{module, function}` or a function of two arguments,
+      called with the key of someone a comment mentions and the item of
+      their inbox, to wake an agent that is away (`Issho.Inbox`).
     * `:presence`: whether this instance starts `Issho.Presence` (`true`).
     * `:ttl`: how long, in milliseconds, an unused document stays open
       (30 seconds).
@@ -30,6 +33,9 @@ defmodule Issho do
       JSON (64 KB).
     * `:max_document_bytes` (16 MB), `:max_message_bytes` (1 MB) and
       `:token_max_age` (300 seconds).
+    * `:stream_max_bytes` (1 MB), `:room_max_streams` (32) and
+      `:stream_keep` (five minutes, in milliseconds): the limits of the
+      rooms' streams (`Issho.Streams`).
 
   See the architecture guide for how the parts fit together.
   """
@@ -74,9 +80,16 @@ defmodule Issho do
           {Issho.Documents, name: Config.child_name(name, Documents)},
           {DynamicSupervisor,
            strategy: :one_for_one, name: Config.child_name(name, Participants)},
-          {Registry, keys: :unique, name: Config.child_name(name, AgentRegistry)},
           # An agent starts its participant under Participants: its own supervisor.
-          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Agents)}
+          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Agents)},
+          # What runs apart from the caller: delivering to inboxes.
+          {Task.Supervisor, name: Config.child_name(name, Tasks)},
+          # The rooms' streams, and each room's as a process group.
+          %{
+            id: Config.child_name(name, StreamGroups),
+            start: {:pg, :start_link, [Config.child_name(name, StreamGroups)]}
+          },
+          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Streams)}
         ]
 
     Supervisor.init(children, strategy: :one_for_one)

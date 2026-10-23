@@ -38,7 +38,10 @@ defmodule Issho.Policy do
     * `:lock`: to hold an advisory lock on a place;
     * `:interrupt`: to pause, resume or stop an agent at work in the room
       (`Issho.Work`) that acts for someone else; the person an agent acts
-      for may always.
+      for may always;
+    * `:read_stream`: to see a stream of the room that is for whomever
+      the policy says (`for: :policy`, `Issho.Streams`); a stream for a
+      person or for the room asks `:read` only.
 
   A component that keeps its data outside Issho's documents (a grid of
   your database, which writes it itself) asks too, with
@@ -65,7 +68,7 @@ defmodule Issho.Policy do
 
   alias Issho.Identity
 
-  @type action :: :join | :read | :write | :comment | :lock | :interrupt
+  @type action :: :join | :read | :write | :comment | :lock | :interrupt | :read_stream
 
   @typedoc """
   What a document is: its engine, its initial content (given to the

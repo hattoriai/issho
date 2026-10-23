@@ -190,6 +190,27 @@ defmodule Issho.EventsTest do
       assert {:ok, [%Event{name: "comment.created"}]} = Agents.wait(@instance, key, room, :all, 0)
     end
 
+    test "a second wait answers the first, empty: an agent waits once at a time", %{room: room} do
+      {:ok, _} = Agents.join(@instance, claude(), room)
+      first = Task.async(fn -> Agents.wait(@instance, "agent:claude", room, :all, 2_000) end)
+      Process.sleep(20)
+      second = Task.async(fn -> Agents.wait(@instance, "agent:claude", room, :all, 2_000) end)
+
+      assert {:ok, []} = Task.await(first)
+      :ok = Events.emit(@instance, room, "retro.voted", by: ada())
+      assert {:ok, [%Event{name: "retro.voted"}]} = Task.await(second)
+    end
+
+    test "an agent with nothing to do leaves the room", %{room: room} do
+      {:ok, participant} = Agents.join(@instance, claude(), room, idle: 50)
+      ref = Process.monitor(participant)
+      assert_receive {:DOWN, ^ref, :process, ^participant, _reason}, 1_000
+      assert Agents.participant(@instance, "agent:claude", room) == nil
+
+      assert_receive {Issho, :event,
+                      %Event{name: "person.left", by: %Identity{key: "agent:claude"}}}
+    end
+
     test "an agent not in the room waits for nothing", %{room: room} do
       assert {:error, :not_there} = Agents.wait(@instance, "agent:nobody", room, :all, 0)
     end
@@ -239,7 +260,7 @@ defmodule Issho.EventsTest do
   defp settle_agent(key, room) do
     participant = Agents.participant(@instance, key, room)
     settle(participant)
-    [{agent, _}] = Registry.lookup(Issho.Config.child_name(@instance, AgentRegistry), {key, room})
+    agent = Issho.Agents.whereis(@instance, key, room)
     settle(agent)
   end
 end

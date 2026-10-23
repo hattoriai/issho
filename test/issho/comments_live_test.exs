@@ -131,6 +131,31 @@ defmodule Issho.CommentsLiveTest do
              ada |> element("#comments") |> render() |> marked()
   end
 
+  test "what the person selected stays theirs to comment on when they leave it", %{
+    conn: conn,
+    room: room
+  } do
+    ada = page(conn, room, "user:ada")
+    {:ok, browser} = Issho.join_as(@instance, %{id: "user:ada", name: "Ada"}, room)
+    place = %{"doc" => room, "at" => %{"path" => ["title", "words"]}}
+    :ok = Participant.place(browser, place)
+    Process.sleep(60)
+    settled([ada])
+
+    # Ada goes to the comment box: the text's editor lets her selection go.
+    :ok = Participant.place(browser, nil)
+    Process.sleep(60)
+    settled([ada])
+    assert ada |> element(".issho-composer-where") |> render() =~ "Path title.words"
+
+    start(ada, "Too long?", "selection")
+    settled([ada])
+    assert [%{"place" => ^place}] = threads(room)
+
+    # Commented on, it is gone, until she selects something again.
+    refute has_element?(ada, ".issho-composer-where")
+  end
+
   test "an @ and a name mentions someone", %{conn: conn, room: room} do
     ada = page(conn, room, "user:ada")
     _ken = page(conn, room, "user:ken")
@@ -138,6 +163,58 @@ defmodule Issho.CommentsLiveTest do
     start(ada, "@Ken and @Claude, a look?")
     assert [%{"comments" => [%{"mentions" => mentions}]}] = threads(room)
     assert Enum.sort(mentions) == ["agent:claude", "user:ken"]
+  end
+
+  test "the @ offers the room's people and the app's mentionable", %{conn: conn, room: room} do
+    ada = page(conn, room, "user:ada")
+    _ken = page(conn, room, "user:ken")
+    settled([ada])
+
+    offered =
+      ada |> element("#comments") |> render() |> attribute("data-mentionable") |> JSON.decode!()
+
+    assert %{"key" => "user:ken", "name" => "Ken", "here" => true} =
+             Enum.find(offered, &(&1["key"] == "user:ken"))
+
+    assert %{"name" => "Claude", "here" => false} =
+             Enum.find(offered, &(&1["key"] == "agent:claude"))
+
+    assert ada |> element("textarea[data-issho-mentions]") |> has_element?()
+  end
+
+  test "whom the picker picked is mentioned, while their name is in the words", %{
+    conn: conn,
+    room: room
+  } do
+    ada = page(conn, room, "user:ada")
+
+    ada
+    |> element(~s(form[phx-submit="start"]))
+    |> render_submit(%{
+      "body" => "@Claude, a look?",
+      "where" => "page",
+      # Picked: Claude; Ken, whose name was taken out again; someone unknown.
+      "mentions" => "agent:claude,user:ken,user:nobody"
+    })
+
+    assert [%{"comments" => [%{"mentions" => ["agent:claude"]}]}] = threads(room)
+  end
+
+  test "an input of the app's own, read by the app", %{conn: conn, room: room} do
+    {:ok, view, _html} =
+      live_isolated(conn, IsshoTest.OwnInputCommentsLive,
+        session: %{"user" => "user:ada", "room" => room}
+      )
+
+    assert view |> element("input.own-input") |> has_element?()
+    refute view |> element("textarea[data-issho-mentions]") |> has_element?()
+
+    view
+    |> element(~s(form[phx-submit="start"]))
+    |> render_submit(%{"body" => "quiet words", "where" => "page"})
+
+    assert [%{"comments" => [%{"body" => "QUIET WORDS", "mentions" => ["user:ken"]}]}] =
+             threads(room)
   end
 
   test "a server's comment comes live", %{conn: conn, room: room} do
@@ -198,9 +275,11 @@ defmodule Issho.CommentsLiveTest do
     threads
   end
 
-  defp marked(html) do
+  defp marked(html), do: html |> attribute("data-threads") |> JSON.decode!()
+
+  defp attribute(html, name) do
     [section] = html |> LazyHTML.from_fragment() |> LazyHTML.query("#comments") |> Enum.to_list()
-    [threads] = LazyHTML.attribute(section, "data-threads")
-    JSON.decode!(threads)
+    [value] = LazyHTML.attribute(section, name)
+    value
   end
 end
