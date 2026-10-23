@@ -13,6 +13,7 @@ import { follow, following, onFollow, stopOnOwnWay } from "./follow";
 import { motion, onMotion, setMotion } from "./motion";
 import { drawPeople, someone } from "./people";
 import { commentMarkers, type Marked } from "./comments";
+import { mentionPicker, type Candidate } from "./mentions";
 import { atWork, drawAgents } from "./agents";
 import { gestureTracker, pointerLayer, pointing, type Gestures } from "./pointers";
 
@@ -204,6 +205,7 @@ const IsshoMotion = {
 interface CommentsHook extends Hook {
   markers?: ReturnType<typeof commentMarkers>;
   focused?: string | null;
+  pickers?: Map<HTMLTextAreaElement, () => void>;
   handleEvent(event: string, callback: (payload: never) => void): void;
   pushEventTo(target: HTMLElement, event: string, payload: unknown): void;
 }
@@ -225,6 +227,7 @@ const IsshoComments = {
   },
 
   updated(this: CommentsHook): void {
+    pickers(this);
     const threads = JSON.parse(this.el.dataset.threads ?? "[]") as Marked[];
     const focused = this.el.dataset.focused || null;
     this.markers?.draw(threads, focused);
@@ -237,8 +240,27 @@ const IsshoComments = {
 
   destroyed(this: CommentsHook): void {
     this.markers?.stop();
+    for (const off of this.pickers?.values() ?? []) off();
   },
 };
+
+// A mention picker for each comment box of the panel, as they come and go
+// (a thread opened, an edit begun), with the people the panel lists.
+function pickers(hook: CommentsHook): void {
+  hook.pickers ??= new Map();
+  const candidates = (): Candidate[] => JSON.parse(hook.el.dataset.mentionable ?? "[]") as Candidate[];
+  for (const [textarea, off] of hook.pickers) {
+    if (!textarea.isConnected) {
+      off();
+      hook.pickers.delete(textarea);
+    }
+  }
+  for (const textarea of hook.el.querySelectorAll<HTMLTextAreaElement>("textarea[data-issho-mentions]")) {
+    const keys = textarea.form?.querySelector<HTMLInputElement>('input[name="mentions"]');
+    if (!keys || hook.pickers.has(textarea)) continue;
+    hook.pickers.set(textarea, mentionPicker(textarea, keys, candidates));
+  }
+}
 
 // The times of a page, as the server writes them (UTC), in the person's
 // own locale and time zone, as short as they can be: the time today, the
