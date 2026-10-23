@@ -1404,3 +1404,90 @@
     transition: none;
   }
 }
+
+/* The @ of a comment: the people to mention, under the text area. It is
+   on the page's body, so it says its own type and colours. */
+
+.issho-mention-list {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  max-width: 18rem;
+  max-height: 16rem;
+  margin: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-radius);
+  background: var(--issho-surface);
+  color: var(--issho-text);
+  box-shadow: var(--issho-shadow-raised);
+  font-family: var(--issho-font);
+  font-size: var(--issho-comments-font-size);
+  animation: issho-mention-in 120ms ease-out;
+}
+
+.issho-mention-list[hidden] {
+  display: none;
+}
+
+@keyframes issho-mention-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.issho-mention-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.5rem;
+  border-radius: calc(var(--issho-radius) - 3px);
+  cursor: pointer;
+}
+
+.issho-mention-option[aria-selected="true"] {
+  background: var(--issho-fill);
+}
+
+.issho-mention-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: var(--issho-avatar-radius);
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 16%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 78%, var(--issho-text));
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.issho-mention-option[data-kind="agent"] .issho-mention-avatar {
+  border-radius: var(--issho-agent-radius);
+}
+
+.issho-mention-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issho-mention-badge {
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--issho-fill);
+  color: var(--issho-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issho-mention-list {
+    animation: none;
+  }
+}

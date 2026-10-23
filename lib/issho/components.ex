@@ -386,9 +386,32 @@ if Code.ensure_loaded?(Phoenix.Component) do
           </:place>
         </.comments>
 
-    An @ and a name in a comment mentions someone of the room, or of
+    Typing @ in a comment opens a list of the people of the room and of
     `mentionable` (people who are not here: `[%{key: "user:42", name:
-    "Ada"}]`), who hears of it (`"comment.created"`'s `mentions`).
+    "Ada"}]`), filtered as one types: the arrows, Enter or Tab, Escape.
+    Whom one picks is mentioned, and hears of it (`"comment.created"`'s
+    `mentions`); an @ and a name typed in full mentions them too.
+
+    Write the comments with an input of your own, a Kotoba editor with its
+    own mentions menu, say, with the `:input` slot (it gets the input's
+    `id`, `name` (`"body"`), `value`, `placeholder`, and a form `field` of
+    them) and `read`, a function of the composer's form params that gives
+    the comment's words and the keys of whom they mention:
+
+        <.comments id="comments" room={@room} read={&MyApp.Comments.read/1}>
+          <:input :let={input}>
+            <Kotoba.Components.kotoba field={input.field} features={~w(bold italic links mentions)} prompts={@people_prompts} />
+          </:input>
+        </.comments>
+
+        def read(%{"body" => json}) do
+          {:ok, content} = Kotoba.Content.cast(json)
+          {:ok, doc} = Kotoba.Document.parse(content.doc)
+          %{body: content.text, mentions: Enum.map(Kotoba.Document.mentions(doc), & &1.id)}
+        end
+
+    (Kotoba's mention ids are then the actors' keys.) A comment keeps its
+    words as text.
     """
     attr :id, :string, required: true
     attr :room, :string, required: true, doc: "the room, which the LiveView has joined"
@@ -397,6 +420,15 @@ if Code.ensure_loaded?(Phoenix.Component) do
     attr :class, :string, default: nil
 
     slot :place, doc: "a thread's place, in words: gets `%{place: place, default: words}`"
+
+    slot :input,
+      doc:
+        "the composers' input, of your own (a Kotoba editor): gets `%{id: id, name: \"body\", value: text, placeholder: words}`; with `read`"
+
+    attr :read, :any,
+      default: nil,
+      doc:
+        "with `:input`, a function of a composer's form params that gives `%{body: text, mentions: [key]}`"
 
     def comments(assigns) do
       ~H"""
@@ -408,6 +440,8 @@ if Code.ensure_loaded?(Phoenix.Component) do
         marks={@marks}
         class={@class}
         place={@place}
+        input={@input}
+        read={@read}
       />
       """
     end

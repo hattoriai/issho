@@ -55,3 +55,32 @@ test("a reply, and resolving a thread", async ({ page, browser, request }) => {
   await expect(other.locator(".issho-comments-empty-title")).toHaveText("No open comments.");
   await other.context().close();
 });
+
+// The @ of a comment: a list of the room's people, filtered as one types,
+// picked from the keyboard; the comment mentions whom one picked.
+test("an @ offers the room's people, and a pick mentions them", async ({ page, browser }) => {
+  const room = newRoom();
+  const other = await (await browser.newContext()).newPage();
+  await other.goto(`/one?room=${room}&as=Grace&comments=1`);
+  await expect(other.locator("[data-phx-main].phx-connected")).toBeVisible();
+  await page.goto(`/one?room=${room}&as=Ada&comments=1`);
+  await expect(page.locator("[data-phx-main].phx-connected")).toBeVisible();
+
+  const box = page.getByLabel("New comment");
+  await box.click();
+  await box.pressSequentially("Look, @gr");
+  const list = page.getByRole("listbox", { name: "People to mention" });
+  await expect(list).toBeVisible();
+  await expect(list.getByRole("option")).toHaveCount(1);
+  await expect(list.getByRole("option")).toHaveAccessibleName("Grace");
+  await expect(box).toHaveAttribute("aria-expanded", "true");
+
+  await box.press("Enter");
+  await expect(list).toBeHidden();
+  await expect(box).toHaveValue("Look, @Grace ");
+  await page.keyboard.type("what do you think?");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+
+  await expect(other.locator(".issho-thread .issho-mention")).toHaveText("@Grace");
+  await other.context().close();
+});

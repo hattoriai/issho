@@ -105,9 +105,25 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `issho://inbox` resource (`Issho.MCP.Inbox`) tells connected clients
   when it changes, and the server's default instructions
   (`Issho.MCP.instructions/0`) say to read it first.
+- The @ of a comment: typing it in the composer opens a list of the
+  room's people and of `mentionable`, those here first, filtered as one
+  types; the arrows, Enter or Tab, and Escape, as a list box. A pick
+  writes "@Name " and keeps the key picked, so a comment mentions who
+  was picked, not whoever has that name (`mentionPicker`,
+  `mentionQuery`, `matchCandidates`, `insertMention` in the `issho`
+  package). Issho's theme and its Sumi theme style the list.
+- `Issho.Components.comments/1`'s `:input` slot and `:read`: the
+  composer is an app's own field (a Kotoba editor, say), and `read`
+  gives its body and its mentions from the form's params.
 
 ### Changed
 
+- A participant (`Issho.Participant`) and an agent in a room
+  (`Issho.Agents`) are state machines (`:gen_statem`): a participant is
+  present, paused or stopped, and its task says which as it enters each;
+  an agent listens or waits, with its idle time and a wait's time as its
+  timeouts. Their functions are as they were; `:sys.get_state/1` of a
+  participant is `{state, data}`.
 - The map engine is version 2: a stored document of version 1 upgrades as
   it is.
 - A session hears a document's changes before it takes its snapshot, so
