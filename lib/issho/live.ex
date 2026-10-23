@@ -411,16 +411,6 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       socket
     end
 
-    defp deliver(socket, _session, {:push, "event", event, session}) do
-      put_session(session)
-
-      for {target, names} <- listeners(session.room),
-          Issho.Events.match?(names, event.name),
-          do: notify_one(target, {"event", session.room, event})
-
-      socket
-    end
-
     defp deliver(socket, _session, {:push, event, payload, session}) do
       put_session(session)
       notify(session.room, {event, session.room, payload})
