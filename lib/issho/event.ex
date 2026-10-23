@@ -28,7 +28,9 @@ defmodule Issho.Event do
       someone selected, in the document's own terms.
     * `"agent.started"` and `"agent.finished"`: an agent began or ended
       a piece of work (to come).
-    * `"thread.created"`, `"comment.created"`: comments (to come).
+    * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
+      `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
+      comments (`Issho.Comments`).
 
   An app's own events take a name of its own, outside these
   (`"retro.voted"`, `"myapp.toast"`).

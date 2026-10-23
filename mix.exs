@@ -101,6 +101,7 @@ defmodule Issho.MixProject do
         "guides/agents.md",
         "guides/components.md",
         "guides/state.md",
+        "guides/comments.md",
         "CHANGELOG.md"
       ],
       groups_for_modules: [
@@ -113,6 +114,7 @@ defmodule Issho.MixProject do
           Issho.Store
         ],
         Documents: [Issho.Authority, Issho.Documents, Issho.Transaction, Issho.Engine.Map],
+        Comments: [Issho.Comments, Issho.Comments.Ops, Issho.Engine.Comments],
         Rooms: [
           Issho.Channel,
           Issho.Token,

@@ -48,6 +48,11 @@ defmodule Issho.Documents do
       and before it is saved and confirmed. It answers `:ok` (or `{:ok,
       anything}`), or `{:error, reason}` to refuse the transaction: the
       place to save each change in your own tables.
+    * `:events`: a function of the operations and the same context, run
+      once for each accepted transaction after it is saved, which gives
+      the events it makes happen (`[{name, data}]`), emitted in the room
+      (`Issho.Events`) with the document and its author: a card that lands
+      on a frame, a comment.
   """
   @spec open(atom(), String.t(), Identity.t() | nil, keyword()) :: {:ok, pid()} | {:error, term()}
   def open(instance, document_id, identity \\ nil, opts \\ []) when is_binary(document_id) do
@@ -81,13 +86,19 @@ defmodule Issho.Documents do
     end
   end
 
-  # The policy's, when it says what the document is; else the spec given.
+  # Issho's own documents of a room (its comments) are Issho's, whatever
+  # the policy says; else the policy's, when it says what the document
+  # is; else the spec given.
   defp given_or_policy(given, policy, identity, document_id) do
-    case {spec(policy, identity, document_id), given} do
+    case {own(document_id) || spec(policy, identity, document_id), given} do
       {{:ok, spec}, _given} -> {:ok, spec}
       {{:error, _reason}, %{engine: engine} = spec} when is_atom(engine) -> {:ok, spec}
       {{:error, _reason} = error, _given} -> error
     end
+  end
+
+  defp own(document_id) do
+    if Issho.Comments.document?(document_id), do: {:ok, Issho.Comments.spec()}
   end
 
   defp spec(policy, identity, document_id) do
