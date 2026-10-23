@@ -33,6 +33,9 @@ defmodule Issho.Event do
       person who paused, stopped or resumed it; `"agent.failed"`
       (`%{agent: key, title, reason}`): its work crashed
       (`Issho.Work.failed/2`).
+    * `"stream.started"`, `"stream.finished"`, `"stream.failed"`,
+      `"stream.closed"`: a stream of the room (`Issho.Streams`), `data`
+      `%{stream: id, kind: kind, for: for}` and the reason or outcome.
     * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
       `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
       comments (`Issho.Comments`).

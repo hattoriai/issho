@@ -371,3 +371,57 @@ defmodule IsshoTest.OwnInputCommentsLive do
     """
   end
 end
+
+defmodule IsshoTest.StreamsLive do
+  @moduledoc false
+  # A page with the room's streams it may see, as they come; Accept
+  # closes one.
+  use Phoenix.LiveView
+
+  on_mount Issho.Live
+
+  @impl true
+  def mount(_params, %{"user" => user, "room" => room}, socket) do
+    streams =
+      if connected?(socket) do
+        {:ok, _} = Issho.Live.join(IsshoTest.Issho, %{id: user, name: user}, room)
+        {:ok, streams} = Issho.Live.streams(room)
+        streams
+      else
+        []
+      end
+
+    {:ok, assign(socket, room: room, outputs: Map.new(streams, &{&1.id, &1}), closed: nil)}
+  end
+
+  @impl true
+  def handle_info({Issho, :stream, id, message}, socket),
+    do: {:noreply, update(socket, :outputs, &heard(&1, id, message))}
+
+  @impl true
+  def handle_event("accept", %{"id" => id}, socket) do
+    result = Issho.Live.close_stream(socket.assigns.room, id, :accepted)
+    {:noreply, assign(socket, :closed, inspect(result))}
+  end
+
+  defp heard(streams, _id, {:started, stream}), do: Map.put(streams, stream.id, stream)
+
+  defp heard(streams, id, {:chunk, text}),
+    do: Map.update!(streams, id, &%{&1 | content: &1.content <> text})
+
+  defp heard(streams, id, :finished), do: Map.update!(streams, id, &%{&1 | state: :finished})
+  defp heard(streams, id, {:closed, _outcome}), do: Map.delete(streams, id)
+  defp heard(streams, id, :gone), do: Map.delete(streams, id)
+  defp heard(streams, _id, _other), do: streams
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <p id="closed">{@closed}</p>
+    <article :for={{id, stream} <- @outputs} id={"stream-" <> id} data-state={stream.state}>
+      {stream.content}
+      <button phx-click="accept" phx-value-id={id}>Accept</button>
+    </article>
+    """
+  end
+end
