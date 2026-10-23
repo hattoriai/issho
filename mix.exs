@@ -102,6 +102,7 @@ defmodule Issho.MixProject do
         "guides/components.md",
         "guides/state.md",
         "guides/comments.md",
+        "guides/streams.md",
         "CHANGELOG.md"
       ],
       groups_for_modules: [
@@ -115,6 +116,7 @@ defmodule Issho.MixProject do
         ],
         Documents: [Issho.Authority, Issho.Documents, Issho.Transaction, Issho.Engine.Map],
         Comments: [Issho.Comments, Issho.Comments.Ops, Issho.Engine.Comments, Issho.Inbox],
+        Streams: [Issho.Streams, Issho.Stream],
         Rooms: [
           Issho.Channel,
           Issho.Token,

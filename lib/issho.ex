@@ -33,6 +33,9 @@ defmodule Issho do
       JSON (64 KB).
     * `:max_document_bytes` (16 MB), `:max_message_bytes` (1 MB) and
       `:token_max_age` (300 seconds).
+    * `:stream_max_bytes` (1 MB), `:room_max_streams` (32) and
+      `:stream_keep` (five minutes, in milliseconds): the limits of the
+      rooms' streams (`Issho.Streams`).
 
   See the architecture guide for how the parts fit together.
   """
@@ -80,7 +83,13 @@ defmodule Issho do
           # An agent starts its participant under Participants: its own supervisor.
           {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Agents)},
           # What runs apart from the caller: delivering to inboxes.
-          {Task.Supervisor, name: Config.child_name(name, Tasks)}
+          {Task.Supervisor, name: Config.child_name(name, Tasks)},
+          # The rooms' streams, and each room's as a process group.
+          %{
+            id: Config.child_name(name, StreamGroups),
+            start: {:pg, :start_link, [Config.child_name(name, StreamGroups)]}
+          },
+          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Streams)}
         ]
 
     Supervisor.init(children, strategy: :one_for_one)

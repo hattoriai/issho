@@ -97,6 +97,19 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A document's spec may say the events its changes make happen
   (`:events`, a function of the operations and the context, run after
   each change is saved).
+- Streams of a room: `Issho.Streams`, output that a process writes a
+  piece at a time (a model's answer, an agent's report, a log), that
+  people see as it comes and find again when they come back, from
+  another page, tab or node, where it got to. For a person (and their
+  agents), the room, or whom the policy allows `:read_stream` (a new
+  policy action). Kept while written and for `:stream_keep` after;
+  `close/2` ends it with an outcome; a writer that exits fails it. The
+  events `"stream.started"`, `"stream.finished"`, `"stream.failed"` and
+  `"stream.closed"`. `Issho.Live.streams/1` and `close_stream/3` for a
+  LiveView; the `start_stream`, `append_to_stream` and `finish_stream`
+  room tools for agents. The instance's `:stream_max_bytes`,
+  `:room_max_streams` and `:stream_keep`. The [Streams](guides/streams.md)
+  guide.
 - An agent's work under Issho: `Issho.Agents.run/5` runs a function as
   the agent, in a process linked to it. Stop ends it at once, wherever it
   is (`{:shutdown, {:stopped, by}}`); its idle time waits for it to end;
