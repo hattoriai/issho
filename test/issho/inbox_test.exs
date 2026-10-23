@@ -39,8 +39,11 @@ defmodule Issho.InboxTest do
     claude: claude,
     key: key
   } do
+    # Inboxes last from test to test: an author of this test's own.
+    grace = %{id: "user:grace:" <> Transaction.id(), name: "Grace"}
+
     {:ok, %{thread: thread, comment: comment}} =
-      Comments.start(@instance, room, ada(), nil, "@Claude, a look?", mentions: [key, "user:ada"])
+      Comments.start(@instance, room, grace, nil, "@Claude, a look?", mentions: [key, grace.id])
 
     assert {:ok, [item]} = items(claude)
 
@@ -48,12 +51,12 @@ defmodule Issho.InboxTest do
              "name" => "comment.created",
              "room" => ^room,
              "read" => false,
-             "by" => %{"key" => "user:ada", "name" => "Ada"},
+             "by" => %{"name" => "Grace"},
              "data" => %{"thread" => ^thread, "comment" => ^comment, "body" => "@Claude, a look?"}
            } = item
 
-    # Not its author's, who mentioned herself.
-    assert {:ok, []} = Inbox.items(@instance, ada())
+    # Not its author's, who mentioned themself.
+    assert {:ok, []} = Inbox.items(@instance, grace)
 
     {:ok, %{comment: reply}} =
       Comments.reply(@instance, room, ken(), thread, "And mine", mentions: [key])
