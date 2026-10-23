@@ -99,6 +99,12 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A participant (`Issho.Participant`) and an agent in a room
+  (`Issho.Agents`) are state machines (`:gen_statem`): a participant is
+  present, paused or stopped, and its task says which as it enters each;
+  an agent listens or waits, with its idle time and a wait's time as its
+  timeouts. Their functions are as they were; `:sys.get_state/1` of a
+  participant is `{state, data}`.
 - The map engine is version 2: a stored document of version 1 upgrades as
   it is.
 - A session hears a document's changes before it takes its snapshot, so
