@@ -57,6 +57,31 @@ frame, then file it. From Elixir, `Issho.Agents.wait/5` is the same, and
 a participant that joins with `events: true` receives the room's events
 as messages.
 
+## Mentioned while away
+
+An agent that is not in the room hears nothing, and MCP has no way to
+reach a client that is not connected. So what people say to it waits:
+each comment that mentions it lands in its inbox (`Issho.Inbox`), in any
+room, until it reads it.
+
+```text
+inbox {}
+```
+
+gives them, newest first, with the room and the thread to answer in; the
+MCP server's instructions tell an agent to read it when it starts, and a
+client that subscribes to `issho://inbox` hears when it changes. To wake
+an agent that is not running, give the instance an `:on_mention`: Issho
+calls it with the key mentioned and the item, and your app starts the
+agent, as a job, a webhook, a message to the person it works for.
+
+```elixir
+{Issho, name: MyApp.Issho, on_mention: {MyApp.Assistants, :wake}, ...}
+
+def wake("assistant:" <> _ = key, item), do: MyApp.Assistants.start(key, item["room"])
+def wake(_key, _item), do: :ok
+```
+
 ## Seen at work, and stopped
 
 People follow an agent better when they see what it is doing, and trust

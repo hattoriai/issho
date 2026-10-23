@@ -124,6 +124,8 @@ defmodule Issho.Session do
     config = Config.get(session.instance)
 
     with true <- Documents.in_room?(document_id, session.room) || {:error, :other_room},
+         # An inbox is its owner's, read through Issho.Inbox, in no room.
+         false <- Issho.Inbox.document?(document_id) && {:error, :forbidden},
          :ok <- Policy.authorize(config.policy, session.identity, session.room, :read),
          {:ok, pid} <- Documents.open(session.instance, document_id, session.identity, opts),
          {:ok, snapshot, engine} <- join_document(config, session, document_id, pid) do
