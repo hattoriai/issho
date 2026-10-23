@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, read what was said to you while away, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -42,6 +42,7 @@ defmodule Issho.Tools do
       Issho.Tools.Comment,
       Issho.Tools.ResolveThread,
       Issho.Tools.WaitForEvents,
+      Issho.Tools.Inbox,
       Issho.Tools.LeaveRoom
     ]
 
@@ -811,10 +812,71 @@ defmodule Issho.Tools.WaitForEvents do
              Map.get(args, :seconds, 20) * 1_000,
              mentions_me: args[:mentions_me] == true
            ) do
+      # It heard them here: they are no news in its inbox.
+      _ = Issho.Inbox.heard(ctx.instance, Context.key(ctx), events)
       {:ok, %{"events" => Enum.map(events, &Issho.Event.to_map/1)}}
     else
       {:error, reason} -> Context.error(reason)
     end
+  end
+end
+
+defmodule Issho.Tools.Inbox do
+  @moduledoc false
+  use Issho.Tool,
+    name: "inbox",
+    description: """
+    What people said to you while you were away: the comments, in any
+    room, that mention you, newest first, with the room, the thread and
+    the comment, who wrote it, and when. Those it gives are then read,
+    unless `keep_unread`; `all` gives those read before too. Answer one
+    in its thread (the comment tool, with its room and thread). Read it
+    when you start, and when told it changed.
+    """,
+    annotations: [idempotent: false]
+
+  arg :all, :boolean, description: "Those read before too"
+  arg :keep_unread, :boolean, description: "Leave them unread"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    opts = Keyword.take(ctx.opts, [:on_behalf_of, :claims])
+
+    with {:ok, items} <-
+           Issho.Inbox.items(ctx.instance, ctx.actor, [all: args[:all] == true] ++ opts),
+         :ok <- read(args, ctx, items) do
+      {:ok, %{"items" => Enum.map(items, &item/1)}}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp read(%{keep_unread: true}, _ctx, _items), do: :ok
+
+  defp read(_args, ctx, items) do
+    case for(%{"read" => false, "id" => id} <- items, do: id) do
+      [] -> :ok
+      ids -> Issho.Inbox.mark_read(ctx.instance, Context.key(ctx), ids)
+    end
+  end
+
+  defp item(item) do
+    data = item["data"] || %{}
+
+    %{
+      "id" => item["id"],
+      "event" => item["name"],
+      "room" => item["room"],
+      "thread" => data["thread"],
+      "comment" => data["comment"],
+      "place" => data["place"],
+      "body" => data["body"],
+      "by" => item["by"] && (item["by"]["name"] || item["by"]["key"]),
+      "at" => item["at"],
+      "read" => item["read"]
+    }
   end
 end
 

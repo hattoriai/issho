@@ -86,7 +86,7 @@ defmodule Issho.Documents do
     end
   end
 
-  # Issho's own documents of a room (its comments) are Issho's, whatever
+  # Issho's own documents (a room's comments, an inbox) are Issho's, whatever
   # the policy says; else the policy's, when it says what the document
   # is; else the spec given.
   defp given_or_policy(given, policy, identity, document_id) do
@@ -98,7 +98,11 @@ defmodule Issho.Documents do
   end
 
   defp own(document_id) do
-    if Issho.Comments.document?(document_id), do: {:ok, Issho.Comments.spec()}
+    cond do
+      Issho.Comments.document?(document_id) -> {:ok, Issho.Comments.spec()}
+      Issho.Inbox.document?(document_id) -> {:ok, Issho.Inbox.spec()}
+      true -> nil
+    end
   end
 
   defp spec(policy, identity, document_id) do

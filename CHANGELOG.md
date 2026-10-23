@@ -96,6 +96,15 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A document's spec may say the events its changes make happen
   (`:events`, a function of the operations and the context, run after
   each change is saved).
+- What was said to someone while away: `Issho.Inbox`. Each comment that
+  mentions someone (and an app's event with `mentions`) lands in their
+  inbox, in any room, kept by the store, until read, under the room's
+  policy when read. The `inbox` room tool; an agent's inbox items of the
+  comments it heard in the room (`wait_for_events`) are read. The
+  instance's `:on_mention` wakes an agent that is away, and over MCP the
+  `issho://inbox` resource (`Issho.MCP.Inbox`) tells connected clients
+  when it changes, and the server's default instructions
+  (`Issho.MCP.instructions/0`) say to read it first.
 
 ### Changed
 
