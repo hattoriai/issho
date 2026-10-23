@@ -26,6 +26,25 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Issho.Agents.wait/5` and the `wait_for_events` room tool give them,
   or wait up to a minute for the next.
 - `Issho.Event.to_map/1`: an event as JSON, for a model or a browser.
+- Shared state without an engine of your own: `Issho.State`, a map
+  document as a LiveView assign that stays up to date (`assign/5`),
+  changed with `change/3` and the operations `set/2`, `delete/1`,
+  `increment/2`, `insert/3`, `move/3` and `remove/2`; `get/2` reads
+  through lists by id. The [Shared state](guides/state.md) guide.
+- The map engine's lists of items by id (version 2): `insert` and `move`
+  (within a list or to another), placed `after` or `before` an item or
+  `at` the start or the end, and paths through a list by an item's id.
+  Concurrent adds and moves merge; a change of an item that is gone does
+  nothing. Its browser twin and the corpus alike.
+- `update_state`, a room tool: an agent changes a shared state in the
+  map engine's operations.
+
+### Changed
+
+- The map engine is version 2: a stored document of version 1 upgrades as
+  it is.
+- A session hears a document's changes before it takes its snapshot, so
+  that none falls between them.
 
 ## [0.3.1] - 2026-10-22
 

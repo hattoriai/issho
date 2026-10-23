@@ -398,7 +398,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     defp deliver(socket, _session, {:push, "tx", %{"doc" => doc, "event" => event}, session}) do
       put_session(session)
       notify(doc, {"tx", doc, event})
-      socket
+      Issho.State.__transaction__(socket, doc, event)
     end
 
     defp deliver(socket, _session, {:push, "event", event, session}) do

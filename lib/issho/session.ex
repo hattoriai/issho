@@ -126,10 +126,7 @@ defmodule Issho.Session do
     with true <- Documents.in_room?(document_id, session.room) || {:error, :other_room},
          :ok <- Policy.authorize(config.policy, session.identity, session.room, :read),
          {:ok, pid} <- Documents.open(session.instance, document_id, session.identity, opts),
-         {:ok, snapshot, engine} <- Authority.join(pid, self()) do
-      unless Map.has_key?(session.documents, document_id),
-        do: :ok = Phoenix.PubSub.subscribe(config.pubsub, Authority.topic(document_id))
-
+         {:ok, snapshot, engine} <- join_document(config, session, document_id, pid) do
       accepted =
         Authority.accepted(pid, Enum.take(List.wrap(pending), 1_000), session.identity.key)
 
@@ -141,6 +138,15 @@ defmodule Issho.Session do
 
       {:ok, Map.put(snapshot, "accepted", accepted), session}
     end
+  end
+
+  # The document's changes are heard before its snapshot is taken, so
+  # that none falls between them: one heard twice is one the snapshot has.
+  defp join_document(config, session, document_id, pid) do
+    unless Map.has_key?(session.documents, document_id),
+      do: :ok = Phoenix.PubSub.subscribe(config.pubsub, Authority.topic(document_id))
+
+    Authority.join(pid, self())
   end
 
   @spec transact(t(), String.t(), map()) :: {:ok, map()} | {:error, term()}

@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, wait for what happens, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, change shared state, wait for what happens, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -34,6 +34,7 @@ defmodule Issho.Tools do
       Issho.Tools.Navigate,
       Issho.Tools.SetStatus,
       Issho.Tools.ChangeDocument,
+      Issho.Tools.UpdateState,
       Issho.Tools.WaitForEvents,
       Issho.Tools.LeaveRoom
     ]
@@ -431,6 +432,53 @@ defmodule Issho.Tools.ChangeDocument do
       {:error, reason} -> Context.error(reason)
     end
   end
+end
+
+defmodule Issho.Tools.UpdateState do
+  @moduledoc false
+  use Issho.Tool,
+    name: "update_state",
+    description: """
+    Changes a shared state of the room (a document whose engine is
+    "map", see read_document): a board's cards, a poll's votes, a list's
+    order. The operations apply together, or none:
+
+    {"op": "set", "path": ["title"], "value": "Q3"}
+    {"op": "delete", "path": ["draft"]}
+    {"op": "increment", "path": ["votes", "yes"], "by": 1}
+    {"op": "insert", "path": ["cards"], "value": {"id": "c9", "text": "New"}, "after": "c2"}
+    {"op": "move", "path": ["cols", "todo"], "id": "c9", "to": ["cols", "done"], "at": "start"}
+
+    A path's keys go through maps by key and through lists of items by
+    an item's id: ["cols", "todo", "c9", "text"]. An item is a map with
+    an "id" of your choosing, unique in its list. "insert" and "move"
+    place an item "after" or "before" an id, or "at" "start" or "end"
+    (the end unless given). Delete an item with its path:
+    ["cols", "todo", "c9"].
+    """,
+    annotations: [destructive: true]
+
+  arg :room, :string, required: true
+  arg :document, :string, description: "A document of the room; the room itself unless given"
+  arg :ops, {:array, :any}, required: true, description: "The operations"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, participant, document, snapshot} <- Context.open(ctx, args.room, args[:document]),
+         :ok <- map?(snapshot),
+         {:ok, receipt} <- Issho.Participant.transact(participant, document, args.ops) do
+      {:ok, %{"revision" => receipt["revision"]}}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp map?(%{"engine" => "map"}), do: :ok
+
+  defp map?(%{"engine" => engine}),
+    do: {:error, "That document is #{engine}'s, not a shared state: use its component's tools."}
 end
 
 defmodule Issho.Tools.WaitForEvents do

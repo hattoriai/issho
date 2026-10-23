@@ -129,17 +129,17 @@ defmodule Issho.DocumentSpecTest do
 
   defmodule UpgradingEngine do
     @moduledoc false
-    # The map engine, version 2, which opens the documents of version 1 and
+    # The map engine, a version 3, which opens the documents of version 2 and
     # those a library saved before Issho: %{"v" => 1, "fields" => ...}.
     @behaviour Issho.Engine
     alias Issho.Engine.Map, as: MapEngine
 
     def name, do: "map"
-    def version, do: 2
+    def version, do: 3
     defdelegate init(initial, opts), to: MapEngine
     defdelegate apply(state, ops, opts), to: MapEngine
 
-    def upgrade(%{"engine_version" => 1} = stored),
+    def upgrade(%{"engine_version" => 2} = stored),
       do: {:ok, Map.take(stored, ~w(state epoch revision initial journal receipts))}
 
     def upgrade(%{"v" => 1, "fields" => fields, "epoch" => epoch, "revision" => revision}),
@@ -173,7 +173,7 @@ defmodule Issho.DocumentSpecTest do
     assert %{
              document: %{
                "engine" => "map",
-               "engine_version" => 2,
+               "engine_version" => 3,
                "epoch" => "e1",
                "revision" => 8,
                "state" => %{"title" => "Old", "n" => 1}
@@ -195,7 +195,7 @@ defmodule Issho.DocumentSpecTest do
     {:ok, _} = Authority.commit(old, tx(old, [set("a", 1)]), "u")
     {:ok, _} = Authority.commit(old, tx(old, [set("b", 2)]), "u")
     stored = :sys.get_state(old).document
-    assert stored["engine_version"] == 1
+    assert stored["engine_version"] == 2
 
     other = "canvas:" <> Transaction.id()
     spec = %{engine: UpgradingEngine, store: legacy_store(other, stored)}
