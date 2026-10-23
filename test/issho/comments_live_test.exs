@@ -56,12 +56,23 @@ defmodule Issho.CommentsLiveTest do
     ken |> element(~s(.issho-thread-place)) |> render_click()
     assert ken |> element(".issho-thread-replies") |> render() =~ "1 reply"
 
-    ken |> element(~s(.issho-reaction[phx-value-emoji="👍"]), "👍") |> render_click()
+    ken
+    |> element(~s(.issho-comment:first-of-type .issho-react[phx-value-emoji="👍"]))
+    |> render_click()
+
     settled([ada, ken])
 
     assert ada
            |> element(~s(.issho-comment:first-of-type .issho-reaction[phx-value-emoji="👍"]))
            |> render() =~ "1"
+
+    # The same chip takes Ken's back.
+    ken
+    |> element(~s(.issho-comment:first-of-type .issho-reaction[phx-value-emoji="👍"]))
+    |> render_click()
+
+    settled([ada, ken])
+    refute ada |> element(~s(.issho-reaction[phx-value-emoji="👍"])) |> has_element?()
 
     ada |> element(~s(button[phx-click="resolve"])) |> render_click()
     settled([ada, ken])
@@ -89,7 +100,7 @@ defmodule Issho.CommentsLiveTest do
 
     settled([ada, ken])
     assert render(ken) =~ "Mine, better"
-    assert render(ken) =~ "(edited)"
+    assert render(ken) =~ "· edited"
 
     ada |> element(~s(button[phx-click="delete"])) |> render_click()
     settled([ada, ken])
@@ -107,7 +118,7 @@ defmodule Issho.CommentsLiveTest do
     # The next frame of the room's awareness reaches the panel.
     Process.sleep(60)
     settled([ada])
-    assert ada |> element(".issho-comment-where") |> render() =~ "Path title.words"
+    assert ada |> element(".issho-composer-where") |> render() =~ "Path title.words"
 
     start(ada, "Too long?", "selection")
     settled([ada])

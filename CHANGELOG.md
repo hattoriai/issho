@@ -58,8 +58,16 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   place over the page, where its component locates it (`commentMarkers`,
   `markSpot`, `locatePlace` in the `issho` package), opens a thread from
   its mark, scrolls the page to a thread's place, and shows times in the
-  person's locale. Issho's theme styles them (`--issho-comments-*`,
-  `--issho-mark-*`, `--issho-mention-background`).
+  person's locale. Issho's theme styles them, and its Sumi theme: a
+  composer with its bar inside, threads as cards, avatars, reactions as
+  chips, a comment's tools on hover (always shown on a touch screen),
+  Lucide icons, and speech-bubble marks.
+- Issho's theme has the colours of Kotoba's, Masu's and Hakushi's
+  defaults, and new tokens for its panels: `--issho-fill`,
+  `--issho-accent`, `--issho-accent-text`, `--issho-radius`,
+  `--issho-shadow`, `--issho-shadow-raised`, `--issho-focus-ring`.
+  `issho-sumi.css` maps them all, with a palette of its own for a page
+  with no Sumi tokens, in light and dark, as the others' Sumi themes do.
 - `Issho.Live.identity/1`: who the LiveView is in a room.
 - Agents at work, seen and stopped: `Issho.Work`, an agent's task, its
   steps and how far it is, in its state in the room (`"task"`), with the

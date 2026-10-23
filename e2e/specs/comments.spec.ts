@@ -43,15 +43,15 @@ test("a reply, and resolving a thread", async ({ page, browser, request }) => {
 
   await agent(request, "comment", { room: `page:${room}`, body: "Look here", document: `page:${room}/list`, at: { path: ["item", "2"] } });
   await other.locator(".issho-thread-place").click();
-  await other.getByLabel("Reply").fill("Looking");
-  await other.getByRole("button", { name: "Reply", exact: true }).click();
+  await other.getByLabel("Reply", { exact: true }).fill("Looking");
+  await other.getByRole("button", { name: "Send reply" }).click();
 
   await page.locator(".issho-thread-place").click();
   await expect(page.locator(".issho-thread")).toContainText("Looking");
   await expect(page.locator(".issho-comment-mark")).toHaveText("2");
 
-  await page.getByRole("button", { name: "Resolve", exact: true }).click();
+  await page.getByRole("button", { name: "Resolve thread" }).click();
   await expect(other.locator(".issho-comment-mark")).toHaveCount(0);
-  await expect(other.locator(".issho-comments-empty")).toHaveText("No open comments.");
+  await expect(other.locator(".issho-comments-empty-title")).toHaveText("No open comments.");
   await other.context().close();
 });
