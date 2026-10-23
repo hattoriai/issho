@@ -81,8 +81,12 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   events `"agent.started"`, `"agent.finished"`, `"agent.interrupted"` and
   `"agent.resumed"`. `Issho.Participant.interrupted/1`, `room/1`.
 - `Issho.Components.agents/1` and its hook `IsshoAgents`: the agents at
-  work in a room, live, with their tasks and steps, and Pause, Resume and
-  Stop (`atWork` and `drawAgents` in the `issho` package).
+  work in a room, live: a card for each, with its avatar, its state (a
+  pill: working, paused, stopped), a meter and the step it is on, its
+  steps when opened, and Pause, Resume and Stop. An agent's card is drawn
+  again only when it changes, so a person's focus stays on its buttons
+  while the agent works. Issho's theme and its Sumi theme style it
+  (`atWork` and `drawAgents` in the `issho` package).
 - The policy's `:comment` action: a change to the comments asks for it,
   not `:write`, so a reader may comment when the policy allows it.
 - Agents comment: the `list_threads`, `comment` and `resolve_thread` room

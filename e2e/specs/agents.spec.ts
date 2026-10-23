@@ -16,9 +16,13 @@ test("an agent's task, as it goes, and its person pausing it", async ({ page, re
   await expect(bar.locator(".issho-agent")).toContainText("for Ada");
   await expect(bar.locator(".issho-agent-steps li[aria-current='step']")).toHaveText("Read");
 
+  // Ada's focus on Pause stays there as the agent goes on.
+  await bar.getByRole("button", { name: "Pause Agent" }).focus();
   await agent(request, "progress", { room: `page:${room}`, step: "Read" }, session);
-  await expect(bar.locator(".issho-agent-progress")).toHaveText("1 of 2");
+  await expect(bar.locator(".issho-agent-progress")).toHaveText("Step 2 of 2 · Sort");
   await expect(bar.locator(".issho-agent-steps li[aria-current='step']")).toHaveText("Sort");
+  await expect(bar.getByRole("button", { name: "Pause Agent" })).toBeFocused();
+  await expect(bar.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
 
   await bar.getByRole("button", { name: "Pause Agent" }).click();
   await expect(bar.locator(".issho-agent-state")).toHaveText("Paused by Ada");

@@ -1066,11 +1066,21 @@
   }
 }
 
-/* The agents at work in a room (Issho.Components.agents/1). */
+/* The agents at work in a room (Issho.Components.agents/1): a card each,
+   as a status of the page. */
+
+.issho-agents,
+.issho-agents *,
+.issho-agents *::before,
+.issho-agents *::after {
+  box-sizing: border-box;
+}
+
 .issho-agents {
+  color: var(--issho-text);
   font-family: var(--issho-font);
   font-size: var(--issho-comments-font-size);
-  color: var(--issho-text);
+  line-height: 1.45;
 }
 
 .issho-agents[hidden] {
@@ -1078,119 +1088,319 @@
 }
 
 .issho-agents-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .issho-agent {
-  border: 1px solid color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 40%, var(--issho-line));
-  border-left: 3px solid var(--issho-color, var(--issho-person-1));
-  border-radius: var(--issho-comments-radius);
-  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 6%, var(--issho-surface));
-  padding: 0.5rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-radius);
+  background: var(--issho-surface);
+  box-shadow: var(--issho-shadow);
+  animation: issho-agent-in 160ms ease-out;
 }
 
-.issho-agent-head {
+@keyframes issho-agent-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.issho-agent-row {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.issho-agent-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--issho-agent-radius);
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 16%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 78%, var(--issho-text));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 25%, transparent);
+  font-size: 0.75rem;
+  font-weight: var(--issho-avatar-font-weight);
+  letter-spacing: var(--issho-avatar-letter-spacing);
+}
+
+/* A working agent's avatar breathes, in its colour. */
+.issho-agent[data-state="working"] .issho-agent-avatar {
+  animation: issho-agent-working 2s ease-in-out infinite;
+}
+
+@keyframes issho-agent-working {
+  50% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 25%, transparent),
+      0 0 0 4px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 18%, transparent);
+  }
+}
+
+.issho-agent-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.issho-agent-text p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issho-agent-line {
+  display: flex;
   align-items: baseline;
   gap: 0.375rem;
-  margin: 0;
 }
 
 .issho-agent-name {
   font-weight: 600;
 }
 
-.issho-agent-for,
-.issho-agent-progress,
-.issho-agent-note {
+.issho-agent-for {
   color: var(--issho-muted);
-  font-size: 0.85em;
+  font-size: 0.75rem;
 }
 
-.issho-agent-note {
-  margin: 0;
+.issho-agent-task {
+  color: var(--issho-muted);
+  font-size: 0.8125rem;
 }
 
+/* Its state, a pill: working in its colour, paused amber, stopped red. */
 .issho-agent-state {
-  margin-left: auto;
-  font-size: 0.8em;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--issho-fill);
   color: var(--issho-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.issho-agent[data-state="working"] .issho-agent-state::before {
+.issho-agent-state::before {
   content: "";
-  display: inline-block;
-  width: 0.5em;
-  height: 0.5em;
-  margin-right: 0.35em;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
-  background: var(--issho-color, var(--issho-person-1));
-  animation: issho-agent-working 1.2s ease-in-out infinite;
+  background: currentColor;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .issho-agent[data-state="working"] .issho-agent-state::before {
-    animation: none;
-  }
+.issho-agent[data-state="working"] .issho-agent-state {
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 12%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 85%, var(--issho-text));
 }
 
-@keyframes issho-agent-working {
-  50% {
-    opacity: 0.3;
-  }
+.issho-agent[data-state="paused"] .issho-agent-state {
+  background: color-mix(in oklab, var(--issho-person-4) 14%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-4) 80%, var(--issho-text));
 }
 
-.issho-agent[data-state="paused"],
-.issho-agent[data-state="stopped"] {
-  border-left-style: dashed;
-}
-
-.issho-agent-steps {
-  margin: 0;
-  padding-left: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.issho-agent-steps li[data-state="done"] {
-  color: var(--issho-muted);
-  text-decoration: line-through;
-}
-
-.issho-agent-steps li[data-state="skipped"] {
-  color: var(--issho-muted);
-}
-
-.issho-agent-steps li[data-state="active"] {
-  font-weight: 600;
+.issho-agent[data-state="stopped"] .issho-agent-state {
+  background: color-mix(in oklab, var(--issho-person-6) 12%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-6) 85%, var(--issho-text));
 }
 
 .issho-agent-actions {
   display: flex;
-  gap: 0.375rem;
-  margin: 0;
+  flex: none;
+  gap: 0.25rem;
 }
 
-.issho-agent-actions button {
-  font: inherit;
-  color: var(--issho-text);
-  background: var(--issho-surface);
+.issho-agent-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-height: 1.75rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--issho-line);
-  border-radius: var(--issho-comments-radius);
-  padding: 0.125rem 0.625rem;
+  border-radius: calc(var(--issho-radius) - 2px);
+  background: var(--issho-surface);
+  color: var(--issho-text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.issho-agent-button .issho-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-agent-button:hover {
+  background: var(--issho-fill);
+}
+
+.issho-agent-stop:hover {
+  border-color: color-mix(in oklab, var(--issho-person-6) 45%, var(--issho-line));
+  background: color-mix(in oklab, var(--issho-person-6) 8%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-6) 85%, var(--issho-text));
+}
+
+.issho-agents :is(button, summary):focus-visible {
+  outline: none;
+  box-shadow: var(--issho-focus-ring);
+}
+
+/* Its steps: a meter and the step it is on; the list when opened. */
+
+.issho-agent-details {
+  margin-left: 2.625rem;
+}
+
+.issho-agent-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border-radius: calc(var(--issho-radius) - 3px);
+  color: var(--issho-muted);
+  font-size: 0.75rem;
+  list-style: none;
   cursor: pointer;
 }
 
-.issho-agent-actions button[data-action="stop"] {
-  color: var(--issho-person-6);
+.issho-agent-summary::-webkit-details-marker {
+  display: none;
+}
+
+.issho-agent-meter {
+  position: relative;
+  flex: none;
+  width: 4rem;
+  height: 0.3125rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--issho-fill);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--issho-line) 60%, transparent);
+}
+
+.issho-agent-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--issho-color, var(--issho-person-1));
+  transition: width 240ms ease-out;
+}
+
+.issho-agent-progress {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issho-agent-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  transition: transform 120ms ease-out;
+}
+
+.issho-agent-details[open] .issho-agent-chevron {
+  transform: rotate(180deg);
+}
+
+.issho-agent-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.issho-agent-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--issho-muted);
+}
+
+.issho-agent-steps .issho-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-agent-steps li[data-state="done"] .issho-icon {
+  color: var(--issho-person-3);
+}
+
+.issho-agent-steps li[data-state="done"] span {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--issho-muted) 60%, transparent);
+}
+
+.issho-agent-steps li[data-state="active"] {
+  color: var(--issho-text);
+  font-weight: 500;
+}
+
+.issho-agent-step-dot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-agent-step-dot::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--issho-color, var(--issho-person-1));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 22%, transparent);
+}
+
+.issho-agent-note {
+  margin: 0 0 0 2.625rem;
+  color: var(--issho-muted);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+@media (max-width: 30rem) {
+  .issho-agent-row {
+    flex-wrap: wrap;
+  }
+
+  .issho-agent-actions {
+    width: 100%;
+    margin-left: 2.625rem;
+  }
+
+  .issho-agent-button span {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issho-agent,
+  .issho-agent[data-state="working"] .issho-agent-avatar,
+  .issho-agent-meter span,
+  .issho-agent-chevron {
+    animation: none;
+    transition: none;
+  }
 }
