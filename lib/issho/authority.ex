@@ -117,6 +117,7 @@ defmodule Issho.Authority do
          store: store,
          context: context,
          hook: Map.get(spec, :on_transaction),
+         events: Map.get(spec, :events),
          document: document,
          content: content,
          members: %{},
@@ -332,6 +333,40 @@ defmodule Issho.Authority do
       {:error, :hook_failed}
   end
 
+  # The document's own events of a transaction, once it is saved: what its
+  # spec's `:events` says happened (`{name, data}`), in the room.
+  defp emit(%{events: nil}, _event, _by, _after), do: :ok
+
+  defp emit(state, event, by, after_state) do
+    context = %{
+      document: state.id,
+      author: by.key,
+      by: by,
+      revision: event["revision"],
+      before: state.document["state"],
+      after: after_state
+    }
+
+    for {name, data} <- state.events.(event["ops"], context) do
+      Issho.Events.broadcast(state.config.pubsub, %Issho.Event{
+        name: name,
+        room: Issho.Policy.room(state.id),
+        document: state.id,
+        by: by,
+        data: data,
+        at: DateTime.utc_now()
+      })
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.error(
+        "Issho: the :events of #{state.id} raised: " <>
+          Exception.format(:error, error, __STACKTRACE__)
+      )
+  end
+
   defp receipt(document, id, digest) do
     case document["receipts"][id] do
       nil -> :new
@@ -364,6 +399,8 @@ defmodule Issho.Authority do
           data: %{revision: event["revision"]},
           at: DateTime.utc_now()
         })
+
+        emit(state, event, by, next["state"])
 
         {:ok, %{"id" => event["id"], "revision" => event["revision"]},
          %{state | document: next, content: content}}

@@ -39,6 +39,26 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `update_state`, a room tool: an agent changes a shared state in the
   map engine's operations.
 
+- Comments and threads: `Issho.Comments`, threads on a place of any
+  component (or the page), with replies, edits and deletes by their
+  authors, reactions, @mentions, resolve and reopen. A room's threads are
+  Issho's own document of the room (`"board:42/issho.comments"`), with
+  its engine (`Issho.Engine.Comments`), its browser twin
+  (`commentsEngine`) and a corpus both run. Each comment's author and
+  time are held to the writer's signed identity and the server's clock.
+  The events `"thread.created"`, `"comment.created"`, `"comment.edited"`,
+  `"comment.deleted"`, `"thread.resolved"` and `"thread.reopened"`. The
+  [Comments](guides/comments.md) guide.
+- The policy's `:comment` action: a change to the comments asks for it,
+  not `:write`, so a reader may comment when the policy allows it.
+- Agents comment: the `list_threads`, `comment` and `resolve_thread` room
+  tools, and `wait_for_events`'s `mentions_me` (`Issho.Agents.wait/6`'s
+  `:mentions_me`) for the comments that mention them.
+  `Issho.Participant.identity/1`.
+- A document's spec may say the events its changes make happen
+  (`:events`, a function of the operations and the context, run after
+  each change is saved).
+
 ### Changed
 
 - The map engine is version 2: a stored document of version 1 upgrades as

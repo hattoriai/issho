@@ -9,10 +9,16 @@ defmodule IsshoTest.Policy do
   def allow(key), do: :persistent_term.erase({__MODULE__, key})
   defp denied?(key), do: :persistent_term.get({__MODULE__, key}, false)
 
+  # An action no one may do, until allowed again.
+  def deny_action(action), do: :persistent_term.put({__MODULE__, :action, action}, true)
+  def allow_action(action), do: :persistent_term.erase({__MODULE__, :action, action})
+  defp denied_action?(action), do: :persistent_term.get({__MODULE__, :action, action}, false)
+
   @impl true
   def authorize(identity, room, action) do
     cond do
       denied?(identity.key) -> {:error, :forbidden}
+      denied_action?(action) -> {:error, :forbidden}
       String.starts_with?(room, "readonly:") and action in [:write, :lock] -> {:error, :forbidden}
       true -> :ok
     end

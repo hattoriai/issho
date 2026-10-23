@@ -153,9 +153,12 @@ defmodule Issho.Session do
   def transact(%__MODULE__{} = session, document_id, transaction) do
     config = Config.get(session.instance)
 
-    with true <- session.can == :write || {:error, :read_only},
+    # The room's comments ask for :comment, which a reader may have.
+    action = if Issho.Comments.document?(document_id), do: :comment, else: :write
+
+    with true <- (action == :comment or session.can == :write) || {:error, :read_only},
          {:ok, pid} <- Map.fetch(session.documents, document_id) |> or_error(:not_open),
-         :ok <- Policy.authorize(config.policy, session.identity, session.room, :write) do
+         :ok <- Policy.authorize(config.policy, session.identity, session.room, action) do
       Authority.commit(pid, transaction, session.identity)
     end
   end

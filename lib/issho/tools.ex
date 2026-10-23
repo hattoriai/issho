@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, change shared state, wait for what happens, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, change shared state, comment, wait for what happens, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -35,6 +35,9 @@ defmodule Issho.Tools do
       Issho.Tools.SetStatus,
       Issho.Tools.ChangeDocument,
       Issho.Tools.UpdateState,
+      Issho.Tools.ListThreads,
+      Issho.Tools.Comment,
+      Issho.Tools.ResolveThread,
       Issho.Tools.WaitForEvents,
       Issho.Tools.LeaveRoom
     ]
@@ -481,6 +484,180 @@ defmodule Issho.Tools.UpdateState do
     do: {:error, "That document is #{engine}'s, not a shared state: use its component's tools."}
 end
 
+defmodule Issho.Tools.ListThreads do
+  @moduledoc false
+  use Issho.Tool,
+    name: "list_threads",
+    description: """
+    The threads of comments in the room: where each is (a place of a
+    document, in its component's terms, or null for the page), whether it
+    is open or resolved, and its comments, with who wrote each, when,
+    whom it mentions and its reactions.
+    """,
+    annotations: [read_only: true, idempotent: true]
+
+  arg :room, :string, required: true
+  arg :status, {:enum, ["open", "resolved", "all"]}, description: "Which threads (open)"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    status = Map.get(args, :status, "open")
+
+    case Context.open(ctx, args.room, Issho.Comments.document(args.room)) do
+      {:ok, _participant, _doc, snapshot} ->
+        threads =
+          for thread <- snapshot["state"]["threads"], status in ["all", thread["status"]] do
+            %{
+              "thread" => thread["id"],
+              "place" => thread["place"],
+              "status" => thread["status"],
+              "comments" => Enum.map(thread["comments"], &comment/1)
+            }
+          end
+
+        {:ok, %{"threads" => threads}}
+
+      {:error, reason} ->
+        Context.error(reason)
+    end
+  end
+
+  defp comment(comment) do
+    comment
+    |> Map.take(["body", "mentions", "at", "edited", "reactions"])
+    |> Map.merge(%{
+      "comment" => comment["id"],
+      "by" => comment["author"]["name"] || comment["author"]["key"],
+      "key" => comment["author"]["key"]
+    })
+  end
+end
+
+defmodule Issho.Tools.Comment do
+  @moduledoc false
+  use Issho.Tool,
+    name: "comment",
+    description: """
+    Writes a comment. With `thread`, a reply in that thread (see
+    list_threads, or the events of wait_for_events). Without it, a new
+    thread: at a place of a document (`document` and `at`, in its
+    component's terms), at what a person of the room selected (`of`,
+    their name), or on the page as a whole. `mentions` are people or
+    agents of the room, by name or key, who hear of it.
+    """,
+    annotations: []
+
+  arg :room, :string, required: true
+  arg :body, :string, required: true, max_length: 20_000
+  arg :thread, :string, description: "The thread to reply in"
+  arg :document, :string, description: "A new thread's document; the room itself unless given"
+  arg :at, :any, description: "A new thread's place in the document"
+  arg :of, :string, description: "A new thread at what this person selected"
+  arg :mentions, {:array, :string}, description: "Names or keys of the people it mentions"
+
+  alias Issho.Comments
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    document = Comments.document(args.room)
+
+    with {:ok, participant, _doc, _snapshot} <- Context.open(ctx, args.room, document),
+         {:ok, mentions} <- mentions(participant, args[:mentions] || []),
+         {:ok, op, ids} <- op(participant, args, mentions),
+         {:ok, _receipt} <- Issho.Participant.transact(participant, document, [op]) do
+      {:ok, %{"thread" => ids.thread, "comment" => ids.comment}}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+
+  defp op(participant, %{thread: thread} = args, mentions) when is_binary(thread) do
+    {op, ids} = Comments.Ops.reply(identity(participant), thread, args.body, mentions: mentions)
+    {:ok, op, ids}
+  end
+
+  defp op(participant, args, mentions) do
+    with {:ok, place} <- place(participant, args) do
+      {op, ids} = Comments.Ops.start(identity(participant), place, args.body, mentions: mentions)
+      {:ok, op, ids}
+    end
+  end
+
+  defp place(participant, %{of: who} = args) when is_binary(who) do
+    document = args[:document]
+
+    with {:ok, %{name: name, states: states}} <- Issho.Tools.person_of(participant, who) do
+      case Enum.find(
+             states,
+             &(is_map(&1["place"]) and (document == nil or &1["place"]["doc"] == document))
+           ) do
+        %{"place" => place} -> {:ok, place}
+        nil -> {:error, "#{name} has selected nothing."}
+      end
+    end
+  end
+
+  defp place(_participant, %{at: at} = args) when not is_nil(at),
+    do: {:ok, %{"doc" => args[:document] || args.room, "at" => at}}
+
+  defp place(_participant, _args), do: {:ok, nil}
+
+  # The keys of the people it mentions: by their name or key in the room,
+  # or a key as it is.
+  defp mentions(participant, names) do
+    Enum.reduce_while(names, {:ok, []}, fn name, {:ok, keys} ->
+      case mention(participant, name) do
+        {:ok, key} -> {:cont, {:ok, keys ++ [key]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp mention(participant, name) do
+    case Issho.Tools.person_of(participant, name) do
+      {:ok, %{key: key}} -> {:ok, key}
+      {:error, _} = error -> if String.contains?(name, ":"), do: {:ok, name}, else: error
+    end
+  end
+
+  defp identity(participant), do: Issho.Participant.identity(participant)
+end
+
+defmodule Issho.Tools.ResolveThread do
+  @moduledoc false
+  use Issho.Tool,
+    name: "resolve_thread",
+    description: "Resolves a thread of comments that is done with, or reopens one (`reopen`).",
+    annotations: [idempotent: true]
+
+  arg :room, :string, required: true
+  arg :thread, :string, required: true
+  arg :reopen, :boolean, description: "Reopens it instead"
+
+  alias Issho.Comments
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    document = Comments.document(args.room)
+
+    op =
+      if args[:reopen],
+        do: Comments.Ops.reopen(args.thread),
+        else: Comments.Ops.resolve(args.thread)
+
+    with {:ok, participant, _doc, _snapshot} <- Context.open(ctx, args.room, document),
+         {:ok, _receipt} <- Issho.Participant.transact(participant, document, [op]) do
+      {:ok, if(args[:reopen], do: "Reopened.", else: "Resolved.")}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
 defmodule Issho.Tools.WaitForEvents do
   @moduledoc false
   use Issho.Tool,
@@ -492,14 +669,18 @@ defmodule Issho.Tools.WaitForEvents do
     changes a document (document.changed), writes a comment, or an
     event of the app's. Each event says what happened, who made it
     happen, where, and when; not what you did yourself. Give `names` to
-    hear only those ("comment.*" for all of a kind). Call it again to
-    keep waiting.
+    hear only those ("comment.*" for all of a kind), and `mentions_me`
+    for the comments that mention you, to answer them (the comment
+    tool). Call it again to keep waiting.
     """,
     annotations: [read_only: true]
 
   arg :room, :string, required: true
   arg :names, {:array, :string}, description: "The events to hear: names, or \"kind.*\""
   arg :seconds, :integer, min: 0, max: 60, description: "How long to wait for one (20)"
+
+  arg :mentions_me, :boolean,
+    description: "Only the comments that mention you: someone asks you something"
 
   alias Issho.Tool.Context
 
@@ -514,7 +695,8 @@ defmodule Issho.Tools.WaitForEvents do
              Context.key(ctx),
              args.room,
              names,
-             Map.get(args, :seconds, 20) * 1_000
+             Map.get(args, :seconds, 20) * 1_000,
+             mentions_me: args[:mentions_me] == true
            ) do
       {:ok, %{"events" => Enum.map(events, &Issho.Event.to_map/1)}}
     else

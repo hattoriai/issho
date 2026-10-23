@@ -30,6 +30,11 @@ defmodule Issho.Policy do
       for the changes others make, so that a person whose access you take
       away stops receiving them;
     * `:write`: to change its documents;
+    * `:comment`: to change its comments (`Issho.Comments`): start a
+      thread, reply, react, resolve. A reader (a grant with `can: :read`)
+      may comment when you allow it, so a commenter is between a reader
+      and a writer. A policy that answers `{:error, _}` for actions it
+      does not know lets no one comment until it says `:comment`;
     * `:lock`: to hold an advisory lock on a place.
 
   A component that keeps its data outside Issho's documents (a grid of
@@ -57,7 +62,7 @@ defmodule Issho.Policy do
 
   alias Issho.Identity
 
-  @type action :: :join | :read | :write | :lock
+  @type action :: :join | :read | :write | :comment | :lock
 
   @typedoc """
   What a document is: its engine, its initial content (given to the

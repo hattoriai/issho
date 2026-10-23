@@ -72,21 +72,17 @@ defmodule Issho.Agents do
   The events of the room since the agent last took them, whose names are
   one of `names` (`Issho.Events.match?/2`: a list of names, `"kind.*"`, or
   `:all`), oldest first; when there is none yet, waits up to `timeout`
-  milliseconds for one. Gives `{:ok, events}`, an empty list when none
+  milliseconds for one. With `mentions_me: true`, only those whose data
+  mentions the agent (`mentions`, a comment's). Gives `{:ok, events}`, an empty list when none
   came, or `{:error, :not_there}` for an agent not in the room.
   """
-  @spec wait(atom(), String.t(), String.t(), :all | [String.t()], non_neg_integer()) ::
+  @spec wait(atom(), String.t(), String.t(), :all | [String.t()], non_neg_integer(), keyword()) ::
           {:ok, [Issho.Event.t()]} | {:error, :not_there}
-  def wait(instance, key, room, names, timeout) when is_integer(timeout) and timeout >= 0,
-    do:
-      call(
-        instance,
-        key,
-        room,
-        {:wait, names, timeout},
-        {:error, :not_there},
-        timeout + 5_000
-      )
+  def wait(instance, key, room, names, timeout, opts \\ [])
+      when is_integer(timeout) and timeout >= 0 do
+    wanted = {names, if(opts[:mentions_me], do: key)}
+    call(instance, key, room, {:wait, wanted, timeout}, {:error, :not_there}, timeout + 5_000)
+  end
 
   @doc "Takes the agent out of the room."
   @spec leave(atom(), String.t(), String.t()) :: :ok
@@ -202,7 +198,7 @@ defmodule Issho.Agents do
   def handle_info({Issho.Participant, _participant, "event", event}, state) do
     case state.waiting do
       {from, names, _ref} ->
-        if Issho.Events.match?(names, event.name) do
+        if wanted?(names, event) do
           GenServer.reply(from, {:ok, [event]})
           {:noreply, %{state | waiting: nil}}
         else
@@ -244,7 +240,12 @@ defmodule Issho.Agents do
   defp keep(state, event),
     do: %{state | events: Enum.take(state.events ++ [event], -@kept)}
 
-  defp take(events, names), do: Enum.split_with(events, &Issho.Events.match?(names, &1.name))
+  defp take(events, wanted), do: Enum.split_with(events, &wanted?(wanted, &1))
+
+  defp wanted?({names, nil}, event), do: Issho.Events.match?(names, event.name)
+
+  defp wanted?({names, key}, event),
+    do: Issho.Events.match?(names, event.name) and key in List.wrap(event.data[:mentions])
 
   defp timer(previous, idle) do
     if previous, do: Process.cancel_timer(previous)

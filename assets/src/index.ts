@@ -3,11 +3,14 @@
 
 import { registerEngine } from "./engine";
 import { mapEngine } from "./engines/map";
+import { commentsEngine } from "./engines/comments";
 
 registerEngine(mapEngine);
+registerEngine(commentsEngine);
 
 export { registerEngine, engine, type Engine, type State, type Operation, type Json, type Applied } from "./engine";
 export { mapEngine } from "./engines/map";
+export { commentsEngine, type Thread, type Comment } from "./engines/comments";
 export {
   SharedDocument,
   Refused,
