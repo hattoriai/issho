@@ -305,3 +305,34 @@ defmodule IsshoTest.RetroLive do
     """
   end
 end
+
+defmodule IsshoTest.CommentsLive do
+  @moduledoc false
+  # A page with the room's comments.
+  use Phoenix.LiveView
+
+  on_mount Issho.Live
+
+  @impl true
+  def mount(_params, %{"user" => user, "room" => room} = session, socket) do
+    if connected?(socket),
+      do:
+        {:ok, _} =
+          Issho.Live.join(IsshoTest.Issho, %{id: user, name: session["name"] || user}, room,
+            can: session["can"] || :write
+          )
+
+    {:ok, assign(socket, room: room)}
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Issho.Components.comments id="comments" room={@room} mentionable={[%{key: "agent:claude", name: "Claude"}]}>
+      <:place :let={%{place: place, default: default}}>
+        {if place, do: "Path " <> Enum.join(place["at"]["path"], "."), else: default}
+      </:place>
+    </Issho.Components.comments>
+    """
+  end
+end

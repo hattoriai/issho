@@ -371,6 +371,15 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       end
     end
 
+    @doc "Who this LiveView is in the room (`Issho.Identity`), or `nil`."
+    @spec identity(String.t()) :: Issho.Identity.t() | nil
+    def identity(room) do
+      case session(room) do
+        %Session{identity: identity} -> identity
+        nil -> nil
+      end
+    end
+
     @doc "The session id of this LiveView in the room, or `nil`."
     @spec session_id(String.t()) :: String.t() | nil
     def session_id(room) do
