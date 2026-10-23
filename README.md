@@ -20,8 +20,9 @@ libraries own their behavior and presentation.**
 > following, agents however they connect (MCP, your app's own model) and
 > how they move, undo across a page, blocks of other rooms in a page (live
 > embeds), the room's events, shared state without an engine, comments
-> and threads on any component, agents seen at work and stopped, and the
-> bindings of Kotoba, Hakushi and Masu are here. Before 1.0, a minor
+> and threads on any component, agents seen at work and stopped, an
+> agent's inbox, streams of a room, and the bindings of Kotoba, Hakushi
+> and Masu are here. Before 1.0, a minor
 > version may change the API; see the roadmap for what comes next.
 
 Live collaboration in the Hattori libraries is Issho's: Kotoba's shared
@@ -95,6 +96,16 @@ It gives your app:
 * **agents seen at work, and stopped** (`Issho.Work`): an agent's task
   and its steps as it goes (`Issho.Components.agents/1`), and Pause,
   Resume and Stop for the person it works for, between whole changes;
+  your app's own agent's work (`Issho.Agents.run/5`) is stopped at once,
+  wherever it is, and its crash is said in the room;
+* **an inbox** (`Issho.Inbox`) of what was said to someone while away: a
+  comment that mentions an agent that is not connected waits for it (the
+  `inbox` tool, `issho://inbox` over MCP), and your app can wake it
+  (`:on_mention`);
+* **streams of a room** (`Issho.Streams`): output a process writes a
+  piece at a time (a model's answer, an agent's report, a log), for a
+  person or the room, that people see as it comes and find again where
+  it got to when they come back, from another page, tab or node;
 * **one page, one room**: the components of a page share its connection,
   its people (`Issho.Components.people/1`), its grant from the LiveView
   (`Issho.Live.grant/4`, renewed by Issho), its form barrier (`holdForm`)

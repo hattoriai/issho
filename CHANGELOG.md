@@ -10,7 +10,10 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.4.0] - 2026-10-23
 
 The room's events, shared state without an engine, comments on any
-component, and agents that people see at work and can stop.
+component with an @ that picks whom it mentions, agents that people see
+at work and can stop at once, an inbox of what was said to an agent while
+it was away, and streams: output written a piece at a time that people
+see as it comes and find again.
 
 ### Added
 
