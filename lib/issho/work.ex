@@ -63,11 +63,11 @@ defmodule Issho.Work do
       |> Enum.take(@max_steps)
       |> Enum.with_index()
       |> Enum.map(fn {label, i} ->
-        %{"label" => to_string(label), "state" => if(i == 0, do: "active", else: "pending")}
+        %{"label" => words(label), "state" => if(i == 0, do: "active", else: "pending")}
       end)
 
     task = %{
-      "title" => title,
+      "title" => words(title),
       "steps" => steps,
       "state" => "working",
       "at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
@@ -105,15 +105,22 @@ defmodule Issho.Work do
           |> mark(step, Atom.to_string(state))
           |> Kernel.++(
             for label <- Keyword.get(opts, :add, []),
-                do: %{"label" => to_string(label), "state" => "pending"}
+                do: %{"label" => words(label), "state" => "pending"}
           )
           |> Enum.take(@max_steps)
           |> advance()
 
         task =
           case Keyword.fetch(opts, :note) do
-            {:ok, note} -> Map.put(task, "note", note)
-            :error -> task
+            {:ok, note} ->
+              Map.put(
+                task,
+                "note",
+                Issho.Text.clean(note && to_string(note), line: true, max: 200)
+              )
+
+            :error ->
+              task
           end
 
         Participant.aware(participant, %{"task" => %{task | "steps" => steps}})
@@ -131,7 +138,11 @@ defmodule Issho.Work do
     with :ok <- Participant.clear_interrupt(participant),
          :ok <- Participant.aware(participant, %{"task" => nil}) do
       if title,
-        do: emit(participant, "agent.finished", %{title: title, summary: summary}),
+        do:
+          emit(participant, "agent.finished", %{
+            title: title,
+            summary: Issho.Text.clean(summary, max: 2_000)
+          }),
         else: :ok
     end
   end
@@ -265,6 +276,10 @@ defmodule Issho.Work do
     })
   end
 
+  # A task's words, which people and other agents read: one line, nothing
+  # hidden (`Issho.Text`).
+  defp words(text), do: text |> to_string() |> Issho.Text.clean(line: true, max: 120)
+
   defp mark(steps, nil, _state), do: steps
 
   defp mark(steps, index, state) when is_integer(index),
@@ -272,7 +287,7 @@ defmodule Issho.Work do
 
   defp mark(steps, label, state) when is_binary(label) do
     case Enum.find_index(steps, &(&1["label"] == label)) do
-      nil -> steps ++ [%{"label" => label, "state" => state}]
+      nil -> steps ++ [%{"label" => words(label), "state" => state}]
       index -> mark(steps, index, state)
     end
   end
