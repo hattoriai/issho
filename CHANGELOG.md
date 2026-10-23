@@ -7,6 +7,11 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-23
+
+The room's events, shared state without an engine, comments on any
+component, and agents that people see at work and can stop.
+
 ### Added
 
 - Issho's events of people: `"person.joined"` when an actor's first
