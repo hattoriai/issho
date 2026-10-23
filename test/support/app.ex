@@ -170,6 +170,12 @@ defmodule IsshoTest.BoardLive do
     {:noreply, socket}
   end
 
+  # The LiveView hears the room's events of a kind.
+  def handle_event("listen", %{"names" => names}, socket) do
+    Issho.Live.subscribe(socket.assigns.room, :self, events: names)
+    {:noreply, socket}
+  end
+
   # The title goes from the page, and with it, the LiveView's last
   # reason to be in the room unless it listens itself.
   def handle_event("release", params, socket) do
@@ -182,6 +188,9 @@ defmodule IsshoTest.BoardLive do
   @impl true
   def handle_info({:released, what}, socket),
     do: {:noreply, update(socket, :messages, &["released: " <> what | &1])}
+
+  def handle_info({Issho.Live, "event", _room, %Issho.Event{name: name}}, socket),
+    do: {:noreply, update(socket, :messages, &["event:" <> name | &1])}
 
   def handle_info({Issho.Live, event, _key, _payload}, socket),
     do: {:noreply, update(socket, :messages, &[event | &1])}

@@ -15,7 +15,9 @@ defmodule Issho.Participant do
   A participant is a process linked to the one that joins. It forwards
   what happens in the room to that process (or to `:notify`) as
   `{Issho.Participant, participant, event, payload}` messages: `"tx"`,
-  `"aware"`, `"presence_diff"` and `"bye"`, as a browser receives them.
+  `"aware"`, `"presence_diff"` and `"bye"`, as a browser receives them,
+  and, with `events: true`, `"event"`: the room's events
+  (`Issho.Event`), but those the participant made happen itself.
 
   `transact/3` takes a list of operations (Issho builds the envelope, on
   the latest revision) or a whole transaction map, to retry one with its
@@ -112,8 +114,12 @@ defmodule Issho.Participant do
     can = Keyword.get(opts, :can, :write)
 
     case Session.join(instance, room, identity, can) do
-      {:ok, session} -> {:ok, %{session: session, notify: opts[:notify], aware: %{}}}
-      {:error, reason} -> {:stop, reason}
+      {:ok, session} ->
+        session = if opts[:events], do: Session.listen(session), else: session
+        {:ok, %{session: session, notify: opts[:notify], aware: %{}}}
+
+      {:error, reason} ->
+        {:stop, reason}
     end
   end
 
@@ -234,6 +240,11 @@ defmodule Issho.Participant do
   end
 
   defp notify(%{notify: nil}, _event, _payload), do: :ok
+
+  # What it made happen itself, it knows.
+  defp notify(%{session: %{identity: %{key: key}}}, "event", %Issho.Event{by: %{key: key}}),
+    do: :ok
+
   defp notify(%{notify: pid}, event, payload), do: send(pid, {__MODULE__, self(), event, payload})
 
   defp ok_or({:ok, value}, _reason), do: {:ok, value}

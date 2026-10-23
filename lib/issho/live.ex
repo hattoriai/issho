@@ -20,7 +20,9 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
         in a document it opened;
       * `{"aware", room, frame}`: the others' awareness;
       * `{"presence_diff", room, diff}`: people who came and went;
-      * `{"bye", room, reason}`: the session ended (revoked, refused).
+      * `{"bye", room, reason}`: the session ended (revoked, refused);
+      * `{"event", room, %Issho.Event{}}`: an event of the room, for a
+        component subscribed to its name (`subscribe/3`'s `:events`).
 
     `notify: :self` sends them to the LiveView as
     `{Issho.Live, event, key, payload}` messages instead.
@@ -142,7 +144,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
           with {:ok, session} <-
                  Session.join(instance, room, identity, Keyword.get(opts, :can, :write)) do
-            put_session(session)
+            put_session(heard(session))
             {:ok, session.session_id}
           end
       end
@@ -171,11 +173,17 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     end
 
     @doc """
-    Sends the room's events to a component, or the LiveView, without
-    opening a document. `:on_release`, a function of no argument, runs when
-    the component is released (`release/2`), before the LiveView leaves the
-    room if it was the last: for what the component put in the session's
-    awareness, which stays while the LiveView is in the room.
+    Sends the room's messages to a component, or the LiveView, without
+    opening a document. Options:
+
+      * `:events`, the names of the room's events (`Issho.Event`) the
+        component gets as `{"event", room, event}`: a list of names, a name
+        ending in `".*"` for all of a kind (`"comment.*"`), or `:all`.
+        Without it, none.
+      * `:on_release`, a function of no argument, runs when the component
+        is released (`release/2`), before the LiveView leaves the room if
+        it was the last: for what the component put in the session's
+        awareness, which stays while the LiveView is in the room.
     """
     @spec subscribe(String.t(), target(), keyword()) :: true
     def subscribe(key, target, opts \\ []) do
@@ -184,8 +192,25 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       if on_release = opts[:on_release],
         do: Process.put({__MODULE__, :on_release, key, target}, on_release)
 
+      if names = opts[:events], do: listen(key, target, names)
+
       true
     end
+
+    defp listen(room, target, names) when names == :all or is_list(names) do
+      Process.put({__MODULE__, :events, room}, Map.put(listeners(room), target, names))
+
+      case session(room) do
+        nil -> :ok
+        session -> put_session(Session.listen(session))
+      end
+    end
+
+    defp listeners(room), do: Process.get({__MODULE__, :events, room}, %{})
+
+    # A session that hears the room's events when a component asked before it joined.
+    defp heard(session),
+      do: if(listeners(session.room) == %{}, do: session, else: Session.listen(session))
 
     @doc """
     Stops sending the room's events, and its documents', to a component
@@ -210,6 +235,12 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
           do: on_release.()
 
       for key <- keys, do: unsubscribe(key, target)
+
+      case Map.delete(listeners(room), target) do
+        none when none == %{} -> Process.delete({__MODULE__, :events, room})
+        rest -> Process.put({__MODULE__, :events, room}, rest)
+      end
+
       if Enum.all?(keys, &(MapSet.size(targets(&1)) == 0)), do: leave(room)
       :ok
     end
@@ -234,6 +265,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
           Process.delete({__MODULE__, :session, room})
           Process.delete({__MODULE__, :aware, room})
+          Process.delete({__MODULE__, :events, room})
           :ok
       end
     end
@@ -369,6 +401,16 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       socket
     end
 
+    defp deliver(socket, _session, {:push, "event", event, session}) do
+      put_session(session)
+
+      for {target, names} <- listeners(session.room),
+          Issho.Events.match?(names, event.name),
+          do: notify_one(target, {"event", session.room, event})
+
+      socket
+    end
+
     defp deliver(socket, _session, {:push, event, payload, session}) do
       put_session(session)
       notify(session.room, {event, session.room, payload})
@@ -388,19 +430,20 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       socket
     end
 
-    defp notify(key, {event, key_of, payload}) do
-      for target <- targets(key) do
-        case target do
-          :self -> send(self(), {__MODULE__, event, key_of, payload})
-          {module, id} -> send_update(module, id: id, issho: {event, key_of, payload})
-        end
-      end
+    defp notify(key, message) do
+      for target <- targets(key), do: notify_one(target, message)
     end
+
+    defp notify_one(:self, {event, key, payload}),
+      do: send(self(), {__MODULE__, event, key, payload})
+
+    defp notify_one({module, id}, message), do: send_update(module, id: id, issho: message)
 
     # The room a message of Issho's is about, if it is one.
     defp room_of({Issho, :transaction, document_id, _event}), do: Policy.room(document_id)
     defp room_of({Issho, :awareness, room, _frame}), do: room
     defp room_of({Issho, :revoke, room, _key}), do: room
+    defp room_of({Issho, :room_event, %Issho.Event{room: room}}), do: room
     # Between the awareness processes of a room's nodes; sessions skip it.
     defp room_of({Issho, :awareness_hello, room}), do: room
 

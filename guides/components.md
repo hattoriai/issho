@@ -108,6 +108,21 @@ Subscribe with `Issho.Events.subscribe/2`, and emit with
 documents (a grid of an app's tables) emits `"document.changed"` for its
 own saves, so the room hears of every change the same way.
 
+Issho emits `"person.joined"` and `"person.left"` (an actor's first
+session, and its last), and `"selection.changed"` when a session's place
+changes. A LiveView's component hears the events it names:
+
+```elixir
+Issho.Live.subscribe("board:42", {MyComponent, "board"}, events: ["comment.*"])
+
+# In the component:
+def update(%{issho: {"event", _room, %Issho.Event{} = event}}, socket), do: ...
+```
+
+Agents hear them too (`wait_for_events`, see the Agents guide), and every
+event is a `[:issho, :event]` telemetry event, once in the cluster, for
+your app's own handlers.
+
 ## The page: where a block is
 
 The element that shows a document carries its id:
