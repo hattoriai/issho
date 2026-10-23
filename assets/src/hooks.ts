@@ -240,12 +240,22 @@ const IsshoComments = {
 };
 
 // The times of a page, as the server writes them (UTC), in the person's
-// own locale and time zone.
+// own locale and time zone, as short as they can be: the time today, the
+// day this year, else the date.
 function localTimes(root: HTMLElement): void {
-  const format = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const now = new Date();
   for (const time of root.querySelectorAll<HTMLTimeElement>("time[datetime]")) {
     const date = new Date(time.dateTime);
-    if (!Number.isNaN(date.getTime())) time.textContent = format.format(date);
+    if (Number.isNaN(date.getTime())) continue;
+    const today = date.toDateString() === now.toDateString();
+    const thisYear = date.getFullYear() === now.getFullYear();
+    const options: Intl.DateTimeFormatOptions = today
+      ? { hour: "numeric", minute: "2-digit" }
+      : thisYear
+        ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
+        : { dateStyle: "medium" };
+    time.textContent = new Intl.DateTimeFormat(undefined, options).format(date);
+    time.title = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }).format(date);
   }
 }
 
