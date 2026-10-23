@@ -30,7 +30,9 @@ defmodule Issho.Event do
       (`%{title, summary}`): an agent began or ended a task
       (`Issho.Work`); `"agent.interrupted"` (`%{agent: key, action:
       "pause" | "stop"}`) and `"agent.resumed"` (`%{agent: key}`), by the
-      person who paused, stopped or resumed it.
+      person who paused, stopped or resumed it; `"agent.failed"`
+      (`%{agent: key, title, reason}`): its work crashed
+      (`Issho.Work.failed/2`).
     * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
       `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
       comments (`Issho.Comments`).

@@ -44,7 +44,8 @@ defmodule Issho.Participant do
     :gen_statem.start_link(
       __MODULE__,
       {instance, actor, room, Keyword.put_new(opts, :notify, self())},
-      []
+      # A participant with nothing to do for a while takes little memory.
+      hibernate_after: 15_000
     )
   end
 

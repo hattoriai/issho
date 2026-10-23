@@ -19,19 +19,35 @@ defmodule Issho.Agents do
   (`wait/5`, the `wait_for_events` tool): what people did between its
   calls, and what it waits for (someone mentions it, a document changes).
 
-  The agents of a node are found on that node; an MCP endpoint behind a
-  load balancer needs session affinity, or one node for its agents.
+  An agent is one in the cluster (`:global`, as the documents'
+  authorities are): a call on any node finds it, so an MCP endpoint
+  behind a load balancer needs no session affinity.
+
+  ## Its work
+
+  Your app's own agent (a model your app calls, not an MCP client) can
+  run its work under Issho: `run/5` runs a function as the agent, in a
+  process linked to it. When a person stops the agent (`Issho.Work`), the
+  process is ended at once, wherever it is (waiting on the model, in the
+  middle of a tool), not at its next change; a pause still lets it run,
+  and refuses its changes. When it crashes, its task says it failed and
+  the room hears `"agent.failed"` (`Issho.Work.failed/2`).
 
   Each agent in a room is a state machine (`:gen_statem`): listening, or
   waiting (a call of `wait/6` that has nothing yet), with its idle time
-  and a wait's time as its timeouts.
+  and a wait's time as its timeouts. An agent idle for a while
+  hibernates: it takes little memory until it is called.
   """
 
   @behaviour :gen_statem
 
+  require Logger
+
   alias Issho.{Config, Identity}
 
   @idle 600_000
+  # An agent with nothing to do for this long hibernates.
+  @hibernate_after 15_000
   # The events an agent keeps until it takes them.
   @kept 100
 
@@ -88,6 +104,31 @@ defmodule Issho.Agents do
     call(instance, key, room, {:wait, wanted, timeout}, {:error, :not_there}, timeout + 5_000)
   end
 
+  @doc """
+  Runs the agent's work in the room, joining it as `join/4` does: `fun`,
+  given the agent's participant, in a process linked to the agent, which
+  stays in the room while it runs (its idle time starts when the work
+  ends). One work at a time: `{:error, :running}` while one runs.
+
+      {:ok, work} =
+        Issho.Agents.run(MyApp.Issho, assistant, "board:42", fn claude ->
+          :ok = Issho.Work.start(claude, "Group the cards", ["Read", "Group"])
+          # ... the model, the tools ...
+          Issho.Work.finish(claude, "Grouped 14 cards.")
+        end, on_behalf_of: ada)
+
+  Gives `{:ok, pid}`. Monitor it to know how it ended: `:normal`;
+  `{:shutdown, {:stopped, by}}`, a person stopped the agent (`by`, who);
+  `{:shutdown, :left}`, the agent left the room; or the reason it
+  crashed, when the agent's task says it failed (`Issho.Work.failed/2`).
+  """
+  @spec run(atom(), Issho.Actor.t(), String.t(), (pid() -> term()), keyword()) ::
+          {:ok, pid()} | {:error, term()}
+  def run(instance, actor, room, fun, opts \\ []) when is_function(fun, 1) do
+    with {:ok, _participant} <- join(instance, actor, room, opts),
+         do: call(instance, Identity.new(actor).key, room, {:run, fun}, {:error, :not_there})
+  end
+
   @doc "Takes the agent out of the room."
   @spec leave(atom(), String.t(), String.t()) :: :ok
   def leave(instance, key, room) do
@@ -99,12 +140,10 @@ defmodule Issho.Agents do
     :exit, _reason -> :ok
   end
 
-  @doc "The rooms the agent with this key is in, on this node."
+  @doc "The rooms the agent with this key is in, in the cluster."
   @spec rooms(atom(), String.t()) :: [String.t()]
   def rooms(instance, key) do
-    Registry.select(Config.child_name(instance, AgentRegistry), [
-      {{{key, :"$1"}, :_, :_}, [], [:"$1"]}
-    ])
+    for {__MODULE__, ^instance, ^key, room} <- :global.registered_names(), do: room
   end
 
   # A call to the agent, or `gone` when it is not there: one that just left
@@ -118,20 +157,33 @@ defmodule Issho.Agents do
     :exit, _reason -> gone
   end
 
-  defp whereis(instance, key, room) do
-    case Registry.lookup(Config.child_name(instance, AgentRegistry), {key, room}) do
-      [{pid, _}] -> pid
-      [] -> nil
+  @doc false
+  # The agent's process, on any node.
+  @spec whereis(atom(), String.t(), String.t()) :: pid() | nil
+  def whereis(instance, key, room) do
+    case :global.whereis_name(name(instance, key, room)) do
+      pid when is_pid(pid) -> pid
+      :undefined -> nil
     end
   end
 
+  defp name(instance, key, room), do: {__MODULE__, instance, key, room}
+
+  # Registered as it starts, in the whole cluster at once: two nodes that
+  # start the same agent together have one, and the other gets it.
   defp start(instance, actor, room, opts) do
     key = Identity.new(actor).key
-    name = {:via, Registry, {Config.child_name(instance, AgentRegistry), {key, room}}}
 
     spec = %{
       id: __MODULE__,
-      start: {:gen_statem, :start_link, [name, __MODULE__, {instance, actor, room, opts}, []]},
+      start:
+        {:gen_statem, :start_link,
+         [
+           {:global, name(instance, key, room)},
+           __MODULE__,
+           {instance, actor, room, opts},
+           [hibernate_after: @hibernate_after]
+         ]},
       restart: :temporary
     }
 
@@ -144,9 +196,11 @@ defmodule Issho.Agents do
 
   # Server: a state machine of two states, `:listening` and `{:waiting,
   # from, wanted}`, a caller waiting for an event it wants. Its data is its
-  # participant, its idle time, what it remembers, and the events it keeps
-  # until it takes them. Its idle time is a timeout that every call starts
-  # again; a wait's time is another.
+  # participant, its idle time, what it remembers, the events it keeps
+  # until it takes them, and its work, while one runs. Its idle time is a
+  # timeout that every call starts again, but while its work runs; a
+  # wait's time is another. It traps exits: its participant's and its
+  # work's end are messages to it.
 
   @impl true
   def callback_mode, do: :handle_event_function
@@ -158,11 +212,23 @@ defmodule Issho.Agents do
       |> Keyword.take([:can, :on_behalf_of, :claims])
       |> Keyword.merge(notify: self(), events: true)
 
+    Process.flag(:trap_exit, true)
+
     case Issho.join_as(instance, actor, room, join_opts) do
       {:ok, participant} ->
         Process.link(participant)
         idle = Keyword.get(opts, :idle, @idle)
-        data = %{participant: participant, idle: idle, memory: %{}, events: []}
+
+        data = %{
+          participant: participant,
+          key: Identity.new(actor).key,
+          room: room,
+          idle: idle,
+          memory: %{},
+          events: [],
+          work: nil
+        }
+
         {:ok, :listening, data, idle_timeout(data)}
 
       {:error, reason} ->
@@ -215,6 +281,47 @@ defmodule Issho.Agents do
   def handle_event({:timeout, :wait}, :waited, state, data),
     do: {:next_state, :listening, data, answer(state, [])}
 
+  def handle_event({:call, from}, {:run, _fun}, _state, %{work: work}) when is_pid(work),
+    do: {:keep_state_and_data, {:reply, from, {:error, :running}}}
+
+  def handle_event({:call, from}, {:run, fun}, _state, data) do
+    participant = data.participant
+    work = spawn_link(fn -> fun.(participant) end)
+    data = %{data | work: work}
+    {:keep_state, data, [{:reply, from, {:ok, work}}, idle_timeout(data)]}
+  end
+
+  # Stopped by a person: its work ends now, wherever it is.
+  def handle_event(
+        :info,
+        {Issho.Participant, _participant, "interrupt", %{"action" => "stop", "by" => by}},
+        _state,
+        %{work: work}
+      )
+      when is_pid(work) do
+    Process.exit(work, {:shutdown, {:stopped, by}})
+    :keep_state_and_data
+  end
+
+  def handle_event(:info, {:EXIT, work, reason}, _state, %{work: work} = data) do
+    unless ended?(reason) do
+      # In the app's log: OTP's own report of it is one Elixir leaves out.
+      Logger.error(
+        "Issho: the work of #{data.key} in #{data.room} crashed: " <>
+          Exception.format_exit(reason)
+      )
+
+      Issho.Work.failed(data.participant, reason)
+    end
+
+    data = %{data | work: nil}
+    {:keep_state, data, idle_timeout(data)}
+  end
+
+  # Its participant is gone: the agent has no place in the room.
+  def handle_event(:info, {:EXIT, participant, _reason}, _state, %{participant: participant}),
+    do: {:stop, :normal}
+
   def handle_event({:timeout, :idle}, :idle, _state, _data), do: {:stop, :normal}
 
   # The room ended the session (revoked, refused): the agent goes too.
@@ -225,11 +332,20 @@ defmodule Issho.Agents do
 
   @impl true
   def terminate(_reason, _state, data) do
+    if data.work, do: Process.exit(data.work, {:shutdown, :left})
     if Process.alive?(data.participant), do: Issho.Participant.leave(data.participant)
   catch
     :exit, _reason -> :ok
   end
 
+  # How a work may end, but crashing.
+  defp ended?(:normal), do: true
+  defp ended?(:shutdown), do: true
+  defp ended?({:shutdown, _reason}), do: true
+  defp ended?(_reason), do: false
+
+  # No idle time while its work runs.
+  defp idle_timeout(%{work: work}) when is_pid(work), do: {{:timeout, :idle}, :cancel}
   defp idle_timeout(data), do: {{:timeout, :idle}, data.idle, :idle}
   defp cancel_wait, do: {{:timeout, :wait}, :cancel}
 

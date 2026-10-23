@@ -260,7 +260,7 @@ defmodule Issho.EventsTest do
   defp settle_agent(key, room) do
     participant = Agents.participant(@instance, key, room)
     settle(participant)
-    [{agent, _}] = Registry.lookup(Issho.Config.child_name(@instance, AgentRegistry), {key, room})
+    agent = Issho.Agents.whereis(@instance, key, room)
     settle(agent)
   end
 end
