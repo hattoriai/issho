@@ -7,6 +7,11 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-23
+
+What people write reaches agents as their words, with nothing hidden in
+them.
+
 ### Security
 
 - What people write reaches agents as their words, with nothing hidden in
