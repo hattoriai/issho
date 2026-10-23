@@ -58,7 +58,12 @@ defmodule Issho do
   @impl true
   def init(%Config{name: name} = config) do
     presence =
-      if config.presence, do: [{Issho.Presence, pubsub_server: config.pubsub}], else: []
+      if config.presence do
+        :ok = Issho.Presence.put_pubsub(config.pubsub)
+        [{Issho.Presence, pubsub_server: config.pubsub}]
+      else
+        []
+      end
 
     children =
       presence ++
@@ -80,8 +85,9 @@ defmodule Issho do
   @doc """
   Joins a room as an actor from Elixir (an agent, a job), as a browser
   would. Gives an `Issho.Participant`. Options: `:can` (`:write`),
-  `:on_behalf_of`, `:claims` and `:notify` (the process that receives the
-  room's events, the caller unless given).
+  `:on_behalf_of`, `:claims`, `:notify` (the process that receives what
+  happens in the room, the caller unless given) and `:events` (whether it
+  receives the room's events too, `Issho.Event`: `false`).
   """
   @spec join_as(atom(), Issho.Actor.t(), String.t(), keyword()) :: {:ok, pid()} | {:error, term()}
   def join_as(instance, actor, room, opts \\ []) do

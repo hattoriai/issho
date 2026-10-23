@@ -32,12 +32,29 @@ let agents in where you want them, and only there.
 
 What an agent can do is a list of tools (`Issho.Tool`): Issho's for rooms
 (`Issho.Tools.room/0`: join, look around, read, point, say what it does,
-change, leave), the components' in their own terms
+change, wait for what happens, leave), the components' in their own terms
 (`Kotoba.Issho.tools/0`: select, type, format, link, copy and paste in a
 rich text; `Hakushi.Issho.tools/0`: point, add, drag, connect on a
 canvas), and yours. A tool runs as the agent of an `Issho.Tool.Context`,
 which joins the rooms it works in and stays between calls, until it
 leaves or has been idle for a while (`Issho.Agents`).
+
+## Waiting for people
+
+An agent in a room hears what happens in it (`Issho.Event`): someone
+comes or goes, selects something, changes a document, writes a comment,
+or an event of your app's. It keeps the last hundred since it last asked,
+and `wait_for_events` gives them, or waits up to a minute for the next:
+
+```text
+wait_for_events {"room": "board:42", "names": ["selection.changed", "comment.*"], "seconds": 30}
+```
+
+So an agent can work with people instead of only for them: wait until
+Ada selects a paragraph, then rewrite it; wait until a card lands on a
+frame, then file it. From Elixir, `Issho.Agents.wait/5` is the same, and
+a participant that joins with `events: true` receives the room's events
+as messages.
 
 ## Your app's own model
 

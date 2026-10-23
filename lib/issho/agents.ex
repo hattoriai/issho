@@ -14,6 +14,11 @@ defmodule Issho.Agents do
   for the same actor and room, and starts the idle time again. People
   see the agent as they see anyone: its name, its place, its changes.
 
+  An agent in a room hears its events (`Issho.Event`), but those it made
+  happen itself, and keeps the last 100 of them until it takes them
+  (`wait/5`, the `wait_for_events` tool): what people did between its
+  calls, and what it waits for (someone mentions it, a document changes).
+
   The agents of a node are found on that node; an MCP endpoint behind a
   load balancer needs session affinity, or one node for its agents.
   """
@@ -23,6 +28,8 @@ defmodule Issho.Agents do
   alias Issho.{Config, Identity}
 
   @idle 600_000
+  # The events an agent keeps until it takes them.
+  @kept 100
 
   @doc """
   The agent's participant in the room, joining it on the first call.
@@ -61,6 +68,26 @@ defmodule Issho.Agents do
   def get(instance, key, room, name, default \\ nil),
     do: call(instance, key, room, {:get, name, default}, default)
 
+  @doc """
+  The events of the room since the agent last took them, whose names are
+  one of `names` (`Issho.Events.match?/2`: a list of names, `"kind.*"`, or
+  `:all`), oldest first; when there is none yet, waits up to `timeout`
+  milliseconds for one. Gives `{:ok, events}`, an empty list when none
+  came, or `{:error, :not_there}` for an agent not in the room.
+  """
+  @spec wait(atom(), String.t(), String.t(), :all | [String.t()], non_neg_integer()) ::
+          {:ok, [Issho.Event.t()]} | {:error, :not_there}
+  def wait(instance, key, room, names, timeout) when is_integer(timeout) and timeout >= 0,
+    do:
+      call(
+        instance,
+        key,
+        room,
+        {:wait, names, timeout},
+        {:error, :not_there},
+        timeout + 5_000
+      )
+
   @doc "Takes the agent out of the room."
   @spec leave(atom(), String.t(), String.t()) :: :ok
   def leave(instance, key, room) do
@@ -82,10 +109,10 @@ defmodule Issho.Agents do
 
   # A call to the agent, or `gone` when it is not there: one that just left
   # can still be registered for a moment after it ended.
-  defp call(instance, key, room, message, gone) do
+  defp call(instance, key, room, message, gone, timeout \\ 5_000) do
     case whereis(instance, key, room) do
       nil -> gone
-      agent -> GenServer.call(agent, message)
+      agent -> GenServer.call(agent, message, timeout)
     end
   catch
     :exit, _reason -> gone
@@ -120,13 +147,24 @@ defmodule Issho.Agents do
   @impl true
   def init({instance, actor, room, opts}) do
     join_opts =
-      opts |> Keyword.take([:can, :on_behalf_of, :claims]) |> Keyword.put(:notify, self())
+      opts
+      |> Keyword.take([:can, :on_behalf_of, :claims])
+      |> Keyword.merge(notify: self(), events: true)
 
     case Issho.join_as(instance, actor, room, join_opts) do
       {:ok, participant} ->
         Process.link(participant)
         idle = Keyword.get(opts, :idle, @idle)
-        {:ok, %{participant: participant, idle: idle, timer: timer(nil, idle), memory: %{}}}
+
+        {:ok,
+         %{
+           participant: participant,
+           idle: idle,
+           timer: timer(nil, idle),
+           memory: %{},
+           events: [],
+           waiting: nil
+         }}
 
       {:error, reason} ->
         {:stop, reason}
@@ -143,7 +181,44 @@ defmodule Issho.Agents do
   def handle_call({:get, name, default}, _from, state),
     do: {:reply, Map.get(state.memory, name, default), state}
 
+  # The events kept that it wants, or a wait for the next one. A wait
+  # before is answered, empty: one agent waits once at a time.
+  def handle_call({:wait, names, timeout}, from, state) do
+    state = %{state | timer: timer(state.timer, state.idle)}
+    state = answer(state, [])
+
+    case take(state.events, names) do
+      {[], _events} ->
+        ref = make_ref()
+        Process.send_after(self(), {:waited, ref}, timeout)
+        {:noreply, %{state | waiting: {from, names, ref}}}
+
+      {wanted, rest} ->
+        {:reply, {:ok, wanted}, %{state | events: rest}}
+    end
+  end
+
   @impl true
+  def handle_info({Issho.Participant, _participant, "event", event}, state) do
+    case state.waiting do
+      {from, names, _ref} ->
+        if Issho.Events.match?(names, event.name) do
+          GenServer.reply(from, {:ok, [event]})
+          {:noreply, %{state | waiting: nil}}
+        else
+          {:noreply, keep(state, event)}
+        end
+
+      nil ->
+        {:noreply, keep(state, event)}
+    end
+  end
+
+  def handle_info({:waited, ref}, %{waiting: {_from, _names, ref}} = state),
+    do: {:noreply, answer(state, [])}
+
+  def handle_info({:waited, _ref}, state), do: {:noreply, state}
+
   def handle_info(:idle, state), do: {:stop, :normal, state}
 
   # The room ended the session (revoked, refused): the agent goes too.
@@ -158,6 +233,18 @@ defmodule Issho.Agents do
   catch
     :exit, _reason -> :ok
   end
+
+  defp answer(%{waiting: nil} = state, _events), do: state
+
+  defp answer(%{waiting: {from, _names, _ref}} = state, events) do
+    GenServer.reply(from, {:ok, events})
+    %{state | waiting: nil}
+  end
+
+  defp keep(state, event),
+    do: %{state | events: Enum.take(state.events ++ [event], -@kept)}
+
+  defp take(events, names), do: Enum.split_with(events, &Issho.Events.match?(names, &1.name))
 
   defp timer(previous, idle) do
     if previous, do: Process.cancel_timer(previous)

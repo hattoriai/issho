@@ -11,6 +11,17 @@ defmodule Issho.Events do
       end
 
       Issho.Events.emit(MyApp.Issho, "board:42", "retro.voted", by: current_user, data: %{card: id})
+
+  Each event is also a `:telemetry` event, once in the cluster, for an
+  app's own handlers (a notification, a log, a metric):
+
+    * `[:issho, :event]`, with the measurement `:system_time`, and the
+      metadata `:event` (the `Issho.Event`) and `:pubsub`.
+
+  A LiveView's components receive the events they ask for
+  (`Issho.Live.subscribe/3`), and so do participants that join with
+  `events: true` (`Issho.join_as/4`), such as the agents of
+  `Issho.Agents`, which wait for them (the `wait_for_events` tool).
   """
 
   alias Issho.{Config, Event, Identity}
@@ -50,10 +61,47 @@ defmodule Issho.Events do
     broadcast(Config.get(instance).pubsub, event)
   end
 
+  @doc """
+  Whether an event's name is one of `names`: a name, a name ending in
+  `".*"` for all of a kind (`"comment.*"`), or `:all`.
+
+      iex> Issho.Events.match?(["comment.*"], "comment.created")
+      true
+      iex> Issho.Events.match?(["document.changed"], "person.joined")
+      false
+  """
+  @spec match?(:all | [String.t()], String.t()) :: boolean()
+  def match?(:all, _name), do: true
+
+  def match?(names, name) when is_list(names) and is_binary(name) do
+    Enum.any?(names, fn
+      ^name ->
+        true
+
+      wanted ->
+        String.ends_with?(wanted, ".*") and
+          String.starts_with?(name, String.trim_trailing(wanted, "*"))
+    end)
+  end
+
   @doc false
   @spec broadcast(atom(), Event.t()) :: :ok | {:error, term()}
-  def broadcast(pubsub, %Event{room: room} = event),
-    do: Phoenix.PubSub.broadcast(pubsub, topic(room), {Issho, :event, event})
+  def broadcast(pubsub, %Event{room: room} = event) do
+    :telemetry.execute(
+      [:issho, :event],
+      %{system_time: System.system_time()},
+      %{event: event, pubsub: pubsub}
+    )
+
+    # The sessions of the room hear it on a topic of their own, so that a
+    # process with a session that also subscribed itself gets both.
+    with :ok <- Phoenix.PubSub.broadcast(pubsub, topic(room), {Issho, :event, event}),
+         do: Phoenix.PubSub.broadcast(pubsub, sessions_topic(room), {Issho, :room_event, event})
+  end
 
   defp topic(room), do: "issho:events:" <> room
+
+  @doc false
+  @spec sessions_topic(String.t()) :: String.t()
+  def sessions_topic(room), do: "issho:session_events:" <> room
 end

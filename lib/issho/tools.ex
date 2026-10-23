@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, wait for what happens, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -34,6 +34,7 @@ defmodule Issho.Tools do
       Issho.Tools.Navigate,
       Issho.Tools.SetStatus,
       Issho.Tools.ChangeDocument,
+      Issho.Tools.WaitForEvents,
       Issho.Tools.LeaveRoom
     ]
 
@@ -426,6 +427,48 @@ defmodule Issho.Tools.ChangeDocument do
     with {:ok, participant, document, _snapshot} <- Context.open(ctx, args.room, args[:document]),
          {:ok, receipt} <- Issho.Participant.transact(participant, document, args.ops) do
       {:ok, %{"revision" => receipt["revision"]}}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.WaitForEvents do
+  @moduledoc false
+  use Issho.Tool,
+    name: "wait_for_events",
+    description: """
+    What happened in the room since you last asked, or, when nothing has,
+    waits up to `seconds` for something to happen: someone comes or goes
+    (person.joined, person.left), selects something (selection.changed),
+    changes a document (document.changed), writes a comment, or an
+    event of the app's. Each event says what happened, who made it
+    happen, where, and when; not what you did yourself. Give `names` to
+    hear only those ("comment.*" for all of a kind). Call it again to
+    keep waiting.
+    """,
+    annotations: [read_only: true]
+
+  arg :room, :string, required: true
+  arg :names, {:array, :string}, description: "The events to hear: names, or \"kind.*\""
+  arg :seconds, :integer, min: 0, max: 60, description: "How long to wait for one (20)"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    names = if args[:names] in [nil, []], do: :all, else: args.names
+
+    with {:ok, _participant} <- Context.join(ctx, args.room),
+         {:ok, events} <-
+           Issho.Agents.wait(
+             ctx.instance,
+             Context.key(ctx),
+             args.room,
+             names,
+             Map.get(args, :seconds, 20) * 1_000
+           ) do
+      {:ok, %{"events" => Enum.map(events, &Issho.Event.to_map/1)}}
     else
       {:error, reason} -> Context.error(reason)
     end

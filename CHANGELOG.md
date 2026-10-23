@@ -7,6 +7,26 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Issho's events of people: `"person.joined"` when an actor's first
+  session comes into a room and `"person.left"` when its last goes, once
+  in the cluster (from the node of that session); `"selection.changed"`
+  when a session's place changes, with the place.
+- Every event is a `[:issho, :event]` telemetry event, with the event and
+  the PubSub, for an app's own handlers.
+- A LiveView's components hear the room's events they name:
+  `Issho.Live.subscribe/3`'s `:events` (names, `"kind.*"`, or `:all`),
+  as `{"event", room, event}`. `Issho.Events.match?/2`.
+- A participant hears the room's events with `events: true`
+  (`Issho.join_as/4`), as `"event"` messages, but those it made happen
+  itself, under the policy's `:read`.
+- Agents wait for what people do: an agent of `Issho.Agents` keeps the
+  room's events since it last asked (the last 100), and
+  `Issho.Agents.wait/5` and the `wait_for_events` room tool give them,
+  or wait up to a minute for the next.
+- `Issho.Event.to_map/1`: an event as JSON, for a model or a browser.
+
 ## [0.3.1] - 2026-10-22
 
 ### Fixed

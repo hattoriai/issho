@@ -5,7 +5,18 @@ defmodule Issho.Session do
   # opening the room's documents, transactions, awareness, and the checks
   # in both directions. The functions run in the session's own process.
 
-  alias Issho.{Authority, Awareness, Config, Documents, Identity, Place, Policy, Presence}
+  alias Issho.{
+    Authority,
+    Awareness,
+    Config,
+    Documents,
+    Event,
+    Events,
+    Identity,
+    Place,
+    Policy,
+    Presence
+  }
 
   # How often, at most, the policy is asked again before an awareness frame
   # goes out. Changes to documents are checked every time.
@@ -19,6 +30,8 @@ defmodule Issho.Session do
     :session_id,
     documents: %{},
     places: %{},
+    place: nil,
+    events: false,
     checked_at: nil
   ]
 
@@ -38,7 +51,8 @@ defmodule Issho.Session do
           |> Identity.public()
           |> Map.merge(%{
             "joined_at" => System.system_time(:millisecond),
-            "can" => to_string(can)
+            "can" => to_string(can),
+            "origin" => Presence.origin()
           })
 
         {:ok, _ref} = Presence.track(self(), Presence.topic(room), identity.key, meta)
@@ -76,11 +90,24 @@ defmodule Issho.Session do
     for topic <- [
           Awareness.topic(session.room),
           room_topic(session.room),
-          Presence.topic(session.room)
+          Presence.topic(session.room),
+          Events.sessions_topic(session.room)
         ],
         do: :ok = Phoenix.PubSub.unsubscribe(config.pubsub, topic)
 
     :ok
+  end
+
+  @doc false
+  # The room's events (Issho.Events) come to the session's process too,
+  # as "event" pushes, under the policy's :read.
+  @spec listen(t()) :: t()
+  def listen(%__MODULE__{events: true} = session), do: session
+
+  def listen(%__MODULE__{} = session) do
+    config = Config.get(session.instance)
+    :ok = Phoenix.PubSub.subscribe(config.pubsub, Events.sessions_topic(session.room))
+    %{session | events: true}
   end
 
   @doc false
@@ -144,7 +171,7 @@ defmodule Issho.Session do
   @spec aware(t(), map() | nil) :: {:ok, t()} | {:error, term()}
   def aware(%__MODULE__{} = session, nil) do
     Awareness.put(session.instance, session.room, session.identity.key, nil)
-    {:ok, session}
+    {:ok, moved(session, nil)}
   end
 
   def aware(%__MODULE__{} = session, state) when is_map(state) do
@@ -159,11 +186,28 @@ defmodule Issho.Session do
          :ok <- check_all(locks, &Place.check(&1, session.room, validator)),
          :ok <- lock_allowed(config, session, locks) do
       Awareness.put(session.instance, session.room, session.identity.key, state)
-      {:ok, session}
+      {:ok, moved(session, state["place"])}
     end
   end
 
   def aware(_session, _state), do: {:error, :invalid_state}
+
+  # A session whose place changed: "selection.changed", for whoever waits
+  # on what someone selects.
+  defp moved(%__MODULE__{place: place} = session, place), do: session
+
+  defp moved(session, place) do
+    Events.broadcast(Config.get(session.instance).pubsub, %Event{
+      name: "selection.changed",
+      room: session.room,
+      document: place && place["doc"],
+      by: session.identity,
+      data: %{place: place, session: session.session_id},
+      at: DateTime.utc_now()
+    })
+
+    %{session | place: place}
+  end
 
   defp lock_allowed(_config, _session, []), do: :ok
 
@@ -205,6 +249,15 @@ defmodule Issho.Session do
       if frame["states"] == %{} and frame["gone"] == [] and not frame["full"],
         do: {:skip, session},
         else: {:push, "aware", frame, session}
+    end
+  end
+
+  def handle(%__MODULE__{room: room} = session, {Issho, :room_event, %Event{room: room} = event}) do
+    config = Config.get(session.instance)
+
+    case Policy.authorize(config.policy, session.identity, session.room, :read) do
+      :ok -> {:push, "event", event, session}
+      {:error, _} -> {:stop, :unauthorized}
     end
   end
 
