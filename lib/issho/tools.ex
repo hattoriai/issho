@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, change, change shared state, comment, wait for what happens, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -33,6 +33,9 @@ defmodule Issho.Tools do
       Issho.Tools.Click,
       Issho.Tools.Navigate,
       Issho.Tools.SetStatus,
+      Issho.Tools.StartTask,
+      Issho.Tools.Progress,
+      Issho.Tools.FinishTask,
       Issho.Tools.ChangeDocument,
       Issho.Tools.UpdateState,
       Issho.Tools.ListThreads,
@@ -76,8 +79,26 @@ defmodule Issho.Tools do
   @spec run(module(), map(), Tool.Context.t()) :: Tool.result()
   def run(tool, input, %Tool.Context{} = ctx) do
     with {:ok, args} <- Tool.cast(tool, input),
+         :ok <- not_interrupted(tool, args, ctx),
          do: Issho.Motion.within(fn -> tool.call(args, ctx) end)
   end
+
+  # What an agent that was paused or stopped in the room may still do:
+  # read, finish its task, leave (`Issho.Work`).
+  @still ["finish_task", "leave_room"]
+
+  defp not_interrupted(tool, %{room: room}, ctx) when is_binary(room) do
+    with false <- tool.annotations()[:read_only] == true or tool.name() in @still,
+         participant when is_pid(participant) <-
+           Issho.Agents.participant(ctx.instance, Tool.Context.key(ctx), room),
+         %{} = by <- Issho.Participant.interrupted(participant) do
+      {:error, Issho.Work.message(by)}
+    else
+      _ -> :ok
+    end
+  end
+
+  defp not_interrupted(_tool, _args, _ctx), do: :ok
 
   @doc """
   A person of the room, by their name (any case) or their key: their
@@ -402,6 +423,98 @@ defmodule Issho.Tools.SetStatus do
     with {:ok, participant} <- Context.join(ctx, room),
          :ok <- Issho.Participant.aware(participant, %{"status" => status}) do
       {:ok, "Status set."}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.StartTask do
+  @moduledoc false
+  use Issho.Tool,
+    name: "start_task",
+    description: """
+    Says what you are about to do in the room, so the people see it as
+    you go: a title, and its steps ("Read the board", "Group the cards",
+    "Write the summary"). Begin each piece of work with it, mark each
+    step with progress, and end with finish_task. The person you work
+    for can pause or stop you: your tools then say so.
+    """,
+    annotations: [idempotent: true]
+
+  arg :room, :string, required: true
+  arg :title, :string, required: true, max_length: 120
+  arg :steps, {:array, :string}, description: "The steps, in order (up to 20)"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, participant} <- Context.join(ctx, args.room),
+         :ok <- Issho.Work.start(participant, args.title, args[:steps] || []) do
+      {:ok, "Started."}
+    else
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.Progress do
+  @moduledoc false
+  use Issho.Tool,
+    name: "progress",
+    description: """
+    Says how far your task is (see start_task): a step is done (the next
+    becomes active), active, or skipped. `add` puts more steps at the
+    end; `note` is a few words of where you are.
+    """,
+    annotations: [idempotent: true]
+
+  arg :room, :string, required: true
+  arg :step, :string, description: "The step, by its words as you gave them"
+  arg :state, {:enum, ["done", "active", "skipped"]}, description: "done unless given"
+  arg :add, {:array, :string}, description: "More steps, at the end"
+  arg :note, :string, max_length: 200
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    opts =
+      Enum.reject([add: args[:add], note: args[:note]], fn {_key, value} -> is_nil(value) end)
+
+    state = String.to_existing_atom(args[:state] || "done")
+
+    with {:ok, participant} <- Context.join(ctx, args.room),
+         :ok <- Issho.Work.progress(participant, args[:step], state, opts) do
+      {:ok, "Noted."}
+    else
+      {:error, :no_task} -> {:error, "You have no task in this room: start_task first."}
+      {:error, reason} -> Context.error(reason)
+    end
+  end
+end
+
+defmodule Issho.Tools.FinishTask do
+  @moduledoc false
+  use Issho.Tool,
+    name: "finish_task",
+    description: """
+    Ends your task in the room (see start_task), with a few words of what
+    you did. After someone stopped you, it is how you stop.
+    """,
+    annotations: [idempotent: true]
+
+  arg :room, :string, required: true
+  arg :summary, :string, max_length: 500
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, participant} <- Context.join(ctx, args.room),
+         :ok <- Issho.Work.finish(participant, args[:summary]) do
+      {:ok, "Finished."}
     else
       {:error, reason} -> Context.error(reason)
     end

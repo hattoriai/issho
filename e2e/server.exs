@@ -192,6 +192,7 @@ defmodule IsshoE2E.PageLive do
     <.link id="next" navigate={"/two?" <> URI.encode_query(@query)} data-issho-anchor="next" data-issho-follow>
       Next page
     </.link>
+    <Issho.Components.agents id="agents" grant={@grant} />
     <Issho.Components.comments :if={@comments} id="comments" room={@room} />
     <Issho.Components.pointers id="pointers" grant={@grant} follow_agents={@follow_agents} />
     """

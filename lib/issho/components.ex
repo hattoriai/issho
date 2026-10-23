@@ -325,6 +325,48 @@ if Code.ensure_loaded?(Phoenix.Component) do
     end
 
     @doc """
+    The agents at work in a room (`Issho.Work`): each one's task, its steps
+    and how far it is, whom it works for, and whether someone paused or
+    stopped it, live, from the room of a grant (the `IsshoAgents` hook of
+    `Hooks`). It is hidden while no agent has a task.
+
+        <.agents id="agents" grant={@grant} />
+
+    The person an agent works for has Pause, Resume and Stop. The others
+    have them too with `anyone` (when your policy allows them
+    `:interrupt`; it decides either way). A paused or stopped agent
+    changes nothing more in the room: its next tool says who paused or
+    stopped it, and what to do.
+    """
+    attr :id, :string, required: true
+    attr :grant, :map, required: true, doc: "a grant of the room, from `Issho.Live.grant/4`"
+
+    attr :anyone, :boolean,
+      default: false,
+      doc: "whether to offer Pause and Stop for the agents of others too"
+
+    attr :label, :string, default: "Agents at work"
+    attr :class, :string, default: nil
+    attr :rest, :global
+
+    def agents(assigns) do
+      ~H"""
+      <div
+        id={@id}
+        class={["issho-agents", @class]}
+        phx-hook="IsshoAgents"
+        phx-update="ignore"
+        data-grant={JSON.encode!(@grant)}
+        data-anyone={to_string(@anyone)}
+        data-label={@label}
+        hidden
+        {@rest}
+      >
+      </div>
+      """
+    end
+
+    @doc """
     The threads of comments of a room (`Issho.Comments`): a panel of the
     open and resolved threads, with their comments, replies, reactions,
     edits and a composer, and a mark at each thread's place on the page,

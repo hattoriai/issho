@@ -69,6 +69,24 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `issho-sumi.css` maps them all, with a palette of its own for a page
   with no Sumi tokens, in light and dark, as the others' Sumi themes do.
 - `Issho.Live.identity/1`: who the LiveView is in a room.
+- Agents at work, seen and stopped: `Issho.Work`, an agent's task, its
+  steps and how far it is, in its state in the room (`"task"`), with the
+  `start_task`, `progress` and `finish_task` room tools; and Pause, Resume
+  and Stop for the person it acts for, or whomever the policy allows
+  `:interrupt` (a new policy action): `Issho.Live.interrupt/3`, the
+  channel's `"interrupt"`, `room.interrupt()` in the browser,
+  `Issho.Work.interrupt/5` from the server. A paused or stopped agent's
+  transactions are refused (`{:error, {:interrupted, ...}}`), whole, and
+  its next tool call that changes something says who and what to do. The
+  events `"agent.started"`, `"agent.finished"`, `"agent.interrupted"` and
+  `"agent.resumed"`. `Issho.Participant.interrupted/1`, `room/1`.
+- `Issho.Components.agents/1` and its hook `IsshoAgents`: the agents at
+  work in a room, live: a card for each, with its avatar, its state (a
+  pill: working, paused, stopped), a meter and the step it is on, its
+  steps when opened, and Pause, Resume and Stop. An agent's card is drawn
+  again only when it changes, so a person's focus stays on its buttons
+  while the agent works. Issho's theme and its Sumi theme style it
+  (`atWork` and `drawAgents` in the `issho` package).
 - The policy's `:comment` action: a change to the comments asks for it,
   not `:write`, so a reader may comment when the policy allows it.
 - Agents comment: the `list_threads`, `comment` and `resolve_thread` room

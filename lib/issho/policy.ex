@@ -35,7 +35,10 @@ defmodule Issho.Policy do
       may comment when you allow it, so a commenter is between a reader
       and a writer. A policy that answers `{:error, _}` for actions it
       does not know lets no one comment until it says `:comment`;
-    * `:lock`: to hold an advisory lock on a place.
+    * `:lock`: to hold an advisory lock on a place;
+    * `:interrupt`: to pause, resume or stop an agent at work in the room
+      (`Issho.Work`) that acts for someone else; the person an agent acts
+      for may always.
 
   A component that keeps its data outside Issho's documents (a grid of
   your database, which writes it itself) asks too, with
@@ -62,7 +65,7 @@ defmodule Issho.Policy do
 
   alias Issho.Identity
 
-  @type action :: :join | :read | :write | :comment | :lock
+  @type action :: :join | :read | :write | :comment | :lock | :interrupt
 
   @typedoc """
   What a document is: its engine, its initial content (given to the
