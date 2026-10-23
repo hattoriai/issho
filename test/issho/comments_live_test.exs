@@ -131,6 +131,31 @@ defmodule Issho.CommentsLiveTest do
              ada |> element("#comments") |> render() |> marked()
   end
 
+  test "what the person selected stays theirs to comment on when they leave it", %{
+    conn: conn,
+    room: room
+  } do
+    ada = page(conn, room, "user:ada")
+    {:ok, browser} = Issho.join_as(@instance, %{id: "user:ada", name: "Ada"}, room)
+    place = %{"doc" => room, "at" => %{"path" => ["title", "words"]}}
+    :ok = Participant.place(browser, place)
+    Process.sleep(60)
+    settled([ada])
+
+    # Ada goes to the comment box: the text's editor lets her selection go.
+    :ok = Participant.place(browser, nil)
+    Process.sleep(60)
+    settled([ada])
+    assert ada |> element(".issho-composer-where") |> render() =~ "Path title.words"
+
+    start(ada, "Too long?", "selection")
+    settled([ada])
+    assert [%{"place" => ^place}] = threads(room)
+
+    # Commented on, it is gone, until she selects something again.
+    refute has_element?(ada, ".issho-composer-where")
+  end
+
   test "an @ and a name mentions someone", %{conn: conn, room: room} do
     ada = page(conn, room, "user:ada")
     _ken = page(conn, room, "user:ken")

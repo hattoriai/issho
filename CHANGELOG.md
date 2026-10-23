@@ -52,7 +52,8 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Comments on the page: `Issho.Components.comments/1` (the LiveComponent
   `Issho.Live.Comments`), a panel of the open and resolved threads with
   their comments, replies, reactions, edits and deletes, a composer that
-  comments on what the person selected or on the page, @mentions of the
+  comments on what the person selected (kept when they go to the comment
+  box, as a text's editor lets its selection go) or on the page, @mentions of the
   room's people and of `mentionable`, and the `:place` slot for a place
   in words. Its hook, `IsshoComments`, marks each open thread at its
   place over the page, where its component locates it (`commentMarkers`,
