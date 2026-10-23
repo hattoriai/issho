@@ -28,6 +28,18 @@ test("a thread's mark is at its place, on each page, and opens it", async ({ pag
   await page.locator(".issho-comment-mark").click();
   await expect(page.locator(".issho-thread[data-focused]")).toContainText("This one first?");
   await expect(page.locator(".issho-comment-mark")).toHaveAttribute("data-focused", "");
+
+  // A mark whose place is off the screen is hidden (a copy: the page draws
+  // the mark again while its place is on the screen), not left where it was.
+  const display = await page.locator(".issho-comment-mark").evaluate((mark) => {
+    const copy = mark.cloneNode(true) as HTMLElement;
+    copy.hidden = true;
+    mark.parentElement!.appendChild(copy);
+    const value = getComputedStyle(copy).display;
+    copy.remove();
+    return value;
+  });
+  expect(display).toBe("none");
   await other.context().close();
 });
 

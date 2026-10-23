@@ -1043,6 +1043,12 @@
   transition: scale 120ms ease-out;
 }
 
+/* A mark whose place is not on the screen (scrolled away, sorted out of
+   view) is hidden: its display would otherwise keep it where it was. */
+.issho-comment-mark[hidden] {
+  display: none;
+}
+
 .issho-comment-mark:hover {
   scale: 1.08;
 }

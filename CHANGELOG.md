@@ -7,6 +7,17 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-23
+
+A comment's mark goes when its place leaves the screen.
+
+### Fixed
+
+- A thread's mark whose place is not on the screen (a cell scrolled away,
+  a row sorted out of view) is hidden, as `Issho.Components.comments/1`
+  meant it to be: its `display: grid` kept it on the screen, where its
+  place last was.
+
 ## [0.4.1] - 2026-10-23
 
 What people write reaches agents as their words, with nothing hidden in
