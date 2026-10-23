@@ -28,7 +28,8 @@ defmodule Issho.Awareness do
   Issho owns a state's top-level keys: `"place"` (an `Issho.Place`),
   `"locks"` (a list of places), `"status"`, `"pointer"` (the page's
   pointer), `"view"` (what the page shows), `"motion"` (an agent's last
-  gesture), `"path"` (the page an agent is on) and `"blocks"`. A
+  gesture), `"path"` (the page an agent is on), `"task"` (an agent's
+  task, its steps and whether it is paused: `Issho.Work`) and `"blocks"`. A
   component keeps its own keys (a canvas's cursor and viewport, a
   selection of its own) under its document, in `"blocks"`:
   `%{"blocks" => %{"board:42" => %{"cursor" => [10, 20]}}}`, set with

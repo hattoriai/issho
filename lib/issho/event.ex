@@ -26,8 +26,11 @@ defmodule Issho.Event do
     * `"selection.changed"`: a session's place changed (`data`: `%{place:
       place, session: id}`, the place `nil` when it has none): what
       someone selected, in the document's own terms.
-    * `"agent.started"` and `"agent.finished"`: an agent began or ended
-      a piece of work (to come).
+    * `"agent.started"` (`%{title, steps}`) and `"agent.finished"`
+      (`%{title, summary}`): an agent began or ended a task
+      (`Issho.Work`); `"agent.interrupted"` (`%{agent: key, action:
+      "pause" | "stop"}`) and `"agent.resumed"` (`%{agent: key}`), by the
+      person who paused, stopped or resumed it.
     * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
       `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
       comments (`Issho.Comments`).

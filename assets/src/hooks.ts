@@ -13,6 +13,7 @@ import { follow, following, onFollow, stopOnOwnWay } from "./follow";
 import { motion, onMotion, setMotion } from "./motion";
 import { drawPeople, someone } from "./people";
 import { commentMarkers, type Marked } from "./comments";
+import { atWork, drawAgents } from "./agents";
 import { gestureTracker, pointerLayer, pointing, type Gestures } from "./pointers";
 
 interface Hook extends LiveHook {
@@ -249,4 +250,48 @@ function localTimes(root: HTMLElement): void {
   }
 }
 
-export const Hooks = { IsshoPeople, IsshoPointers, IsshoMotion, IsshoComments };
+// The agents at work in the room of its grant (Issho.Components.agents/1):
+// each one's task and steps, live, and Pause, Resume and Stop.
+const IsshoAgents = {
+  mounted(this: PeopleHook): void {
+    const grant = JSON.parse(this.el.dataset.grant ?? "{}") as Grant;
+    this.room = grant.room;
+    void joinRoom(grant.room, {
+      token: grant.token,
+      self: grant.self,
+      socket: grant.socket,
+      maxChannels: grant.max_channels,
+      renew: async () => (await requestGrant(this, grant.room)).token,
+    }).then(
+      (room) => {
+        const options = {
+          anyone: this.el.dataset.anyone === "true",
+          label: this.el.dataset.label,
+          interrupt: (agent: string, action: "pause" | "resume" | "stop") => {
+            room.interrupt(agent, action).catch(() => {
+              this.el.dataset.refused = action;
+            });
+          },
+        };
+        const draw = (): void => drawAgents(this.el, atWork(room.awareness.peers, room.presence.everyone, grant.self), options);
+        const offPresence = room.presence.on(draw);
+        const offAwareness = room.awareness.on(draw);
+        this.stop = () => {
+          offPresence();
+          offAwareness();
+        };
+        draw();
+      },
+      () => {
+        this.el.dataset.state = "unavailable";
+      },
+    );
+  },
+
+  destroyed(this: PeopleHook): void {
+    this.stop?.();
+    if (this.room) void releaseRoom(this.room);
+  },
+};
+
+export const Hooks = { IsshoPeople, IsshoPointers, IsshoMotion, IsshoComments, IsshoAgents };

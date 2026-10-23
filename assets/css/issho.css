@@ -1,8 +1,9 @@
 /*
  * Issho's theme: the people of a room (Issho.Components.people/1, and the
  * IsshoPeople hook, which draw the same markup), the pointers of the page
- * (Issho.Components.pointers/1), and the threads of comments with their
- * marks at their places (Issho.Components.comments/1).
+ * (Issho.Components.pointers/1), the threads of comments with their
+ * marks at their places (Issho.Components.comments/1), and the agents at
+ * work (Issho.Components.agents/1).
  *
  * Every value is a custom property, so a page restyles it without
  * overriding rules. The markup's classes and data attributes are stable:
@@ -690,4 +691,133 @@
 .issho-comment-mark:focus-visible {
   outline: 2px solid var(--issho-text);
   outline-offset: 2px;
+}
+
+/* The agents at work in a room (Issho.Components.agents/1). */
+.issho-agents {
+  font-family: var(--issho-font);
+  font-size: var(--issho-comments-font-size);
+  color: var(--issho-text);
+}
+
+.issho-agents[hidden] {
+  display: none;
+}
+
+.issho-agents-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.issho-agent {
+  border: 1px solid color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 40%, var(--issho-line));
+  border-left: 3px solid var(--issho-color, var(--issho-person-1));
+  border-radius: var(--issho-comments-radius);
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 6%, var(--issho-surface));
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.issho-agent-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin: 0;
+}
+
+.issho-agent-name {
+  font-weight: 600;
+}
+
+.issho-agent-for,
+.issho-agent-progress,
+.issho-agent-note {
+  color: var(--issho-muted);
+  font-size: 0.85em;
+}
+
+.issho-agent-note {
+  margin: 0;
+}
+
+.issho-agent-state {
+  margin-left: auto;
+  font-size: 0.8em;
+  color: var(--issho-muted);
+}
+
+.issho-agent[data-state="working"] .issho-agent-state::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.35em;
+  border-radius: 50%;
+  background: var(--issho-color, var(--issho-person-1));
+  animation: issho-agent-working 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issho-agent[data-state="working"] .issho-agent-state::before {
+    animation: none;
+  }
+}
+
+@keyframes issho-agent-working {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.issho-agent[data-state="paused"],
+.issho-agent[data-state="stopped"] {
+  border-left-style: dashed;
+}
+
+.issho-agent-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.issho-agent-steps li[data-state="done"] {
+  color: var(--issho-muted);
+  text-decoration: line-through;
+}
+
+.issho-agent-steps li[data-state="skipped"] {
+  color: var(--issho-muted);
+}
+
+.issho-agent-steps li[data-state="active"] {
+  font-weight: 600;
+}
+
+.issho-agent-actions {
+  display: flex;
+  gap: 0.375rem;
+  margin: 0;
+}
+
+.issho-agent-actions button {
+  font: inherit;
+  color: var(--issho-text);
+  background: var(--issho-surface);
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-comments-radius);
+  padding: 0.125rem 0.625rem;
+  cursor: pointer;
+}
+
+.issho-agent-actions button[data-action="stop"] {
+  color: var(--issho-person-6);
 }

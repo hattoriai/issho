@@ -61,6 +61,20 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   person's locale. Issho's theme styles them (`--issho-comments-*`,
   `--issho-mark-*`, `--issho-mention-background`).
 - `Issho.Live.identity/1`: who the LiveView is in a room.
+- Agents at work, seen and stopped: `Issho.Work`, an agent's task, its
+  steps and how far it is, in its state in the room (`"task"`), with the
+  `start_task`, `progress` and `finish_task` room tools; and Pause, Resume
+  and Stop for the person it acts for, or whomever the policy allows
+  `:interrupt` (a new policy action): `Issho.Live.interrupt/3`, the
+  channel's `"interrupt"`, `room.interrupt()` in the browser,
+  `Issho.Work.interrupt/5` from the server. A paused or stopped agent's
+  transactions are refused (`{:error, {:interrupted, ...}}`), whole, and
+  its next tool call that changes something says who and what to do. The
+  events `"agent.started"`, `"agent.finished"`, `"agent.interrupted"` and
+  `"agent.resumed"`. `Issho.Participant.interrupted/1`, `room/1`.
+- `Issho.Components.agents/1` and its hook `IsshoAgents`: the agents at
+  work in a room, live, with their tasks and steps, and Pause, Resume and
+  Stop (`atWork` and `drawAgents` in the `issho` package).
 - The policy's `:comment` action: a change to the comments asks for it,
   not `:write`, so a reader may comment when the policy allows it.
 - Agents comment: the `list_threads`, `comment` and `resolve_thread` room

@@ -176,6 +176,11 @@ defmodule IsshoTest.BoardLive do
     {:noreply, socket}
   end
 
+  def handle_event("interrupt", %{"agent" => agent, "action" => action}, socket) do
+    :ok = Issho.Live.interrupt(socket.assigns.room, agent, String.to_existing_atom(action))
+    {:noreply, socket}
+  end
+
   # The LiveView hears the room's events of a kind.
   def handle_event("listen", %{"names" => names}, socket) do
     Issho.Live.subscribe(socket.assigns.room, :self, events: names)

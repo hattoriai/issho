@@ -195,6 +195,15 @@ export class Room {
     this.awareness.set({ blocks: withBlock(this.awareness.state, doc, changes) });
   }
 
+  /**
+   * Pauses, resumes or stops an agent at work in the room: allowed for the
+   * person it acts for, and whomever the server's policy allows. Rejects
+   * with `Refused` when it is not.
+   */
+  async interrupt(agent: string, action: "pause" | "resume" | "stop"): Promise<void> {
+    await this.transport.push("interrupt", { agent, action });
+  }
+
   leave(): void {
     this.awareness.dispose();
     this.transport.leave();

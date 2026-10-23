@@ -35,7 +35,11 @@ defmodule Issho.Channel do
     * `"aware"`, a state or `nil`: the session's awareness
       (`Issho.Awareness`);
     * `"content"`, `%{"doc" => id, "epoch" => e, "revision" => r}`: checks
-      a revision exists, for a form that publishes it.
+      a revision exists, for a form that publishes it;
+    * `"interrupt"`, `%{"agent" => key, "action" => "pause" | "resume" |
+      "stop"}`: pauses, resumes or stops an agent at work in the room
+      (`Issho.Work`), for the person it acts for, or whomever the policy
+      allows `:interrupt`.
 
   To the browser: `"presence_state"` once, `"presence_diff"`, `"tx"` (a
   transaction accepted in an open document), `"aware"` (a frame of the
@@ -118,6 +122,14 @@ defmodule Issho.Channel do
       {:reply, :ok, socket}
     else
       :error -> reply_error(:not_open, socket)
+      {:error, reason} -> reply_error(reason, socket)
+    end
+  end
+
+  defp dispatch("interrupt", %{"agent" => key, "action" => action}, session, socket)
+       when is_binary(key) and action in ["pause", "resume", "stop"] do
+    case Session.interrupt(session, key, String.to_existing_atom(action)) do
+      :ok -> {:reply, :ok, socket}
       {:error, reason} -> reply_error(reason, socket)
     end
   end
