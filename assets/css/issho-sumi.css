@@ -1,21 +1,79 @@
 /*
  * Issho in the Sumi theme. Load it after issho.css.
  *
- * It takes, in this order: the Sumi tokens of the page (--font-body,
- * --color-base-100, --color-base-content, --sumi-text-muted,
- * --color-base-300), the short --sumi-* names (--sumi-font, --sumi-paper,
- * --sumi-ink, --sumi-muted, --sumi-line), and Sumi's own palette, as
- * Kotoba's Sumi theme does, so that a page of Kotoba and Issho in Sumi
- * looks like one.
+ * It gives Issho's --issho-* properties a Sumi value, in this order, as
+ * kotoba-sumi.css, masu-sumi.css and hakushi-sumi.css do, so that a page
+ * of them and Issho in Sumi looks like one:
+ *
+ *   1. the Sumi tokens of the page: --font-body, --color-sumi-blade,
+ *      --color-sumi-ember, --color-sumi-ink, --sumi-text-muted, and the
+ *      theme colours of the Sumi daisyUI themes (--color-base-100, -200,
+ *      -300, --color-base-content, --color-primary-content, --radius-box);
+ *   2. the short --sumi-* names (--sumi-font, --sumi-paper, --sumi-surface,
+ *      --sumi-ink, --sumi-muted, --sumi-line, --sumi-accent,
+ *      --sumi-accent-ink, --sumi-radius), for a page that sets them itself;
+ *   3. the Sumi palette below, so that Issho looks like Sumi on a page
+ *      with no Sumi tokens.
+ *
+ * Dark and light: on a page with the Sumi themes, Issho follows them.
+ * Without them, the built-in palette follows the data-theme attribute
+ * ("dark" or "light") first, then prefers-color-scheme.
  */
 
+/* The Sumi palette, light. */
 :root,
 [data-theme] {
-  --issho-font: var(--font-body, var(--sumi-font, "Inter", system-ui, sans-serif));
-  --issho-surface: var(--color-base-100, var(--sumi-paper, oklch(96% 0.01 85)));
-  --issho-text: var(--color-base-content, var(--sumi-ink, oklch(15% 0.003 270)));
-  --issho-muted: var(--sumi-text-muted, var(--sumi-muted, oklch(15% 0.003 270 / 0.65)));
-  --issho-line: var(--color-base-300, var(--sumi-line, oklch(89% 0.014 80)));
+  --issho-sumi-base-100: oklch(96% 0.01 85);
+  --issho-sumi-base-200: oklch(93% 0.012 85);
+  --issho-sumi-base-300: oklch(89% 0.014 80);
+  --issho-sumi-content: oklch(15% 0.003 270);
+  --issho-sumi-muted: oklch(15% 0.003 270 / 0.65);
+  --issho-sumi-gray: oklch(40% 0.02 270);
+}
+
+/* The Sumi palette, dark: data-theme="dark", or a dark preference on a page
+   that does not ask for light. */
+[data-theme="dark"] {
+  --issho-sumi-base-100: oklch(12% 0.003 270);
+  --issho-sumi-base-200: oklch(16% 0.004 270);
+  --issho-sumi-base-300: oklch(20% 0.005 270);
+  --issho-sumi-content: oklch(95% 0.012 85);
+  --issho-sumi-muted: oklch(95% 0.012 85 / 0.5);
+  --issho-sumi-gray: oklch(80% 0.02 85);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --issho-sumi-base-100: oklch(12% 0.003 270);
+    --issho-sumi-base-200: oklch(16% 0.004 270);
+    --issho-sumi-base-300: oklch(20% 0.005 270);
+    --issho-sumi-content: oklch(95% 0.012 85);
+    --issho-sumi-muted: oklch(95% 0.012 85 / 0.5);
+    --issho-sumi-gray: oklch(80% 0.02 85);
+  }
+}
+
+/* The mapping. */
+:root,
+[data-theme] {
+  /* Type */
+  --issho-font: var(--font-body, var(--sumi-font, "Outfit", system-ui, sans-serif));
+
+  /* Colours: paper, ink, and the blade for what a page does. */
+  --issho-surface: var(--color-base-100, var(--sumi-paper, var(--issho-sumi-base-100)));
+  --issho-fill: var(--color-base-200, var(--sumi-surface, var(--issho-sumi-base-200)));
+  --issho-line: var(--color-base-300, var(--sumi-line, var(--issho-sumi-base-300)));
+  --issho-text: var(--color-base-content, var(--sumi-ink, var(--issho-sumi-content)));
+  --issho-muted: var(--sumi-text-muted, var(--sumi-muted, var(--issho-sumi-muted)));
+  --issho-accent: var(--color-sumi-blade, var(--sumi-accent, #e84a1c));
+  --issho-accent-text: var(--color-primary-content, var(--sumi-accent-ink, oklch(98% 0.005 85)));
+  --issho-focus-ring: 0 0 0 2px var(--issho-surface), 0 0 0 4px var(--issho-accent);
+
+  /* Shape: Sumi's corners, and shadows of ink, quieter than the default. */
+  --issho-radius: var(--radius-box, var(--sumi-radius, 0.25rem));
+  --issho-shadow: 0 1px 2px color-mix(in oklab, var(--issho-text) 8%, transparent);
+  --issho-shadow-raised: 0 4px 16px color-mix(in oklab, var(--color-sumi-ink, #0a0a0b) 18%, transparent);
+
   /* Ink and its accents: blade, ember, and quieter earth tones. */
   --issho-person-1: var(--color-sumi-blade, oklch(55% 0.18 245));
   --issho-person-2: var(--color-sumi-ember, oklch(58% 0.2 35));
@@ -24,13 +82,5 @@
   --issho-person-5: oklch(50% 0.12 300);
   --issho-person-6: oklch(52% 0.18 15);
   --issho-person-7: oklch(55% 0.1 205);
-  --issho-person-8: oklch(40% 0.02 270);
-}
-
-[data-theme="dark"] {
-  --issho-surface: var(--color-base-100, var(--sumi-paper, oklch(12% 0.003 270)));
-  --issho-text: var(--color-base-content, var(--sumi-ink, oklch(95% 0.012 85)));
-  --issho-muted: var(--sumi-text-muted, var(--sumi-muted, oklch(95% 0.012 85 / 0.5)));
-  --issho-line: var(--color-base-300, var(--sumi-line, oklch(20% 0.005 270)));
-  --issho-person-8: oklch(80% 0.02 85);
+  --issho-person-8: var(--issho-sumi-gray);
 }

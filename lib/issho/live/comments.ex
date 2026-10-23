@@ -255,7 +255,8 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
           visible: visible,
           open_count: Map.get(counts, "open", 0),
           resolved_count: Map.get(counts, "resolved", 0),
-          marked: marked(assigns.threads)
+          marked: marked(assigns.threads),
+          reactions: @reactions
         )
 
       ~H"""
@@ -270,7 +271,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       >
         <header class="issho-comments-header">
           <h2 id={"#{@id}-title"} class="issho-comments-title">Comments</h2>
-          <div class="issho-comments-status" role="group" aria-label="Show">
+          <div class="issho-segmented" role="group" aria-label="Show">
             <button
               type="button"
               phx-click="status"
@@ -278,7 +279,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
               phx-target={@myself}
               aria-pressed={to_string(@status == "open")}
             >
-              Open <span class="issho-comments-count">{@open_count}</span>
+              Open <span class="issho-count">{@open_count}</span>
             </button>
             <button
               type="button"
@@ -287,7 +288,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
               phx-target={@myself}
               aria-pressed={to_string(@status == "resolved")}
             >
-              Resolved <span class="issho-comments-count">{@resolved_count}</span>
+              Resolved <span class="issho-count">{@resolved_count}</span>
             </button>
           </div>
         </header>
@@ -297,130 +298,217 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
         <form
           :if={@joined}
           id={"#{@id}-new-#{@drafts}"}
-          class="issho-comment-composer"
+          class="issho-composer"
           phx-submit="start"
           phx-target={@myself}
         >
-          <label for={"#{@id}-new-body-#{@drafts}"} class="issho-comments-label">New comment</label>
+          <label for={"#{@id}-new-body-#{@drafts}"} class="issho-visually-hidden">New comment</label>
           <textarea
             id={"#{@id}-new-body-#{@drafts}"}
+            class="issho-composer-input"
             name="body"
             rows="2"
             required
-            placeholder="Add a comment. @ a name to mention someone."
+            placeholder="Add a comment… @ to mention"
           ></textarea>
-          <fieldset :if={@selection} class="issho-comment-where">
-            <legend class="issho-comments-label">On</legend>
-            <label>
-              <input type="radio" name="where" value="selection" checked /> <.place_label slot={@place} place={@selection} default="your selection" />
-            </label>
-            <label><input type="radio" name="where" value="page" /> the page</label>
-          </fieldset>
-          <input :if={!@selection} type="hidden" name="where" value="page" />
-          <button type="submit" class="issho-comment-send">Comment</button>
+          <div class="issho-composer-bar">
+            <fieldset :if={@selection} class="issho-composer-where">
+              <legend class="issho-visually-hidden">Comment on</legend>
+              <label class="issho-where">
+                <input type="radio" name="where" value="selection" checked />
+                <Issho.Icons.icon name="map-pin" />
+                <span class="issho-where-label">
+                  <.place_label slot={@place} place={@selection} default="Your selection" />
+                </span>
+              </label>
+              <label class="issho-where">
+                <input type="radio" name="where" value="page" />
+                <Issho.Icons.icon name="file-text" /> Page
+              </label>
+            </fieldset>
+            <input :if={!@selection} type="hidden" name="where" value="page" />
+            <button type="submit" class="issho-button issho-button-primary">Comment</button>
+          </div>
         </form>
 
         <p :if={@error} class="issho-comments-error" role="alert">{@error}</p>
 
-        <ol class="issho-threads" aria-label={if @status == "open", do: "Open threads", else: "Resolved threads"}>
+        <ol
+          :if={@visible != []}
+          class="issho-threads"
+          aria-label={if @status == "open", do: "Open threads", else: "Resolved threads"}
+        >
           <li
             :for={thread <- @visible}
             class="issho-thread"
             data-thread={thread["id"]}
+            data-status={thread["status"]}
             data-focused={thread["id"] == @focused}
             aria-current={if thread["id"] == @focused, do: "true"}
           >
-            <button
-              type="button"
-              class="issho-thread-place"
-              phx-click={if thread["id"] == @focused, do: "unfocus", else: "focus"}
-              phx-value-thread={thread["id"]}
-              phx-target={@myself}
-              aria-expanded={to_string(thread["id"] == @focused)}
-            >
-              <.place_label
-                slot={@place}
-                place={thread["place"]}
-                default={if thread["place"], do: "On a part of the page", else: "On the page"}
-              />
-            </button>
+            <div class="issho-thread-head">
+              <button
+                type="button"
+                class="issho-thread-place"
+                phx-click={if thread["id"] == @focused, do: "unfocus", else: "focus"}
+                phx-value-thread={thread["id"]}
+                phx-target={@myself}
+                aria-expanded={to_string(thread["id"] == @focused)}
+              >
+                <Issho.Icons.icon name={if thread["place"], do: "map-pin", else: "file-text"} />
+                <span class="issho-thread-place-label">
+                  <.place_label
+                    slot={@place}
+                    place={thread["place"]}
+                    default={if thread["place"], do: "On a part of the page", else: "On the page"}
+                  />
+                </span>
+              </button>
+              <button
+                :if={@joined and thread["status"] == "open"}
+                type="button"
+                class="issho-icon-button issho-resolve"
+                phx-click="resolve"
+                phx-value-thread={thread["id"]}
+                phx-target={@myself}
+                aria-label="Resolve thread"
+                title="Resolve"
+              >
+                <Issho.Icons.icon name="check" />
+              </button>
+              <button
+                :if={@joined and thread["status"] == "resolved"}
+                type="button"
+                class="issho-icon-button"
+                phx-click="reopen"
+                phx-value-thread={thread["id"]}
+                phx-target={@myself}
+                aria-label="Reopen thread"
+                title="Reopen"
+              >
+                <Issho.Icons.icon name="rotate-ccw" />
+              </button>
+            </div>
 
             <article
               :for={comment <- shown(thread, @focused)}
               class="issho-comment"
               data-kind={comment["author"]["kind"]}
             >
-              <header class="issho-comment-header">
-                <span
-                  class="issho-comment-avatar"
-                  style={"--issho-color: #{color(comment["author"])}"}
-                  aria-hidden="true"
-                >
-                  {initials(comment["author"]["name"] || comment["author"]["key"])}
-                </span>
-                <span class="issho-comment-author">{comment["author"]["name"] || comment["author"]["key"]}</span>
-                <span :if={comment["author"]["on_behalf_of"]} class="issho-comment-behalf">
-                  for {comment["author"]["on_behalf_of"]["name"] ||
-                    comment["author"]["on_behalf_of"]["key"]}
-                </span>
-                <time datetime={comment["at"]} class="issho-comment-time">{utc(comment["at"])}</time>
-                <span :if={comment["edited"]} class="issho-comment-edited">(edited)</span>
-              </header>
-
-              <form
-                :if={@editing == {thread["id"], comment["id"]}}
-                id={"#{@id}-edit-#{comment["id"]}"}
-                class="issho-comment-composer"
-                phx-submit="save"
-                phx-target={@myself}
+              <span
+                class="issho-comment-avatar"
+                style={"--issho-color: #{color(comment["author"])}"}
+                aria-hidden="true"
               >
-                <input type="hidden" name="thread" value={thread["id"]} />
-                <input type="hidden" name="comment" value={comment["id"]} />
-                <label for={"#{@id}-edit-body-#{comment["id"]}"} class="issho-comments-label">Edit comment</label>
-                <textarea id={"#{@id}-edit-body-#{comment["id"]}"} name="body" rows="2" required>{comment["body"]}</textarea>
-                <button type="submit" class="issho-comment-send">Save</button>
-                <button type="button" phx-click="cancel" phx-target={@myself}>Cancel</button>
-              </form>
+                {initials(comment["author"]["name"] || comment["author"]["key"])}
+              </span>
+              <div class="issho-comment-main">
+                <header class="issho-comment-header">
+                  <span class="issho-comment-author">
+                    {comment["author"]["name"] || comment["author"]["key"]}
+                  </span>
+                  <span :if={comment["author"]["on_behalf_of"]} class="issho-comment-meta">
+                    for {comment["author"]["on_behalf_of"]["name"] ||
+                      comment["author"]["on_behalf_of"]["key"]}
+                  </span>
+                  <time datetime={comment["at"]} class="issho-comment-meta">{utc(comment["at"])}</time>
+                  <span :if={comment["edited"]} class="issho-comment-meta">· edited</span>
+                </header>
 
-              <p :if={@editing != {thread["id"], comment["id"]}} class="issho-comment-body"><.body body={comment["body"]} names={mention_names(comment, @threads)} /></p>
+                <form
+                  :if={@editing == {thread["id"], comment["id"]}}
+                  id={"#{@id}-edit-#{comment["id"]}"}
+                  class="issho-composer"
+                  phx-submit="save"
+                  phx-target={@myself}
+                >
+                  <input type="hidden" name="thread" value={thread["id"]} />
+                  <input type="hidden" name="comment" value={comment["id"]} />
+                  <label for={"#{@id}-edit-body-#{comment["id"]}"} class="issho-visually-hidden">
+                    Edit comment
+                  </label>
+                  <textarea
+                    id={"#{@id}-edit-body-#{comment["id"]}"}
+                    class="issho-composer-input"
+                    name="body"
+                    rows="2"
+                    required
+                  >{comment["body"]}</textarea>
+                  <div class="issho-composer-bar">
+                    <button type="button" class="issho-button" phx-click="cancel" phx-target={@myself}>
+                      Cancel
+                    </button>
+                    <button type="submit" class="issho-button issho-button-primary">Save</button>
+                  </div>
+                </form>
 
-              <footer class="issho-comment-footer">
+                <p :if={@editing != {thread["id"], comment["id"]}} class="issho-comment-body"><.body
+                    body={comment["body"]}
+                    names={mention_names(comment, @threads)}
+                  /></p>
+
+                <div :if={comment["reactions"] != %{}} class="issho-reactions">
+                  <button
+                    :for={{emoji, keys} <- comment["reactions"]}
+                    type="button"
+                    class="issho-reaction"
+                    phx-click="react"
+                    phx-value-thread={thread["id"]}
+                    phx-value-comment={comment["id"]}
+                    phx-value-emoji={emoji}
+                    phx-target={@myself}
+                    aria-pressed={to_string(@me != nil and @me.key in keys)}
+                    aria-label={"#{emoji} #{length(keys)}, #{if @me != nil and @me.key in keys, do: "take yours back", else: "add yours"}"}
+                  >
+                    <span aria-hidden="true">{emoji}</span>
+                    <span class="issho-count">{length(keys)}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div :if={@joined} class="issho-comment-tools" role="group" aria-label="Comment actions">
                 <button
-                  :for={emoji <- emojis(comment)}
+                  :for={emoji <- @reactions}
                   type="button"
-                  class="issho-reaction"
+                  class="issho-icon-button issho-react"
                   phx-click="react"
                   phx-value-thread={thread["id"]}
                   phx-value-comment={comment["id"]}
                   phx-value-emoji={emoji}
                   phx-target={@myself}
-                  aria-pressed={to_string(@me != nil and @me.key in Map.get(comment["reactions"], emoji, []))}
-                  aria-label={"React with #{emoji}, #{length(Map.get(comment["reactions"], emoji, []))}"}
+                  aria-label={"React with #{emoji}"}
+                  title={"React with #{emoji}"}
                 >
-                  {emoji} <span :if={Map.get(comment["reactions"], emoji, []) != []}>{length(comment["reactions"][emoji])}</span>
+                  {emoji}
                 </button>
-                <span :if={@me != nil and comment["author"]["key"] == @me.key} class="issho-comment-own">
+                <span :if={@me != nil and comment["author"]["key"] == @me.key} class="issho-tools-own">
                   <button
                     type="button"
+                    class="issho-icon-button"
                     phx-click="edit"
                     phx-value-thread={thread["id"]}
                     phx-value-comment={comment["id"]}
                     phx-target={@myself}
+                    aria-label="Edit comment"
+                    title="Edit"
                   >
-                    Edit
+                    <Issho.Icons.icon name="pencil" />
                   </button>
                   <button
                     type="button"
+                    class="issho-icon-button issho-danger"
                     phx-click="delete"
                     phx-value-thread={thread["id"]}
                     phx-value-comment={comment["id"]}
                     phx-target={@myself}
                     data-confirm="Delete this comment?"
+                    aria-label="Delete comment"
+                    title="Delete"
                   >
-                    Delete
+                    <Issho.Icons.icon name="trash" />
                   </button>
                 </span>
-              </footer>
+              </div>
             </article>
 
             <button
@@ -435,44 +523,45 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
             </button>
 
             <form
-              :if={@joined and thread["id"] == @focused}
+              :if={@joined and thread["id"] == @focused and thread["status"] == "open"}
               id={"#{@id}-reply-#{thread["id"]}-#{@drafts}"}
-              class="issho-comment-composer"
+              class="issho-composer issho-composer-reply"
               phx-submit="reply"
               phx-target={@myself}
             >
               <input type="hidden" name="thread" value={thread["id"]} />
-              <label for={"#{@id}-reply-body-#{thread["id"]}-#{@drafts}"} class="issho-comments-label">Reply</label>
-              <textarea id={"#{@id}-reply-body-#{thread["id"]}-#{@drafts}"} name="body" rows="2" required placeholder="Reply"></textarea>
-              <button type="submit" class="issho-comment-send">Reply</button>
+              <label for={"#{@id}-reply-body-#{thread["id"]}-#{@drafts}"} class="issho-visually-hidden">
+                Reply
+              </label>
+              <textarea
+                id={"#{@id}-reply-body-#{thread["id"]}-#{@drafts}"}
+                class="issho-composer-input"
+                name="body"
+                rows="1"
+                required
+                placeholder="Reply…"
+              ></textarea>
+              <button
+                type="submit"
+                class="issho-icon-button issho-send"
+                aria-label="Send reply"
+                title="Send"
+              >
+                <Issho.Icons.icon name="arrow-up" />
+              </button>
             </form>
-
-            <div :if={@joined} class="issho-thread-actions">
-              <button
-                :if={thread["status"] == "open"}
-                type="button"
-                phx-click="resolve"
-                phx-value-thread={thread["id"]}
-                phx-target={@myself}
-              >
-                Resolve
-              </button>
-              <button
-                :if={thread["status"] == "resolved"}
-                type="button"
-                phx-click="reopen"
-                phx-value-thread={thread["id"]}
-                phx-target={@myself}
-              >
-                Reopen
-              </button>
-            </div>
           </li>
         </ol>
 
-        <p :if={@visible == []} class="issho-comments-empty">
-          {if @status == "open", do: "No open comments.", else: "No resolved comments."}
-        </p>
+        <div :if={@visible == []} class="issho-comments-empty">
+          <Issho.Icons.icon name="message-square" class="issho-comments-empty-icon" />
+          <p class="issho-comments-empty-title">
+            {if @status == "open", do: "No open comments.", else: "No resolved comments."}
+          </p>
+          <p :if={@status == "open" and @joined} class="issho-comments-empty-hint">
+            Select something on the page to comment on it.
+          </p>
+        </div>
       </section>
       """
     end
@@ -554,8 +643,6 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     # A thread's place in words: the app's, from the :place slot, or the default.
     defp place_label(%{slot: []} = assigns), do: ~H"{@default}"
     defp place_label(assigns), do: ~H"{render_slot(@slot, %{place: @place, default: @default})}"
-
-    defp emojis(comment), do: Enum.uniq(@reactions ++ Map.keys(comment["reactions"]))
 
     defp find(list, id), do: Enum.find(list, &(&1["id"] == id))
 

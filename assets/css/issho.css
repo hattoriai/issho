@@ -16,10 +16,21 @@
 
 :root {
   --issho-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* The colours of Kotoba's, Masu's and Hakushi's defaults, so that a page
+     of them and Issho looks like one thing. */
   --issho-surface: #ffffff;
-  --issho-text: #1f2937;
-  --issho-muted: #6b7280;
-  --issho-line: #d1d5db;
+  --issho-text: #1f1f23;
+  --issho-muted: #6b6b76;
+  --issho-line: #d9d9de;
+  /* A quieter surface (a hover, a pressed toggle, a field), the accent of
+     a page's own actions, and the shape and shadow of a panel. */
+  --issho-fill: #f6f6f7;
+  --issho-accent: #2f5bd3;
+  --issho-accent-text: #ffffff;
+  --issho-radius: 8px;
+  --issho-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.06);
+  --issho-shadow-raised: 0 4px 16px rgb(0 0 0 / 0.12);
+  --issho-focus-ring: 0 0 0 2px var(--issho-surface), 0 0 0 4px var(--issho-accent);
   --issho-avatar-size: 2rem;
   --issho-overlap: 0.5rem;
   /* The avatars: their shape, edge, initials and badge. */
@@ -36,14 +47,13 @@
   --issho-pointer-radius: 0.25rem;
   --issho-pointer-font-size: 0.75rem;
   --issho-pointer-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
-  /* The comments: their panel, the marks at their places, a mention. */
-  --issho-comments-gap: 0.75rem;
-  --issho-comments-radius: 0.5rem;
+  /* The comments: their panel's type and space, the marks at their
+     places, a mention. */
   --issho-comments-font-size: 0.875rem;
-  --issho-comments-focus: color-mix(in oklab, var(--issho-person-1) 10%, var(--issho-surface));
-  --issho-mark-size: 1.5rem;
-  --issho-mark-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
-  --issho-mention-background: color-mix(in oklab, var(--issho-person-1) 14%, transparent);
+  --issho-comments-gap: 0.75rem;
+  --issho-mark-size: 1.75rem;
+  --issho-mention-text: var(--issho-accent);
+  --issho-mention-background: color-mix(in oklab, var(--issho-accent) 12%, transparent);
   --issho-person-1: #2563eb;
   --issho-person-2: #db2777;
   --issho-person-3: #059669;
@@ -56,18 +66,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --issho-surface: #111827;
-    --issho-text: #f3f4f6;
-    --issho-muted: #9ca3af;
-    --issho-line: #374151;
+    --issho-surface: #17171a;
+    --issho-text: #ececf0;
+    --issho-muted: #9a9aa6;
+    --issho-line: #34343b;
+    --issho-fill: #1f1f23;
+    --issho-accent: #7b9cff;
+    --issho-accent-text: #0f0f12;
+    --issho-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+    --issho-shadow-raised: 0 8px 24px rgb(0 0 0 / 0.5);
   }
 }
 
 [data-theme="dark"] {
-  --issho-surface: #111827;
-  --issho-text: #f3f4f6;
-  --issho-muted: #9ca3af;
-  --issho-line: #374151;
+  --issho-surface: #17171a;
+  --issho-text: #ececf0;
+  --issho-muted: #9a9aa6;
+  --issho-line: #34343b;
+  --issho-fill: #1f1f23;
+  --issho-accent: #7b9cff;
+  --issho-accent-text: #0f0f12;
+  --issho-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  --issho-shadow-raised: 0 8px 24px rgb(0 0 0 / 0.5);
 }
 
 /* An overlapping stack of avatars: the latest to come on top of the first. */
@@ -413,15 +433,49 @@
   .issho-following { animation: none; }
 }
 
-/* The threads of comments of a room (Issho.Components.comments/1). */
+
+/*
+ * The threads of comments of a room (Issho.Components.comments/1), and
+ * their marks over the page.
+ */
+
+.issho-comments,
+.issho-comments *,
+.issho-comments *::before,
+.issho-comments *::after {
+  box-sizing: border-box;
+}
+
 .issho-comments {
-  font-family: var(--issho-font);
-  font-size: var(--issho-comments-font-size);
-  color: var(--issho-text);
   display: flex;
   flex-direction: column;
   gap: var(--issho-comments-gap);
+  color: var(--issho-text);
+  font-family: var(--issho-font);
+  font-size: var(--issho-comments-font-size);
+  line-height: 1.45;
 }
+
+.issho-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.issho-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.issho-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The header: the title, and Open and Resolved. */
 
 .issho-comments-header {
   display: flex;
@@ -431,159 +485,347 @@
 }
 
 .issho-comments-title {
+  margin: 0;
   font-size: 1em;
   font-weight: 600;
-  margin: 0;
+  letter-spacing: -0.005em;
 }
 
-.issho-comments-status {
+.issho-segmented {
   display: inline-flex;
-  border: 1px solid var(--issho-line);
-  border-radius: var(--issho-comments-radius);
-  overflow: hidden;
+  gap: 2px;
+  padding: 2px;
+  border-radius: calc(var(--issho-radius) - 1px);
+  background: var(--issho-fill);
 }
 
-.issho-comments-status button {
-  font: inherit;
-  color: var(--issho-muted);
-  background: transparent;
+.issho-segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.625rem;
+  padding: 0 0.625rem;
   border: 0;
-  padding: 0.25rem 0.625rem;
+  border-radius: calc(var(--issho-radius) - 3px);
+  background: transparent;
+  color: var(--issho-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
 }
 
-.issho-comments-status button[aria-pressed="true"] {
+.issho-segmented button[aria-pressed="true"] {
+  background: var(--issho-surface);
   color: var(--issho-text);
-  background: var(--issho-comments-focus);
+  box-shadow: var(--issho-shadow);
 }
 
-.issho-comments-count {
-  font-variant-numeric: tabular-nums;
+.issho-segmented .issho-count {
+  color: var(--issho-muted);
+  font-weight: 400;
+}
+
+/* Buttons: a quiet one, the page's own action, and an icon's. */
+
+.issho-button,
+.issho-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.issho-button {
+  min-height: 1.875rem;
+  padding: 0 0.75rem;
+  border-color: var(--issho-line);
+  border-radius: calc(var(--issho-radius) - 2px);
+  background: var(--issho-surface);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.issho-button:hover {
+  background: var(--issho-fill);
+}
+
+.issho-button-primary {
+  border-color: var(--issho-accent);
+  background: var(--issho-accent);
+  color: var(--issho-accent-text);
+}
+
+.issho-button-primary:hover {
+  background: color-mix(in oklab, var(--issho-accent) 88%, var(--issho-text));
+}
+
+.issho-icon-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: calc(var(--issho-radius) - 2px);
   color: var(--issho-muted);
 }
 
-.issho-comments-label {
+.issho-icon-button:hover {
+  background: var(--issho-fill);
+  color: var(--issho-text);
+}
+
+.issho-icon-button.issho-danger:hover {
+  color: var(--issho-person-6);
+}
+
+.issho-comments :is(button, textarea, input):focus-visible {
+  outline: none;
+  box-shadow: var(--issho-focus-ring);
+}
+
+/* The composer: a field with its bar inside, as Kotoba's editor is. */
+
+.issho-composer {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-radius);
+  background: var(--issho-surface);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.issho-composer:focus-within {
+  border-color: var(--issho-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--issho-accent) 18%, transparent);
+}
+
+.issho-comments .issho-composer-input,
+.issho-comments .issho-composer-input:focus-visible {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem 0.25rem;
+  border: 0;
+  border-radius: var(--issho-radius);
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  resize: none;
+  field-sizing: content;
+  max-height: 12rem;
+}
+
+.issho-composer-input::placeholder {
+  color: var(--issho-muted);
+}
+
+.issho-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem 0.5rem;
+}
+
+.issho-composer-where {
+  display: inline-flex;
+  min-width: 0;
+  margin: 0 auto 0 0;
+  padding: 2px;
+  gap: 2px;
+  border: 0;
+  border-radius: calc(var(--issho-radius) - 2px);
+  background: var(--issho-fill);
+}
+
+.issho-where {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-width: 0;
+  max-width: 14rem;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: calc(var(--issho-radius) - 4px);
+  color: var(--issho-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.issho-where .issho-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-where input {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.issho-where:has(input:checked) {
+  background: var(--issho-surface);
+  color: var(--issho-text);
+  box-shadow: var(--issho-shadow);
+}
+
+.issho-where:has(input:focus-visible) {
+  box-shadow: var(--issho-focus-ring);
+}
+
+.issho-where-label {
   overflow: hidden;
-  clip-path: inset(50%);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.issho-comment-composer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
+/* A reply: one line that grows, its send button inside. */
+
+.issho-composer-reply {
+  flex-direction: row;
+  align-items: flex-end;
+  margin-left: 2.25rem;
 }
 
-.issho-comment-composer textarea {
-  font: inherit;
-  color: inherit;
-  background: var(--issho-surface);
-  flex: 1 1 100%;
-  min-height: 2.5rem;
-  border: 1px solid var(--issho-line);
-  border-radius: var(--issho-comments-radius);
-  padding: 0.5rem;
-  resize: vertical;
+.issho-comments .issho-composer-reply .issho-composer-input {
+  min-height: 2.25rem;
+  padding: 0.5rem 0.75rem;
 }
 
-.issho-comment-where {
-  display: flex;
-  gap: 0.75rem;
-  border: 0;
-  margin: 0;
-  padding: 0;
-  color: var(--issho-muted);
+.issho-send {
+  margin: 0.25rem;
+  background: var(--issho-accent);
+  color: var(--issho-accent-text);
 }
 
-.issho-comment-send,
-.issho-comment-composer button,
-.issho-thread-actions button,
-.issho-comment-own button,
-.issho-thread-replies {
-  font: inherit;
-  color: var(--issho-text);
-  background: transparent;
-  border: 1px solid var(--issho-line);
-  border-radius: var(--issho-comments-radius);
-  padding: 0.125rem 0.5rem;
-  cursor: pointer;
-}
-
-.issho-comment-send {
-  margin-left: auto;
+.issho-send:hover {
+  background: color-mix(in oklab, var(--issho-accent) 88%, var(--issho-text));
+  color: var(--issho-accent-text);
 }
 
 .issho-comments-error {
-  color: var(--issho-person-6);
   margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: calc(var(--issho-radius) - 2px);
+  background: color-mix(in oklab, var(--issho-person-6) 10%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-6) 85%, var(--issho-text));
 }
 
-.issho-comments-note,
-.issho-comments-empty {
-  color: var(--issho-muted);
+.issho-comments-note {
   margin: 0;
+  color: var(--issho-muted);
 }
+
+/* The threads. */
 
 .issho-threads {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--issho-comments-gap);
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .issho-thread {
-  border: 1px solid var(--issho-line);
-  border-radius: var(--issho-comments-radius);
-  padding: 0.625rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-radius);
+  background: var(--issho-surface);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.issho-thread:hover {
+  box-shadow: var(--issho-shadow);
 }
 
 .issho-thread[data-focused] {
-  background: var(--issho-comments-focus);
+  border-color: color-mix(in oklab, var(--issho-accent) 40%, var(--issho-line));
+  box-shadow: var(--issho-shadow-raised);
+}
+
+.issho-thread[data-status="resolved"] .issho-comment {
+  opacity: 0.75;
+}
+
+.issho-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: -0.25rem -0.25rem -0.25rem 0;
 }
 
 .issho-thread-place {
-  font: inherit;
-  font-size: 0.8em;
-  color: var(--issho-muted);
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-width: 0;
+  margin-right: auto;
+  padding: 0.125rem 0.375rem 0.125rem 0.25rem;
   border: 0;
-  padding: 0;
+  border-radius: calc(var(--issho-radius) - 3px);
+  background: transparent;
+  color: var(--issho-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
   text-align: start;
   cursor: pointer;
 }
 
-.issho-comment {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.issho-thread-place:hover {
+  background: var(--issho-fill);
+  color: var(--issho-text);
 }
 
-.issho-comment-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem;
+.issho-thread-place .issho-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-thread-place-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issho-resolve:hover {
+  color: var(--issho-person-3);
+}
+
+/* A comment: its author's avatar, then the words; its tools on hover. */
+
+.issho-comment {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.5rem;
 }
 
 .issho-comment-avatar {
-  display: inline-grid;
+  display: grid;
   place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: var(--issho-avatar-radius);
-  font-size: 0.7em;
-  font-weight: var(--issho-avatar-font-weight);
-  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 78%, var(--issho-text));
   background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 16%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 78%, var(--issho-text));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 25%, transparent);
+  font-size: 0.6875rem;
+  font-weight: var(--issho-avatar-font-weight);
+  letter-spacing: var(--issho-avatar-letter-spacing);
 }
 
 .issho-comment[data-kind="agent"] .issho-comment-avatar,
@@ -591,15 +833,30 @@
   border-radius: var(--issho-agent-radius);
 }
 
+.issho-comment-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.issho-comment-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.375rem;
+  min-height: 1.75rem;
+  align-content: center;
+  padding-right: 4rem;
+}
+
 .issho-comment-author {
   font-weight: 600;
 }
 
-.issho-comment-behalf,
-.issho-comment-time,
-.issho-comment-edited {
+.issho-comment-meta {
   color: var(--issho-muted);
-  font-size: 0.85em;
+  font-size: 0.75rem;
 }
 
 .issho-comment-body {
@@ -609,78 +866,185 @@
 }
 
 .issho-mention {
-  background: var(--issho-mention-background);
+  padding: 0 0.1875rem;
   border-radius: 0.25rem;
-  padding: 0 0.125rem;
+  background: var(--issho-mention-background);
+  color: var(--issho-mention-text);
+  font-weight: 500;
 }
 
-.issho-comment-footer {
+.issho-reactions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  align-items: center;
+  margin-top: 0.375rem;
 }
 
 .issho-reaction {
-  font: inherit;
-  font-size: 0.85em;
-  color: var(--issho-muted);
-  background: transparent;
-  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--issho-line);
   border-radius: 999px;
-  padding: 0 0.375rem;
+  background: var(--issho-surface);
+  color: var(--issho-muted);
+  font: inherit;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
-.issho-reaction:hover,
-.issho-reaction:focus-visible {
-  border-color: var(--issho-line);
+.issho-reaction:hover {
+  background: var(--issho-fill);
 }
 
 .issho-reaction[aria-pressed="true"] {
-  color: var(--issho-text);
-  border-color: var(--issho-person-1);
+  border-color: color-mix(in oklab, var(--issho-accent) 45%, transparent);
+  background: color-mix(in oklab, var(--issho-accent) 10%, var(--issho-surface));
+  color: var(--issho-accent);
 }
 
-.issho-comment-own {
-  margin-left: auto;
+/* The tools of a comment float at its top right, on hover or focus (and
+   always on a touch screen). */
+.issho-comment-tools {
+  position: absolute;
+  top: -0.375rem;
+  right: -0.375rem;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-radius);
+  background: var(--issho-surface);
+  box-shadow: var(--issho-shadow-raised);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity 120ms ease-out, transform 120ms ease-out;
+}
+
+.issho-comment:hover .issho-comment-tools,
+.issho-comment:focus-within .issho-comment-tools {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+@media (hover: none) {
+  .issho-comment-tools {
+    position: static;
+    grid-column: 2;
+    justify-self: start;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .issho-comment-header {
+    padding-right: 0;
+  }
+}
+
+.issho-comment-tools .issho-icon-button {
+  width: 1.625rem;
+  height: 1.625rem;
+}
+
+.issho-react {
+  font-size: 0.875rem;
+}
+
+.issho-tools-own {
   display: inline-flex;
-  gap: 0.25rem;
+  gap: 1px;
+  margin-left: 2px;
+  padding-left: 3px;
+  border-left: 1px solid var(--issho-line);
 }
 
 .issho-thread-replies {
   align-self: flex-start;
-  color: var(--issho-muted);
+  margin: -0.25rem 0 0 2.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--issho-accent);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.issho-thread-actions {
+.issho-thread-replies:hover {
+  text-decoration: underline;
+}
+
+.issho-comments-empty {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2rem 1rem;
+  border: 1px dashed var(--issho-line);
+  border-radius: var(--issho-radius);
+  color: var(--issho-muted);
+  text-align: center;
 }
 
-/* The marks at the threads' places, over the page. */
+.issho-comments-empty-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-bottom: 0.25rem;
+  opacity: 0.6;
+}
+
+.issho-comments-empty-title {
+  margin: 0;
+  color: var(--issho-text);
+  font-weight: 500;
+}
+
+.issho-comments-empty-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+/* The marks at the threads' places, over the page: a speech bubble in
+   the colour of whoever began the thread, with its number of comments. */
+
 .issho-comment-marks {
   position: fixed;
   inset: 0;
-  pointer-events: none;
   z-index: 40;
+  pointer-events: none;
 }
 
 .issho-comment-mark {
   position: absolute;
-  left: 0;
   top: 0;
-  pointer-events: auto;
+  left: 0;
+  display: grid;
+  place-items: center;
   min-width: var(--issho-mark-size);
   height: var(--issho-mark-size);
-  padding: 0 0.25rem;
-  font: 600 0.75rem/1 var(--issho-font);
-  color: var(--issho-pointer-text);
-  background: var(--issho-color, var(--issho-person-1));
+  padding: 0 0.375rem;
   border: 2px solid var(--issho-surface);
-  border-radius: 999px 999px 999px 0.25rem;
-  box-shadow: var(--issho-mark-shadow);
+  border-radius: 999px 999px 999px 0.3125rem;
+  background: var(--issho-color, var(--issho-person-1));
+  color: var(--issho-pointer-text);
+  box-shadow: var(--issho-shadow-raised);
+  font: 600 0.75rem/1 var(--issho-font);
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
   cursor: pointer;
+  transition: scale 120ms ease-out;
+}
+
+.issho-comment-mark:hover {
+  scale: 1.08;
 }
 
 .issho-comment-mark[data-focused] {
@@ -689,15 +1053,34 @@
 }
 
 .issho-comment-mark:focus-visible {
-  outline: 2px solid var(--issho-text);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--issho-focus-ring);
 }
 
-/* The agents at work in a room (Issho.Components.agents/1). */
+@media (prefers-reduced-motion: reduce) {
+  .issho-composer,
+  .issho-thread,
+  .issho-comment-tools,
+  .issho-comment-mark {
+    transition: none;
+  }
+}
+
+/* The agents at work in a room (Issho.Components.agents/1): a card each,
+   as a status of the page. */
+
+.issho-agents,
+.issho-agents *,
+.issho-agents *::before,
+.issho-agents *::after {
+  box-sizing: border-box;
+}
+
 .issho-agents {
+  color: var(--issho-text);
   font-family: var(--issho-font);
   font-size: var(--issho-comments-font-size);
-  color: var(--issho-text);
+  line-height: 1.45;
 }
 
 .issho-agents[hidden] {
@@ -705,119 +1088,319 @@
 }
 
 .issho-agents-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .issho-agent {
-  border: 1px solid color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 40%, var(--issho-line));
-  border-left: 3px solid var(--issho-color, var(--issho-person-1));
-  border-radius: var(--issho-comments-radius);
-  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 6%, var(--issho-surface));
-  padding: 0.5rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--issho-line);
+  border-radius: var(--issho-radius);
+  background: var(--issho-surface);
+  box-shadow: var(--issho-shadow);
+  animation: issho-agent-in 160ms ease-out;
 }
 
-.issho-agent-head {
+@keyframes issho-agent-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.issho-agent-row {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.issho-agent-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--issho-agent-radius);
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 16%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 78%, var(--issho-text));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 25%, transparent);
+  font-size: 0.75rem;
+  font-weight: var(--issho-avatar-font-weight);
+  letter-spacing: var(--issho-avatar-letter-spacing);
+}
+
+/* A working agent's avatar breathes, in its colour. */
+.issho-agent[data-state="working"] .issho-agent-avatar {
+  animation: issho-agent-working 2s ease-in-out infinite;
+}
+
+@keyframes issho-agent-working {
+  50% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 25%, transparent),
+      0 0 0 4px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 18%, transparent);
+  }
+}
+
+.issho-agent-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.issho-agent-text p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issho-agent-line {
+  display: flex;
   align-items: baseline;
   gap: 0.375rem;
-  margin: 0;
 }
 
 .issho-agent-name {
   font-weight: 600;
 }
 
-.issho-agent-for,
-.issho-agent-progress,
-.issho-agent-note {
+.issho-agent-for {
   color: var(--issho-muted);
-  font-size: 0.85em;
+  font-size: 0.75rem;
 }
 
-.issho-agent-note {
-  margin: 0;
+.issho-agent-task {
+  color: var(--issho-muted);
+  font-size: 0.8125rem;
 }
 
+/* Its state, a pill: working in its colour, paused amber, stopped red. */
 .issho-agent-state {
-  margin-left: auto;
-  font-size: 0.8em;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--issho-fill);
   color: var(--issho-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.issho-agent[data-state="working"] .issho-agent-state::before {
+.issho-agent-state::before {
   content: "";
-  display: inline-block;
-  width: 0.5em;
-  height: 0.5em;
-  margin-right: 0.35em;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
-  background: var(--issho-color, var(--issho-person-1));
-  animation: issho-agent-working 1.2s ease-in-out infinite;
+  background: currentColor;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .issho-agent[data-state="working"] .issho-agent-state::before {
-    animation: none;
-  }
+.issho-agent[data-state="working"] .issho-agent-state {
+  background: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 12%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 85%, var(--issho-text));
 }
 
-@keyframes issho-agent-working {
-  50% {
-    opacity: 0.3;
-  }
+.issho-agent[data-state="paused"] .issho-agent-state {
+  background: color-mix(in oklab, var(--issho-person-4) 14%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-4) 80%, var(--issho-text));
 }
 
-.issho-agent[data-state="paused"],
-.issho-agent[data-state="stopped"] {
-  border-left-style: dashed;
-}
-
-.issho-agent-steps {
-  margin: 0;
-  padding-left: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.issho-agent-steps li[data-state="done"] {
-  color: var(--issho-muted);
-  text-decoration: line-through;
-}
-
-.issho-agent-steps li[data-state="skipped"] {
-  color: var(--issho-muted);
-}
-
-.issho-agent-steps li[data-state="active"] {
-  font-weight: 600;
+.issho-agent[data-state="stopped"] .issho-agent-state {
+  background: color-mix(in oklab, var(--issho-person-6) 12%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-6) 85%, var(--issho-text));
 }
 
 .issho-agent-actions {
   display: flex;
-  gap: 0.375rem;
-  margin: 0;
+  flex: none;
+  gap: 0.25rem;
 }
 
-.issho-agent-actions button {
-  font: inherit;
-  color: var(--issho-text);
-  background: var(--issho-surface);
+.issho-agent-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-height: 1.75rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--issho-line);
-  border-radius: var(--issho-comments-radius);
-  padding: 0.125rem 0.625rem;
+  border-radius: calc(var(--issho-radius) - 2px);
+  background: var(--issho-surface);
+  color: var(--issho-text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.issho-agent-button .issho-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-agent-button:hover {
+  background: var(--issho-fill);
+}
+
+.issho-agent-stop:hover {
+  border-color: color-mix(in oklab, var(--issho-person-6) 45%, var(--issho-line));
+  background: color-mix(in oklab, var(--issho-person-6) 8%, var(--issho-surface));
+  color: color-mix(in oklab, var(--issho-person-6) 85%, var(--issho-text));
+}
+
+.issho-agents :is(button, summary):focus-visible {
+  outline: none;
+  box-shadow: var(--issho-focus-ring);
+}
+
+/* Its steps: a meter and the step it is on; the list when opened. */
+
+.issho-agent-details {
+  margin-left: 2.625rem;
+}
+
+.issho-agent-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border-radius: calc(var(--issho-radius) - 3px);
+  color: var(--issho-muted);
+  font-size: 0.75rem;
+  list-style: none;
   cursor: pointer;
 }
 
-.issho-agent-actions button[data-action="stop"] {
-  color: var(--issho-person-6);
+.issho-agent-summary::-webkit-details-marker {
+  display: none;
+}
+
+.issho-agent-meter {
+  position: relative;
+  flex: none;
+  width: 4rem;
+  height: 0.3125rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--issho-fill);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--issho-line) 60%, transparent);
+}
+
+.issho-agent-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--issho-color, var(--issho-person-1));
+  transition: width 240ms ease-out;
+}
+
+.issho-agent-progress {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issho-agent-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  transition: transform 120ms ease-out;
+}
+
+.issho-agent-details[open] .issho-agent-chevron {
+  transform: rotate(180deg);
+}
+
+.issho-agent-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.issho-agent-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--issho-muted);
+}
+
+.issho-agent-steps .issho-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-agent-steps li[data-state="done"] .issho-icon {
+  color: var(--issho-person-3);
+}
+
+.issho-agent-steps li[data-state="done"] span {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--issho-muted) 60%, transparent);
+}
+
+.issho-agent-steps li[data-state="active"] {
+  color: var(--issho-text);
+  font-weight: 500;
+}
+
+.issho-agent-step-dot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.issho-agent-step-dot::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--issho-color, var(--issho-person-1));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 22%, transparent);
+}
+
+.issho-agent-note {
+  margin: 0 0 0 2.625rem;
+  color: var(--issho-muted);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+@media (max-width: 30rem) {
+  .issho-agent-row {
+    flex-wrap: wrap;
+  }
+
+  .issho-agent-actions {
+    width: 100%;
+    margin-left: 2.625rem;
+  }
+
+  .issho-agent-button span {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issho-agent,
+  .issho-agent[data-state="working"] .issho-agent-avatar,
+  .issho-agent-meter span,
+  .issho-agent-chevron {
+    animation: none;
+    transition: none;
+  }
 }

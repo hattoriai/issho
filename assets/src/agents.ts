@@ -4,6 +4,7 @@
 // hook (IsshoAgents) draws into it with this.
 
 import type { Peer } from "./awareness";
+import { icon } from "./icons";
 import type { Person } from "./presence";
 
 export type TaskState = "working" | "paused" | "stopped";
@@ -53,14 +54,49 @@ export interface AgentsOptions {
   label?: string;
 }
 
-/** Draws the agents at work into an element, replacing what it held; hidden with none. */
+/**
+ * Draws the agents at work into an element; hidden with none. An agent's
+ * entry is drawn again only when it changed, so a frame of the room's
+ * awareness takes no one's focus from a button, nor closes their steps.
+ */
 export function drawAgents(element: HTMLElement, agents: AtWork[], options: AgentsOptions): void {
   element.hidden = agents.length === 0;
-  const list = document.createElement("ul");
-  list.className = "issho-agents-list";
+  let list = element.querySelector<HTMLUListElement>(":scope > .issho-agents-list");
+  if (!list) {
+    list = document.createElement("ul");
+    list.className = "issho-agents-list";
+    element.replaceChildren(list);
+  }
   list.setAttribute("aria-label", options.label ?? "Agents at work");
-  for (const one of agents) list.append(item(one, options));
-  element.replaceChildren(list);
+
+  const wanted = new Set(agents.map((one) => one.agent.key));
+  for (const li of [...list.children] as HTMLLIElement[]) {
+    if (!wanted.has(li.dataset.key ?? "")) li.remove();
+  }
+  let previous: HTMLLIElement | null = null;
+  for (const one of agents) {
+    const signature = JSON.stringify([one.agent.name, one.agent.color, one.agent.palette, one.agent.on_behalf_of?.name, one.task, one.mine || !!options.anyone]);
+    let li = [...list.children].find((child) => (child as HTMLElement).dataset.key === one.agent.key) as HTMLLIElement | undefined;
+    if (!li || li.dataset.signature !== signature) {
+      const next = item(one, options);
+      next.dataset.signature = signature;
+      if (li) {
+        // Its steps stay open or closed as the person left them, and its
+        // focused button keeps the focus.
+        const open = li.querySelector("details")?.open;
+        if (open !== undefined) next.querySelector("details")?.toggleAttribute("open", open);
+        const active = li.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
+        const again = active?.dataset.action ? `[data-action="${active.dataset.action}"]` : active?.tagName === "SUMMARY" ? "summary" : null;
+        li.replaceWith(next);
+        // A button gone with the change (Pause, once paused) gives the focus to the one in its place.
+        if (again) (next.querySelector<HTMLElement>(again) ?? next.querySelector<HTMLElement>("[data-action]"))?.focus();
+      } else {
+        list.insertBefore(next, previous ? previous.nextSibling : list.firstChild);
+      }
+      li = next;
+    }
+    previous = li;
+  }
 }
 
 function item({ agent, task, mine }: AtWork, options: AgentsOptions): HTMLLIElement {
@@ -69,50 +105,102 @@ function item({ agent, task, mine }: AtWork, options: AgentsOptions): HTMLLIElem
   li.dataset.key = agent.key;
   li.dataset.state = task.state;
   li.style.setProperty("--issho-color", agent.color ?? `var(--issho-person-${agent.palette})`);
+  const who = agent.name ?? agent.key;
 
-  const head = document.createElement("p");
-  head.className = "issho-agent-head";
+  const row = document.createElement("div");
+  row.className = "issho-agent-row";
+
+  const avatar = document.createElement("span");
+  avatar.className = "issho-agent-avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = initials(who);
+
+  const text = document.createElement("div");
+  text.className = "issho-agent-text";
+  const line = document.createElement("p");
+  line.className = "issho-agent-line";
   const name = document.createElement("span");
   name.className = "issho-agent-name";
-  name.textContent = agent.name ?? agent.key;
-  head.append(name);
+  name.textContent = who;
+  line.append(name);
   if (agent.on_behalf_of) {
     const behalf = document.createElement("span");
     behalf.className = "issho-agent-for";
     behalf.textContent = `for ${agent.on_behalf_of.name ?? agent.on_behalf_of.key}`;
-    head.append(behalf);
+    line.append(behalf);
   }
-  const title = document.createElement("span");
+  const title = document.createElement("p");
   title.className = "issho-agent-task";
   title.textContent = task.title;
-  head.append(title);
-
-  const done = task.steps.filter((step) => step.state === "done" || step.state === "skipped").length;
-  if (task.steps.length > 0) {
-    const progress = document.createElement("span");
-    progress.className = "issho-agent-progress";
-    progress.textContent = `${done} of ${task.steps.length}`;
-    head.append(progress);
-  }
+  text.append(line, title);
 
   const state = document.createElement("span");
   state.className = "issho-agent-state";
   state.setAttribute("role", "status");
   state.textContent = stateWords(task);
-  head.append(state);
-  li.append(head);
+
+  row.append(avatar, text, state);
+
+  if (mine || options.anyone) {
+    const actions = document.createElement("div");
+    actions.className = "issho-agent-actions";
+    const button = (action: "pause" | "resume" | "stop", words: string, shape: "pause" | "play" | "square"): HTMLButtonElement => {
+      const one = document.createElement("button");
+      one.type = "button";
+      one.className = `issho-agent-button issho-agent-${action}`;
+      one.dataset.action = action;
+      one.title = `${words} ${who}`;
+      one.setAttribute("aria-label", `${words} ${who}`);
+      const label = document.createElement("span");
+      label.textContent = words;
+      one.append(icon(shape), label);
+      one.addEventListener("click", () => options.interrupt(agent.key, action));
+      return one;
+    };
+    if (task.state === "working") actions.append(button("pause", "Pause", "pause"), button("stop", "Stop", "square"));
+    if (task.state === "paused") actions.append(button("resume", "Resume", "play"), button("stop", "Stop", "square"));
+    if (task.state === "stopped") actions.append(button("resume", "Resume", "play"));
+    row.append(actions);
+  }
+  li.append(row);
 
   if (task.steps.length > 0) {
+    const done = task.steps.filter((step) => step.state === "done" || step.state === "skipped").length;
+    const active = task.steps.findIndex((step) => step.state === "active");
+
+    const details = document.createElement("details");
+    details.className = "issho-agent-details";
+    const summary = document.createElement("summary");
+    summary.className = "issho-agent-summary";
+    const meter = document.createElement("span");
+    meter.className = "issho-agent-meter";
+    meter.setAttribute("role", "progressbar");
+    meter.setAttribute("aria-label", `${task.title}: steps done`);
+    meter.setAttribute("aria-valuemin", "0");
+    meter.setAttribute("aria-valuemax", String(task.steps.length));
+    meter.setAttribute("aria-valuenow", String(done));
+    const fill = document.createElement("span");
+    fill.style.width = `${Math.round((done / task.steps.length) * 100)}%`;
+    meter.append(fill);
+    const where = document.createElement("span");
+    where.className = "issho-agent-progress";
+    where.textContent =
+      active >= 0 ? `Step ${active + 1} of ${task.steps.length} · ${task.steps[active].label}` : `${done} of ${task.steps.length} steps`;
+    summary.append(meter, where, icon("chevron-down", "issho-icon issho-agent-chevron"));
+
     const steps = document.createElement("ol");
     steps.className = "issho-agent-steps";
     for (const step of task.steps) {
       const one = document.createElement("li");
       one.dataset.state = step.state;
-      one.textContent = step.label;
       if (step.state === "active") one.setAttribute("aria-current", "step");
+      const label = document.createElement("span");
+      label.textContent = step.label;
+      one.append(stepIcon(step.state), label);
       steps.append(one);
     }
-    li.append(steps);
+    details.append(summary, steps);
+    li.append(details);
   }
 
   if (task.note) {
@@ -121,26 +209,29 @@ function item({ agent, task, mine }: AtWork, options: AgentsOptions): HTMLLIElem
     note.textContent = task.note;
     li.append(note);
   }
-
-  if (mine || options.anyone) {
-    const actions = document.createElement("p");
-    actions.className = "issho-agent-actions";
-    const who = agent.name ?? agent.key;
-    const button = (action: "pause" | "resume" | "stop", words: string): HTMLButtonElement => {
-      const one = document.createElement("button");
-      one.type = "button";
-      one.dataset.action = action;
-      one.textContent = words;
-      one.setAttribute("aria-label", `${words} ${who}`);
-      one.addEventListener("click", () => options.interrupt(agent.key, action));
-      return one;
-    };
-    if (task.state === "working") actions.append(button("pause", "Pause"), button("stop", "Stop"));
-    if (task.state === "paused") actions.append(button("resume", "Resume"), button("stop", "Stop"));
-    if (task.state === "stopped") actions.append(button("resume", "Resume"));
-    li.append(actions);
-  }
   return li;
+}
+
+function stepIcon(state: StepState): Element {
+  if (state === "done") return icon("check");
+  if (state === "skipped") return icon("minus");
+  if (state === "active") {
+    const dot = document.createElement("span");
+    dot.className = "issho-agent-step-dot";
+    dot.setAttribute("aria-hidden", "true");
+    return dot;
+  }
+  return icon("circle");
+}
+
+function initials(name: string): string {
+  return name
+    .split(/[\s:_-]+/u)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function stateWords(task: Task): string {
