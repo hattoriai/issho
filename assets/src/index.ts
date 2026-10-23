@@ -47,6 +47,7 @@ export {
   fractions,
   place,
   locate,
+  locatePlace,
   point,
   type Locator,
   type Pointer,
@@ -61,6 +62,8 @@ export { configure, type Look } from "./theme";
 export { follow, following, onFollow, stopOnOwnWay } from "./follow";
 export { motion, setMotion, onMotion, type Motion } from "./motion";
 export { Hooks } from "./hooks";
+export { commentMarkers, markSpot, type Marked, type MarkersOptions } from "./comments";
+export { atWork, drawAgents, type AtWork, type Task, type TaskState, type StepState, type AgentsOptions } from "./agents";
 export { joinRoom, releaseRoom } from "./page";
 export { holdForm, type FormMember } from "./form";
 export { PageHistory, pageHistory, type HistoryOwner } from "./history";

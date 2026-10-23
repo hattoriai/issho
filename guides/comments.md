@@ -44,6 +44,33 @@ server's clock. A browser cannot write as someone else, or in the past;
 only an author edits or deletes their comment, and a reaction is the
 reactor's own.
 
+## On the page
+
+`Issho.Components.comments/1` is the room's threads beside your page: the
+open and resolved threads, each with its comments, replies, reactions and
+edits, a composer, and a mark over the page at each thread's place. In a
+LiveView that is in the room, with Issho's hooks in your LiveSocket:
+
+```heex
+<.comments id="comments" room={@room}>
+  <:place :let={%{place: place, default: default}}>
+    {MyApp.Places.label(place) || default}
+  </:place>
+</.comments>
+```
+
+A new comment goes on what the person selected in a component of the
+page (their place, as the component shares it), or on the page. The
+marks are drawn where each place is on each person's screen, by the
+component's own `locate` (see "Building a component on Issho"): Kotoba,
+Hakushi and Masu mark their threads with no code of their own, and so
+does your component once it says where its places are. A mark opens its
+thread in the panel; a thread chosen in the panel scrolls the page to
+its place.
+
+Everything goes through the LiveView, as the person it is in the room:
+their comments are theirs, at the server's time, under your policy.
+
 ## From your server
 
 ```elixir

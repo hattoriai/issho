@@ -342,6 +342,18 @@ function linkOf(element: HTMLElement): string | null {
   }
 }
 
+/**
+ * Where a place of a document is on this page: the box its component
+ * locates (`locate`), or the component's own box when it locates none, or
+ * `null` when the document is not on the page. For what a page draws at a
+ * place: a pointer, a thread's marker.
+ */
+export function locatePlace(doc: string, at?: unknown): Box | null {
+  const element = docElement(doc);
+  if (!element) return null;
+  return (at === undefined ? null : (element as Located)[LOCATOR]?.(at)) ?? boxOf(element);
+}
+
 function boxOf(element: Element): Box {
   if (element === document.documentElement) {
     const root = document.documentElement;

@@ -286,6 +286,7 @@ defmodule Issho.Tool.Context do
   def error(:not_open), do: {:error, "Open the document first."}
   def error(:other_room), do: {:error, "That document is not in this room."}
   def error(:no_documents), do: {:error, "There is no such document open in this room."}
+  def error({:interrupted, by}), do: {:error, Issho.Work.message(by)}
   def error(reason) when is_binary(reason), do: {:error, reason}
   def error(reason), do: {:error, "Refused: #{inspect(reason)}"}
 end

@@ -371,6 +371,25 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       end
     end
 
+    @doc """
+    Pauses, resumes or stops an agent at work in the room (`Issho.Work`),
+    as this LiveView's person: the person it acts for may, and anyone the
+    policy allows `:interrupt`.
+    """
+    @spec interrupt(String.t(), String.t(), :pause | :resume | :stop) :: :ok | {:error, term()}
+    def interrupt(room, key, action) do
+      with {:ok, session} <- fetch(room), do: Session.interrupt(session, key, action)
+    end
+
+    @doc "Who this LiveView is in the room (`Issho.Identity`), or `nil`."
+    @spec identity(String.t()) :: Issho.Identity.t() | nil
+    def identity(room) do
+      case session(room) do
+        %Session{identity: identity} -> identity
+        nil -> nil
+      end
+    end
+
     @doc "The session id of this LiveView in the room, or `nil`."
     @spec session_id(String.t()) :: String.t() | nil
     def session_id(room) do
@@ -443,6 +462,7 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     defp room_of({Issho, :transaction, document_id, _event}), do: Policy.room(document_id)
     defp room_of({Issho, :awareness, room, _frame}), do: room
     defp room_of({Issho, :revoke, room, _key}), do: room
+    defp room_of({Issho, :interrupt, room, _key, _action, _by}), do: room
     defp room_of({Issho, :room_event, %Issho.Event{room: room}}), do: room
     # Between the awareness processes of a room's nodes; sessions skip it.
     defp room_of({Issho, :awareness_hello, room}), do: room

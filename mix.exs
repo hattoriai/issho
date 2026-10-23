@@ -124,7 +124,7 @@ defmodule Issho.MixProject do
           Issho.Color
         ],
         LiveView: [Issho.Live, Issho.State],
-        Agents: [Issho.Participant],
+        Agents: [Issho.Participant, Issho.Agents, Issho.Work],
         Stores: [Issho.Store.Memory, Issho.Store.None],
         Testing: [Issho.Test]
       ]

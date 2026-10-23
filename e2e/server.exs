@@ -154,13 +154,21 @@ defmodule IsshoE2E.PageLive do
      assign(socket,
        room: room,
        name: name,
-       query: Map.take(params, ["room", "as", "order", "far", "agents"]),
+       query: Map.take(params, ["room", "as", "order", "far", "agents", "comments"]),
+       comments: comments(socket, params["comments"] == "1", actor, room),
        follow_agents: if(params["agents"] == "on_behalf", do: "on_behalf"),
        order: if(params["order"] == "desc", do: "desc", else: "asc"),
        long: params["long"] == "1",
        far: params["far"] == "1",
        grant: Issho.Live.grant(IsshoE2E.Issho, actor, room)
      )}
+  end
+
+  # ?comments=1: the room's comments beside the page, for which the
+  # LiveView is in the room itself.
+  defp comments(socket, wanted, actor, room) do
+    if wanted and connected?(socket), do: {:ok, _} = Issho.Live.join(IsshoE2E.Issho, actor, room)
+    wanted
   end
 
   @impl true
@@ -184,6 +192,8 @@ defmodule IsshoE2E.PageLive do
     <.link id="next" navigate={"/two?" <> URI.encode_query(@query)} data-issho-anchor="next" data-issho-follow>
       Next page
     </.link>
+    <Issho.Components.agents id="agents" grant={@grant} />
+    <Issho.Components.comments :if={@comments} id="comments" room={@room} />
     <Issho.Components.pointers id="pointers" grant={@grant} follow_agents={@follow_agents} />
     """
   end

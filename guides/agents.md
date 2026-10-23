@@ -32,7 +32,8 @@ let agents in where you want them, and only there.
 
 What an agent can do is a list of tools (`Issho.Tool`): Issho's for rooms
 (`Issho.Tools.room/0`: join, look around, read, point, say what it does,
-change, wait for what happens, leave), the components' in their own terms
+its task and steps, change, change shared state, comment, wait for what
+happens, leave), the components' in their own terms
 (`Kotoba.Issho.tools/0`: select, type, format, link, copy and paste in a
 rich text; `Hakushi.Issho.tools/0`: point, add, drag, connect on a
 canvas), and yours. A tool runs as the agent of an `Issho.Tool.Context`,
@@ -55,6 +56,33 @@ Ada selects a paragraph, then rewrite it; wait until a card lands on a
 frame, then file it. From Elixir, `Issho.Agents.wait/5` is the same, and
 a participant that joins with `events: true` receives the room's events
 as messages.
+
+## Seen at work, and stopped
+
+People follow an agent better when they see what it is doing, and trust
+it more when they can stop it. An agent says what it does with a task and
+its steps:
+
+```text
+start_task  {"room": "board:42", "title": "Plan the release", "steps": ["Read the board", "Group the cards", "Write the summary"]}
+progress    {"room": "board:42", "step": "Read the board"}
+finish_task {"room": "board:42", "summary": "Grouped 14 cards in 3 columns."}
+```
+
+(`Issho.Work` from Elixir.) The page shows it as it goes, beside the
+people list:
+
+```heex
+<.agents id="agents" grant={@grant} />
+```
+
+with Pause, Resume and Stop for the person the agent works for, and for
+whomever your policy allows `:interrupt`. A paused or stopped agent
+changes nothing more in the room: each change is whole, so nothing is
+left half done, and its next tool call (but those that only read) says
+who paused or stopped it and what to do: wait for `"agent.resumed"`, or
+`finish_task`. Each start, finish, pause and resume is an event of the
+room.
 
 ## Your app's own model
 

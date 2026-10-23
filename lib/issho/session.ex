@@ -164,6 +164,19 @@ defmodule Issho.Session do
   end
 
   @doc false
+  # Pauses, resumes or stops an agent of the room, for the session's
+  # actor: the person it acts for, or anyone the policy allows :interrupt.
+  @spec interrupt(t(), String.t(), :pause | :resume | :stop) :: :ok | {:error, term()}
+  def interrupt(%__MODULE__{} = session, key, action) when action in [:pause, :resume, :stop] do
+    if Issho.Work.allowed?(session, key) do
+      config = Config.get(session.instance)
+      Issho.Work.broadcast(config.pubsub, session.room, key, action, session.identity)
+    else
+      {:error, :forbidden}
+    end
+  end
+
+  @doc false
   # Whether the room's policy lets the session do `action` now: a write
   # needs a session that writes too. For a component that keeps its data
   # outside Issho's documents (a grid of an app's database).
@@ -272,6 +285,12 @@ defmodule Issho.Session do
 
   def handle(%__MODULE__{identity: %{key: key}, room: room}, {Issho, :revoke, room, key}),
     do: {:stop, :revoked}
+
+  def handle(
+        %__MODULE__{identity: %{key: key}, room: room} = session,
+        {Issho, :interrupt, room, key, action, by}
+      ),
+      do: {:push, "interrupt", %{"action" => action, "by" => by}, session}
 
   def handle(session, %Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}),
     do: {:push, "presence_diff", diff, session}

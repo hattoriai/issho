@@ -92,6 +92,29 @@ defmodule Issho.Participant do
   @spec identity(GenServer.server()) :: Identity.t()
   def identity(participant), do: GenServer.call(participant, :identity)
 
+  @doc "The room of the participant."
+  @spec room(GenServer.server()) :: String.t()
+  def room(participant), do: GenServer.call(participant, :room)
+
+  @doc false
+  @spec instance(GenServer.server()) :: atom()
+  def instance(participant), do: GenServer.call(participant, :instance)
+
+  @doc """
+  Whether someone paused or stopped the participant in the room
+  (`Issho.Work`): `%{"action" => "pause" | "stop", "by" => person}`, or
+  `nil`. While it is, its transactions are refused.
+  """
+  @spec interrupted(GenServer.server()) :: map() | nil
+  def interrupted(participant), do: GenServer.call(participant, :interrupted)
+
+  @doc false
+  # A pause or a stop is over (the participant finished its task), or a
+  # stop only (it begins another).
+  @spec clear_interrupt(GenServer.server(), [String.t()]) :: :ok
+  def clear_interrupt(participant, actions \\ ["pause", "stop"]),
+    do: GenServer.call(participant, {:clear_interrupt, actions})
+
   @doc "The places locked in the room by anyone, each with its holder's key."
   @spec locks(GenServer.server()) :: [{map(), String.t()}]
   def locks(participant), do: GenServer.call(participant, :locks)
@@ -120,7 +143,7 @@ defmodule Issho.Participant do
     case Session.join(instance, room, identity, can) do
       {:ok, session} ->
         session = if opts[:events], do: Session.listen(session), else: session
-        {:ok, %{session: session, notify: opts[:notify], aware: %{}}}
+        {:ok, %{session: session, notify: opts[:notify], aware: %{}, interrupted: nil}}
 
       {:error, reason} ->
         {:stop, reason}
@@ -145,6 +168,11 @@ defmodule Issho.Participant do
       :error -> {:reply, {:error, :not_open}, state}
     end
   end
+
+  # A paused or stopped participant changes nothing more, whole
+  # transactions only: what it changed before stays.
+  def handle_call({:transact, _document_id, _ops}, _from, %{interrupted: %{} = by} = state),
+    do: {:reply, {:error, {:interrupted, by}}, state}
 
   def handle_call({:transact, document_id, ops}, _from, state) when is_list(ops) do
     reply =
@@ -194,6 +222,21 @@ defmodule Issho.Participant do
 
   def handle_call(:key, _from, state), do: {:reply, state.session.identity.key, state}
   def handle_call(:identity, _from, state), do: {:reply, state.session.identity, state}
+  def handle_call(:room, _from, state), do: {:reply, state.session.room, state}
+  def handle_call(:instance, _from, state), do: {:reply, state.session.instance, state}
+  def handle_call(:interrupted, _from, state), do: {:reply, state.interrupted, state}
+
+  def handle_call({:clear_interrupt, actions}, _from, state) do
+    case state.interrupted do
+      %{"action" => action} ->
+        if action in actions,
+          do: {:reply, :ok, %{state | interrupted: nil}},
+          else: {:reply, :ok, state}
+
+      nil ->
+        {:reply, :ok, state}
+    end
+  end
 
   def handle_call({:authorize, action}, _from, state),
     do: {:reply, Session.authorize(state.session, action), state}
@@ -231,6 +274,10 @@ defmodule Issho.Participant do
   @impl true
   def handle_info(message, state) do
     case Session.handle(state.session, message) do
+      {:push, "interrupt", %{"action" => action} = by, session} ->
+        notify(state, "interrupt", by)
+        {:noreply, interrupt(%{state | session: session}, action, by)}
+
       {:push, event, payload, session} ->
         notify(state, event, payload)
         {:noreply, %{state | session: session}}
@@ -243,6 +290,29 @@ defmodule Issho.Participant do
         {:stop, :normal, state}
     end
   end
+
+  # Paused, stopped or resumed: its task says so too, for the people.
+  defp interrupt(state, action, by) do
+    interrupted = if action == "resume", do: nil, else: by
+
+    case state.aware do
+      %{"task" => %{} = task} ->
+        task = Map.merge(task, %{"state" => task_state(action), "by" => interrupted && by["by"]})
+        aware = Map.put(state.aware, "task", task)
+
+        case Session.aware(state.session, aware) do
+          {:ok, session} -> %{state | session: session, aware: aware, interrupted: interrupted}
+          {:error, _} -> %{state | interrupted: interrupted}
+        end
+
+      _ ->
+        %{state | interrupted: interrupted}
+    end
+  end
+
+  defp task_state("pause"), do: "paused"
+  defp task_state("stop"), do: "stopped"
+  defp task_state("resume"), do: "working"
 
   defp notify(%{notify: nil}, _event, _payload), do: :ok
 
