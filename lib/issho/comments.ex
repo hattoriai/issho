@@ -215,11 +215,20 @@ defmodule Issho.Comments do
     cond do
       comment["author"] != author -> {:error, :not_the_author}
       not recent?(comment["at"]) -> {:error, :invalid_time}
+      not clean?(comment["body"]) -> {:error, :invalid_text}
       true -> check_place(whole, room)
     end
   end
 
-  defp check_op(%{"op" => op, "at" => at}, _author, _room) when op in ["edit", "resolve"],
+  defp check_op(%{"op" => "edit", "at" => at} = op, _author, _room) do
+    cond do
+      not recent?(at) -> {:error, :invalid_time}
+      not clean?(op["body"]) -> {:error, :invalid_text}
+      true -> :ok
+    end
+  end
+
+  defp check_op(%{"op" => "resolve", "at" => at}, _author, _room),
     do: if(recent?(at), do: :ok, else: {:error, :invalid_time})
 
   defp check_op(%{"op" => "place"} = op, _author, room), do: check_place(op, room)
@@ -230,6 +239,11 @@ defmodule Issho.Comments do
   end
 
   defp check_place(_op, _room), do: :ok
+
+  # Words with nothing hidden in them (`Issho.Text`): what no one sees on
+  # the page may not reach the others, nor an agent that reads them.
+  defp clean?(body) when is_binary(body), do: Issho.Text.clean?(body)
+  defp clean?(_body), do: true
 
   defp recent?(at) when is_binary(at) do
     case DateTime.from_iso8601(at) do
@@ -299,8 +313,9 @@ defmodule Issho.Comments.Ops do
       {:ok, _} = Issho.Live.transact(room, Issho.Comments.document(room), [op])
 
   A new comment is its author's, as their identity says it (`author/1`),
-  at the server's time: the comments document's hook holds it to who
-  commits it.
+  at the server's time, its words cleaned (`Issho.Text.clean/2`): the
+  comments document's hook holds it to who commits it, and refuses words
+  with anything hidden in them (`{:error, :invalid_text}`).
   """
 
   alias Issho.Identity
@@ -329,7 +344,7 @@ defmodule Issho.Comments.Ops do
       "op" => "edit",
       "thread" => thread,
       "comment" => comment,
-      "body" => body,
+      "body" => Issho.Text.clean(body),
       "mentions" => Keyword.get(opts, :mentions, []),
       "at" => now()
     }
@@ -388,7 +403,7 @@ defmodule Issho.Comments.Ops do
     {%{
        "id" => id,
        "author" => author(by),
-       "body" => body,
+       "body" => Issho.Text.clean(body),
        "mentions" => Keyword.get(opts, :mentions, []),
        "at" => now()
      }, id}

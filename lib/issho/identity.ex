@@ -54,7 +54,8 @@ defmodule Issho.Identity do
 
     %__MODULE__{
       key: actor |> Issho.Actor.key() |> to_string(),
-      name: text(Map.get(display, :name)),
+      # A name is words people and agents read: one line, nothing hidden.
+      name: display |> Map.get(:name) |> text() |> Issho.Text.clean(line: true, max: 80),
       avatar: text(Map.get(display, :avatar)),
       color: Color.sanitize(Map.get(display, :color)),
       kind: kind,

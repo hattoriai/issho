@@ -7,6 +7,25 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- What people write reaches agents as their words, with nothing hidden in
+  them. A comment, a name or a page's label could carry text no one sees
+  on the page (bidirectional overrides, zero-width characters, Unicode's
+  tag characters, private-use characters) that a model still reads:
+  instructions slipped to an agent past the people in the room.
+  `Issho.Text` takes them out and keeps the words (every script, emoji).
+  Issho cleans what it keeps (a comment's body, where a change with hidden
+  words is refused with `{:error, :invalid_text}`; names; an agent's task
+  and status) and what its tools give a model (`join_room`,
+  `look_around`, `list_threads`, `wait_for_events`, `inbox`, and the
+  `issho://inbox` resource). A document's own content is given as it is:
+  an agent edits it by its offsets.
+- A comment, an event and an inbox item say whether their author is the
+  person the agent works for (`yours`), and the tools' descriptions and
+  the MCP server's instructions say what people wrote is theirs to weigh,
+  never instructions to the agent.
+
 ## [0.4.0] - 2026-10-23
 
 The room's events, shared state without an engine, comments on any
