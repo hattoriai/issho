@@ -194,106 +194,36 @@ room.presence.on(() => drawPeople(room.presence.others))
 
 ## Roadmap
 
-Three priorities first, because they prove Issho's promise most
-directly: components from anyone working together on one page, ordinary
-Phoenix developers building collaborative features without designing a
-document engine, and agents as participants everywhere.
+The next step is to let developers define an application capability once:
+people use it through the UI, agents use it through tools or visible
+interaction, and everyone works on the same authorized live state.
 
-### 1. The component contract, for every author
+The [roadmap tracking issue](https://github.com/hattoriai/issho/issues/48)
+keeps the existing priorities, proposals, dependencies, and acceptance
+criteria. The direction is:
 
-Kotoba, Masu and Hakushi are built on Issho, but another author should
-not have to copy their patterns to do the same. The contract between a
-component and Issho (its engine and places, `locate` and `point`,
-following, motion, agents' tools, releasing a room, a block of another
-room) becomes the center:
+* **Open the component contract to every author.** Stabilize and test
+  the contract, add generators and a reference component, and make
+  ordinary LiveView features collaborative without a custom engine.
+* **Share actions between people and agents.** Add semantic observations,
+  revision checks, and visible execution with human takeover, under the
+  application's policy.
+* **Make work reviewable and recoverable.** Add proposals people can
+  inspect and accept, durable agent runs, and storage and event delivery
+  that support recovery after failure.
+* **Bring the same collaboration to more surfaces.** Export components
+  through MCP Apps to supported AI hosts, then compose workspaces from
+  registered components and typed bindings.
+* **Prove the behavior.** Extend component conformance with replay and
+  failure simulation; measure backpressure, failover, and scaling with
+  reproducible workloads.
 
-* **A stable, versioned contract**, documented on its own (the
-  Components guide is its start), that Issho keeps across releases.
-* **A conformance kit**: tests a component author runs against their
-  component (`Issho.Test` for engines grows into checks for places,
-  locating, following and tools, in Elixir and in the browser).
-* **A generator and a reference component**: `mix issho.gen.component`
-  for the binding, the hook and the tools, and a small component outside
-  the Hattori libraries that shows the whole contract.
-* **Components inside components.** A canvas or a grid embedded in a
-  text works today, each in its own room. The other way is to come: a
-  rich text in a canvas's node, its body a document of the canvas's room
-  (`board:42/n7/body`), with one people list, a cursor that goes from the
-  canvas into the text, and an agent that drags the note and writes in
-  it (hattoriai/hakushi#2).
+These are planned capabilities, not a release schedule. Getting started,
+developer tools, scoped agent access, and the existing comments, history,
+and following improvements remain part of the linked plan.
 
-### 2. Developer experience
-
-An ordinary Phoenix developer should build a collaborative checklist or
-kanban board in an afternoon. Shared state without an engine
-(`Issho.State`) is here; what comes next:
-
-* **Getting started.** An installer (`mix issho.install`) and
-  generators, a guide from nothing to a collaborative page in minutes,
-  and example apps (Notebook, the demo of Kotoba, Hakushi and Masu on
-  Issho).
-* **Rooms from the server.** The rooms running, who is in each, and
-  their documents, read and changed from your code, for an admin page, a
-  job or a test.
-* **Dev tools and a LiveDashboard page.** Rooms, documents, people,
-  pending queues and transactions, in the browser while you build and in
-  LiveDashboard in production.
-
-### 3. Agents through everything
-
-Agents are participants of every room, with presence, places, motion and
-tools, under the same policy as people. The room's events and agents
-that wait for them, tasks people see, and Pause, Resume and Stop are
-here. What comes next:
-
-* **Scoped tools.** An agent gets the tools, rooms and documents it is
-  given, no more: per agent, per room and per person it acts for.
-* **Attribution, carried through.** Every change records who made it (a
-  person, an agent, and for whom), in the hook and the events today;
-  next, in history and in the components' own views.
-* **Events over MCP.** An agent that is not in a tool call hears of a
-  mention or a change (MCP notifications), not only while it waits.
-
-### Next, on that foundation
-
-* **Comments, further.** Threads that follow their text as it is edited
-  (each component places its threads again), attachments, an inbox of
-  one's mentions across rooms.
-* **Version history (to explore).** The authority keeps every accepted
-  transaction and replays a document at an earlier revision. What it
-  could become: named versions, a document as it was, restore, and each
-  component's diff.
-* **Following across the app.** Following takes people along the links
-  and navigations of the one they follow within a room
-  (`data-issho-follow`, `Issho.Motion.navigate/2`). An app's or a
-  workspace's room, joined on every page, would hold where each person
-  is, so that following reaches someone on any page.
-* **Settings for a page or a room.** What a page allows its components
-  (no undo in this space, for example), carried in the room's signed
-  grant, so every component follows it.
-
-### Later, on purpose
-
-Useful, but they do not prove the central promise as directly as
-components working together do, and they are easy to get wrong early:
-
-* **A universal notification system.** The events comments and agents
-  emit are here; an app's inbox and emails are a few Phoenix pieces on
-  top of them.
-* **An opinionated roles framework.** Apps have their own permission
-  systems; Issho's policy fits them, with `:comment` and `:interrupt`
-  between a reader and a writer.
-* **Federation across applications.** Embeds of another page of the same
-  app work today; signing grants from one app to another comes later.
-* **A built-in agent chat.** Agents act in the components people use,
-  and answer in comments; an app adds a chat of its own if it wants one.
-
-### What stays Issho's
-
-The server decides every change, and your policy and checks always win.
-Issho is LiveView's: components, not a hosted SDK. It runs in your app,
-and your database is the truth. Agents are participants of the room,
-with presence, motion and tools, as people are.
+Issho runs in your Phoenix application. Your data, permissions, behavior,
+and presentation remain yours; Issho owns the collaboration semantics.
 
 ## Development
 
