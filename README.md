@@ -304,6 +304,7 @@ mix test        # includes the end-to-end test of the client on a real endpoint
 mix test.js     # the browser client's unit tests
 mix precommit   # compile with warnings as errors, format, credo, test
 MIX_ENV=dev mix issho.build   # the bundles, into priv/static
+MIX_ENV=test mix run --no-halt e2e/server.exs   # a room's pages, on :4097 (/one, ?sumi=smoke for a Sumi theme)
 ```
 
 ## License

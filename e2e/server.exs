@@ -5,6 +5,10 @@
 #   MIX_ENV=test mix run --no-halt e2e/server.exs
 #
 # PORT (4097 by default) is the port. The browser tests (e2e/specs) start it.
+#
+# ?sumi=smoke (any of Sumi's seven themes) on a page shows it in that theme
+# of Sumi, with issho-sumi.css; the links at the foot of the page go from
+# one to another.
 
 root = Path.expand("..", __DIR__)
 static = Path.join(__DIR__, "static")
@@ -20,7 +24,8 @@ File.mkdir_p!(static)
     into: IO.stream()
   )
 
-File.cp!(Path.join(root, "assets/css/issho.css"), Path.join(static, "issho.css"))
+for css <- ~w(issho.css issho-sumi.css),
+    do: File.cp!(Path.join(root, "assets/css/" <> css), Path.join(static, css))
 
 defmodule IsshoE2E.Policy do
   @moduledoc false
@@ -107,17 +112,68 @@ end
 
 defmodule IsshoE2E.Layouts do
   @moduledoc false
+  # ?sumi=smoke (any of Sumi's seven themes): the page in that theme of
+  # Sumi, with issho-sumi.css.
   use Phoenix.Component
 
+  # Sumi's themes, as Issho reads them: the page, the surface, the line,
+  # the text, the muted text, the accent, the text on it, the accent as
+  # small text, and the error (Sumi's own CSS needs Tailwind, which this
+  # app has not; these are its values).
+  @sumi_themes [
+    {"dark", "Ink", "oklch(12% 0.003 270)", "oklch(16% 0.004 270)", "oklch(20% 0.005 270)",
+     "oklch(95% 0.012 85)", 0.5, "#e84a1c", "oklch(12% 0.003 270)", "#ff6b3d",
+     "oklch(58% 0.22 25)"},
+    {"smoke", "Smoke", "oklch(27% 0.005 270)", "oklch(30.5% 0.006 270)", "oklch(34% 0.007 270)",
+     "oklch(92% 0.01 85)", 0.62, "oklch(72% 0.13 168)", "oklch(27% 0.005 270)",
+     "oklch(80% 0.11 168)", "oklch(58% 0.22 25)"},
+    {"stone", "Stone", "oklch(20% 0.006 70)", "oklch(23.5% 0.007 70)", "oklch(27% 0.008 70)",
+     "oklch(95% 0.01 85)", 0.52, "oklch(78% 0.13 82)", "oklch(20% 0.006 70)",
+     "oklch(84% 0.11 85)", "oklch(58% 0.22 25)"},
+    {"lacquer", "Lacquer", "oklch(14% 0.022 25)", "oklch(18% 0.026 25)", "oklch(22% 0.03 25)",
+     "oklch(93% 0.016 75)", 0.53, "oklch(63% 0.21 24)", "oklch(14% 0.022 25)",
+     "oklch(72% 0.16 27)", "oklch(58% 0.22 25)"},
+    {"light", "Paper", "oklch(96% 0.01 85)", "oklch(93% 0.012 85)", "oklch(89% 0.014 80)",
+     "oklch(15% 0.003 270)", 0.65, "#e84a1c", "oklch(12% 0.003 270)", "oklch(48% 0.17 32)",
+     "oklch(55% 0.22 25)"},
+    {"snow", "Snow", "oklch(99.5% 0.001 270)", "oklch(97% 0.003 270)", "oklch(92.5% 0.005 270)",
+     "oklch(20% 0.006 270)", 0.65, "oklch(50% 0.17 262)", "oklch(100% 0 0)",
+     "oklch(46% 0.16 262)", "oklch(55% 0.22 25)"},
+    {"silk", "Silk", "oklch(97.5% 0.012 350)", "oklch(95% 0.016 350)", "oklch(91.5% 0.02 350)",
+     "oklch(22% 0.012 350)", 0.65, "oklch(56% 0.21 358)", "oklch(100% 0 0)",
+     "oklch(50% 0.19 355)", "oklch(55% 0.22 25)"}
+  ]
+
+  defp sumi_style({_, _, page, surface, line, text, muted, accent, on_accent, accent_text, error}) do
+    """
+    :root {
+      --color-base-100: #{page}; --color-base-200: #{surface}; --color-base-300: #{line};
+      --color-base-content: #{text}; --sumi-text-muted: oklch(from #{text} l c h / #{muted});
+      --color-sumi-blade: #{accent}; --color-primary-content: #{on_accent};
+      --sumi-accent-text: #{accent_text}; --color-error: #{error};
+    }
+    body { background: var(--issho-surface); color: var(--issho-text); }
+    #list li { border-color: var(--issho-line); }
+    """
+  end
+
   def root(assigns) do
+    params = assigns.conn.query_params
+    theme = List.keyfind(@sumi_themes, params["sumi"], 0)
+    # A controller's assigns have no change tracking: put, not assign.
+    assigns = Map.merge(assigns, %{theme: theme, params: params, themes: @sumi_themes})
+
     ~H"""
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" data-theme={@theme && elem(@theme, 0)}>
       <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={Phoenix.Controller.get_csrf_token()} />
         <title>Issho e2e</title>
         <link rel="stylesheet" href="/issho.css" />
+        <link :if={@theme} rel="stylesheet" href="/issho-sumi.css" />
+        {@theme && Phoenix.HTML.raw("<style>" <> sumi_style(@theme) <> "</style>")}
         <style>
           body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; }
           header { display: flex; gap: 1rem; align-items: center; min-height: 40px; }
@@ -126,10 +182,26 @@ defmodule IsshoE2E.Layouts do
           #list li { height: 40px; border: 1px solid #ddd; padding: 0 12px; display: flex; align-items: center; }
           .spacer { height: 1600px; }
           #elsewhere { width: 320px; height: 120px; border: 1px dashed #999; margin: 24px 0; }
+          #sumi { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-top: 24px; font-size: 0.875rem; }
+          #sumi a { color: inherit; }
+          #sumi a[aria-current] { font-weight: 600; }
         </style>
         <script type="module" src="/app.js"></script>
       </head>
-      <body>{@inner_content}</body>
+      <body>
+        {@inner_content}
+        <nav id="sumi" aria-label="Sumi's themes">
+          <span>Sumi:</span>
+          <a
+            :for={{id, name, _, _, _, _, _, _, _, _, _} <- @themes}
+            href={"?" <> URI.encode_query(Map.put(@params, "sumi", id))}
+            aria-current={@theme && elem(@theme, 0) == id && "page"}
+          >
+            {name}
+          </a>
+          <a :if={@theme} href={"?" <> URI.encode_query(Map.delete(@params, "sumi"))}>None</a>
+        </nav>
+      </body>
     </html>
     """
   end
@@ -140,7 +212,8 @@ defmodule IsshoE2E.PageLive do
   # /one and /two: two pages of a room. ?as= the person, ?agents=on_behalf
   # follows the agents at work for them, ?order=desc draws
   # the block's items the other way round, ?long=1 puts it below the fold,
-  # ?far=1 puts the block of another room (#elsewhere) below the fold.
+  # ?far=1 puts the block of another room (#elsewhere) below the fold,
+  # ?sumi=smoke shows it in that theme of Sumi (the layout's).
   use Phoenix.LiveView
   on_mount Issho.Live
 
@@ -154,7 +227,7 @@ defmodule IsshoE2E.PageLive do
      assign(socket,
        room: room,
        name: name,
-       query: Map.take(params, ["room", "as", "order", "far", "agents", "comments"]),
+       query: Map.take(params, ["room", "as", "order", "far", "agents", "comments", "sumi"]),
        comments: comments(socket, params["comments"] == "1", actor, room),
        follow_agents: if(params["agents"] == "on_behalf", do: "on_behalf"),
        order: if(params["order"] == "desc", do: "desc", else: "asc"),
@@ -258,7 +331,11 @@ defmodule IsshoE2E.Endpoint do
   socket "/issho/socket", IsshoE2E.Socket, websocket: true, longpoll: false
   socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session]]
 
-  plug Plug.Static, at: "/", from: Path.expand("static", __DIR__), only: ~w(app.js issho.css)
+  plug Plug.Static,
+    at: "/",
+    from: Path.expand("static", __DIR__),
+    only: ~w(app.js issho.css issho-sumi.css)
+
   plug Plug.Parsers, parsers: [:json], pass: ["*/*"], json_decoder: JSON
   plug Plug.Session, @session
   plug IsshoE2E.Router

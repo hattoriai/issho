@@ -47,6 +47,16 @@ if Code.ensure_loaded?(Phoenix.Component) do
     the server renders, or `configure({person, pointer})` of the `issho`
     package for the live list and the pointers.
 
+    The Sumi theme (`issho-sumi.css`) follows Sumi's seven themes: the
+    dark ones (Ink, Smoke, Stone, Lacquer) are dark and the light ones
+    (Paper, Snow, Silk) stay light on a system in dark mode. The first
+    person's colour is the theme's accent; the others are a palette of
+    each theme's own, in which no one else is of the accent's hue, and
+    each name on its colour (a pointer's, a comment's mark, "Following")
+    is in the accent's text colour, at 4.5:1 and more. The development
+    app (`e2e/server.exs`) shows each: `?sumi=smoke`, or the links at the
+    foot of its page.
+
     ## The page as a live space
 
     Each person's pointer over the page, and their clicks, in their
