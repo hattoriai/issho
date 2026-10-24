@@ -7,6 +7,32 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The Sumi theme follows Sumi's seven themes and their accents. The
+  first person is the accent; the others are a palette of each theme's
+  own, in which no one else is of the accent's hue (the second was
+  ember, the accent's lighter shade, in every theme), and their names
+  (pointers, comments' marks, "Following") are in the accent's text
+  colour, 4.5:1 and more (white on blade, gold or jade was 2:1 to
+  3.9:1). Rose is the colour of a stop and an error in Ink, Paper and
+  Lacquer, red orange in Silk. On Paper, initials and an agent's state
+  are deeper, for 4.5:1. The development app shows each theme
+  (`?sumi=smoke`).
+- `--issho-link`, new: the accent as small text (a thread's replies, a
+  pressed reaction, a mention). Sumi's accent text in the Sumi theme.
+
+### Fixed
+
+- The Sumi theme gave Sumi's dark themes other than Ink (Smoke, Stone,
+  Lacquer) the light palette, and its light themes other than Paper
+  (Snow, Silk) the dark one on a system in dark mode; so did `issho.css`.
+- On a system in dark mode, `issho.css`'s dark colours outranked the
+  Sumi theme's (and a page's own on `:root`): Issho in Sumi had a grey
+  page and a blue accent. They are no more specific than `:root` now.
+- Without Sumi's tokens, the Sumi theme's first person is blade, as its
+  accent, not blue, and the text on the accent ink, as Sumi's.
+
 ## [0.4.2] - 2026-10-23
 
 A comment's mark goes when its place leaves the screen.

@@ -27,6 +27,9 @@
   --issho-fill: #f6f6f7;
   --issho-accent: #2f5bd3;
   --issho-accent-text: #ffffff;
+  /* The accent as small text: a thread's replies, a pressed reaction, a
+     mention. */
+  --issho-link: var(--issho-accent);
   --issho-radius: 8px;
   --issho-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.06);
   --issho-shadow-raised: 0 4px 16px rgb(0 0 0 / 0.12);
@@ -52,7 +55,7 @@
   --issho-comments-font-size: 0.875rem;
   --issho-comments-gap: 0.75rem;
   --issho-mark-size: 1.75rem;
-  --issho-mention-text: var(--issho-accent);
+  --issho-mention-text: var(--issho-link);
   --issho-mention-background: color-mix(in oklab, var(--issho-accent) 12%, transparent);
   --issho-person-1: #2563eb;
   --issho-person-2: #db2777;
@@ -64,8 +67,13 @@
   --issho-person-8: #65a30d;
 }
 
+/* Dark: a dark preference on a page that does not ask for a light theme
+   (Sumi's light ones are "light", "snow" and "silk"), or a dark data-theme
+   (Sumi's dark ones are "dark", "smoke", "stone" and "lacquer"). No more
+   specificity than :root, so that a theme loaded after this file (Sumi's)
+   or the app's own wins. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:where(:not([data-theme="light"], [data-theme="snow"], [data-theme="silk"])) {
     --issho-surface: #17171a;
     --issho-text: #ececf0;
     --issho-muted: #9a9aa6;
@@ -78,7 +86,10 @@
   }
 }
 
-[data-theme="dark"] {
+[data-theme="dark"],
+[data-theme="smoke"],
+[data-theme="stone"],
+[data-theme="lacquer"] {
   --issho-surface: #17171a;
   --issho-text: #ececf0;
   --issho-muted: #9a9aa6;
@@ -902,7 +913,7 @@
 .issho-reaction[aria-pressed="true"] {
   border-color: color-mix(in oklab, var(--issho-accent) 45%, transparent);
   background: color-mix(in oklab, var(--issho-accent) 10%, var(--issho-surface));
-  color: var(--issho-accent);
+  color: var(--issho-link);
 }
 
 /* The tools of a comment float at its top right, on hover or focus (and
@@ -971,7 +982,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--issho-accent);
+  color: var(--issho-link);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 500;

@@ -17,7 +17,13 @@
  *
  * Dark and light: on a page with the Sumi themes, Issho follows them.
  * Without them, the built-in palette follows the data-theme attribute
- * ("dark" or "light") first, then prefers-color-scheme.
+ * first (Sumi's seven: "dark", "smoke", "stone" and "lacquer" are dark;
+ * "light", "snow" and "silk" light), then prefers-color-scheme.
+ *
+ * The people: the first is the theme's accent, and the others a palette
+ * of their own in each theme, below, in which no one else is of the
+ * accent's hue and each name reads on its colour in the accent's own
+ * text colour (4.5:1 and more).
  */
 
 /* The Sumi palette, light. */
@@ -28,28 +34,28 @@
   --issho-sumi-base-300: oklch(89% 0.014 80);
   --issho-sumi-content: oklch(15% 0.003 270);
   --issho-sumi-muted: oklch(15% 0.003 270 / 0.65);
-  --issho-sumi-gray: oklch(40% 0.02 270);
 }
 
-/* The Sumi palette, dark: data-theme="dark", or a dark preference on a page
-   that does not ask for light. */
-[data-theme="dark"] {
+/* The Sumi palette, dark: Sumi's dark themes (Ink, Smoke, Stone, Lacquer),
+   or a dark preference on a page that does not ask for a light one. */
+[data-theme="dark"],
+[data-theme="smoke"],
+[data-theme="stone"],
+[data-theme="lacquer"] {
   --issho-sumi-base-100: oklch(12% 0.003 270);
   --issho-sumi-base-200: oklch(16% 0.004 270);
   --issho-sumi-base-300: oklch(20% 0.005 270);
   --issho-sumi-content: oklch(95% 0.012 85);
   --issho-sumi-muted: oklch(95% 0.012 85 / 0.5);
-  --issho-sumi-gray: oklch(80% 0.02 85);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme="light"], [data-theme="snow"], [data-theme="silk"]) {
     --issho-sumi-base-100: oklch(12% 0.003 270);
     --issho-sumi-base-200: oklch(16% 0.004 270);
     --issho-sumi-base-300: oklch(20% 0.005 270);
     --issho-sumi-content: oklch(95% 0.012 85);
     --issho-sumi-muted: oklch(95% 0.012 85 / 0.5);
-    --issho-sumi-gray: oklch(80% 0.02 85);
   }
 }
 
@@ -66,7 +72,10 @@
   --issho-text: var(--color-base-content, var(--sumi-ink, var(--issho-sumi-content)));
   --issho-muted: var(--sumi-text-muted, var(--sumi-muted, var(--issho-sumi-muted)));
   --issho-accent: var(--color-sumi-blade, var(--sumi-accent, #e84a1c));
-  --issho-accent-text: var(--color-primary-content, var(--sumi-accent-ink, oklch(98% 0.005 85)));
+  /* Sumi's ink on blade: about 5:1, where paper on it is 3.7:1. */
+  --issho-accent-text: var(--color-primary-content, var(--sumi-accent-ink, oklch(12% 0.003 270)));
+  /* The accent as small text: Sumi's accent text, calibrated for AA. */
+  --issho-link: var(--sumi-accent-text, var(--issho-accent));
   --issho-focus-ring: 0 0 0 2px var(--issho-surface), 0 0 0 4px var(--issho-accent);
 
   /* Shape: Sumi's corners, and shadows of ink, quieter than the default. */
@@ -74,13 +83,93 @@
   --issho-shadow: 0 1px 2px color-mix(in oklab, var(--issho-text) 8%, transparent);
   --issho-shadow-raised: 0 4px 16px color-mix(in oklab, var(--color-sumi-ink, #0a0a0b) 18%, transparent);
 
-  /* Ink and its accents: blade, ember, and quieter earth tones. */
-  --issho-person-1: var(--color-sumi-blade, oklch(55% 0.18 245));
-  --issho-person-2: var(--color-sumi-ember, oklch(58% 0.2 35));
-  --issho-person-3: oklch(55% 0.12 155);
-  --issho-person-4: oklch(62% 0.14 75);
-  --issho-person-5: oklch(50% 0.12 300);
-  --issho-person-6: oklch(52% 0.18 15);
-  --issho-person-7: oklch(55% 0.1 205);
-  --issho-person-8: var(--issho-sumi-gray);
+  /* The people: the accent first, then a palette of distinct hues, each
+     at the lightness at which the accent's text colour reads on it (the
+     names of the pointers, the marks of comments, "Following"), and
+     their marks 3:1 on Paper. Ink, Paper and Lacquer: */
+  --issho-pointer-text: var(--issho-accent-text);
+  --issho-following-text: var(--issho-accent-text);
+  --issho-person-1: var(--color-sumi-blade, var(--sumi-accent, #e84a1c));
+  --issho-person-2: oklch(60% 0.15 250);
+  --issho-person-3: oklch(58% 0.14 155);
+  --issho-person-4: oklch(60% 0.12 75);
+  --issho-person-5: oklch(61% 0.15 300);
+  --issho-person-6: oklch(62% 0.17 345);
+  --issho-person-7: oklch(59% 0.1 205);
+  --issho-person-8: oklch(60% 0.01 270);
+}
+
+/* Smoke (jade): lighter, for its lighter text on them; green is a leaf
+   green, and teal, beside jade, a coral. */
+[data-theme="smoke"] {
+  --issho-person-2: oklch(69% 0.15 250);
+  --issho-person-3: oklch(68% 0.14 125);
+  --issho-person-4: oklch(70% 0.14 75);
+  --issho-person-5: oklch(71% 0.15 300);
+  --issho-person-6: oklch(71% 0.17 345);
+  --issho-person-7: oklch(71% 0.15 20);
+  --issho-person-8: oklch(69% 0.01 270);
+}
+
+/* Stone (gold): amber is orange. */
+[data-theme="stone"] {
+  --issho-person-4: oklch(61% 0.15 50);
+}
+
+/* Snow and Silk: darker, for white on them. Snow (indigo): blue is red,
+   green a little yellower and violet a little redder. */
+[data-theme="snow"],
+[data-theme="silk"] {
+  --issho-person-2: oklch(53% 0.15 250);
+  --issho-person-3: oklch(52% 0.12 155);
+  --issho-person-4: oklch(54% 0.11 75);
+  --issho-person-5: oklch(55% 0.15 300);
+  --issho-person-6: oklch(55% 0.17 345);
+  --issho-person-7: oklch(52% 0.08 205);
+  --issho-person-8: oklch(45% 0.01 270);
+}
+
+[data-theme="snow"] {
+  --issho-person-2: oklch(55% 0.18 30);
+  --issho-person-3: oklch(52% 0.14 150);
+  --issho-person-5: oklch(55% 0.16 305);
+}
+
+/* Silk (lotus pink): rose, the stop of an agent and an error, is red
+   orange, and amber, beside it, ochre. */
+[data-theme="silk"] {
+  --issho-person-4: oklch(53% 0.1 85);
+  --issho-person-6: oklch(55% 0.17 35);
+}
+
+/* On Paper, a tint of a person's colour is light: their initials and an
+   agent's state on it are deeper, for 4.5:1. */
+:where([data-theme="light"]) .issho-person {
+  --issho-avatar-text: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 70%, var(--issho-text));
+}
+
+:where([data-theme="light"]) :is(.issho-comment-avatar, .issho-agent-avatar, .issho-mention-avatar) {
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 70%, var(--issho-text));
+}
+
+:where([data-theme="light"]) .issho-agent[data-state="working"] .issho-agent-state {
+  color: color-mix(in oklab, var(--issho-color, var(--issho-person-1)) 75%, var(--issho-text));
+}
+
+:where([data-theme="light"]) .issho-agent[data-state="paused"] .issho-agent-state {
+  color: color-mix(in oklab, var(--issho-person-4) 72%, var(--issho-text));
+}
+
+:where([data-theme="light"]) :is(.issho-agent[data-state="stopped"], .issho-agent[data-state="failed"]) .issho-agent-state {
+  color: color-mix(in oklab, var(--issho-person-6) 75%, var(--issho-text));
+}
+
+/* On Snow and Silk the names are white: Stop, in "Following", is darker
+   than the pill, not lighter. */
+:where([data-theme="snow"], [data-theme="silk"]) .issho-following-stop {
+  background: rgb(0 0 0 / 0.16);
+}
+
+:where([data-theme="snow"], [data-theme="silk"]) .issho-following-stop:is(:hover, :focus-visible) {
+  background: rgb(0 0 0 / 0.26);
 }
