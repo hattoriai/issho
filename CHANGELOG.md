@@ -7,6 +7,23 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Changes only on what their author saw (#34): a transaction's
+  `"if_revision"` (its base revision again) applies it only while the
+  document is at that revision of that epoch. Changed since, or of
+  another epoch, the whole transaction is refused before its operations
+  or the document's hook run, with `{:error, {:stale, details}}`: the
+  version now and the changes since (revisions and authors, the latest
+  20, never their operations) while the journal holds them. The
+  condition is part of the transaction's identity: a retry gets its
+  receipt, the id with another condition is `:id_reused`. Without it, as
+  before. `Issho.Version` (`"epoch:revision"`); `:if_revision` on
+  `Issho.transact/4`, `Participant.transact/4` and `Live.transact/4`;
+  receipts carry `"version"`; `read_document` gives it, and
+  `change_document` and `update_state` take `if_revision`. The channel
+  replies `%{"reason" => "stale", "stale" => details}`.
+
 ### Changed
 
 - The Sumi theme follows Sumi's seven themes and their accents. The

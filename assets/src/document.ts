@@ -24,6 +24,8 @@ export interface Transaction {
   epoch: string;
   base_revision: number;
   ops: Operation[];
+  /** Only on this revision (the base again), else refused as stale. */
+  if_revision?: number;
 }
 
 export interface AcceptedTransaction extends Transaction {

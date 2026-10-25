@@ -141,6 +141,10 @@ defmodule Issho.Channel do
   defp normalize(state) when state == %{}, do: nil
   defp normalize(state), do: state
 
+  # Stale: what the document is now, for the browser to read again.
+  defp reply_error({:stale, details}, socket),
+    do: {:reply, {:error, %{"reason" => "stale", "stale" => details}}, socket}
+
   defp reply_error(reason, socket),
     do: {:reply, {:error, %{"reason" => reason_text(reason)}}, socket}
 
