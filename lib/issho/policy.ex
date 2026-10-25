@@ -43,6 +43,12 @@ defmodule Issho.Policy do
       the policy says (`for: :policy`, `Issho.Streams`); a stream for a
       person or for the room asks `:read` only.
 
+  ## Requests
+
+  `ask/3`, optional, says whether a person may ask an agent privately
+  about what they selected (`Issho.Requests`): the agent's key, usually
+  one of the person's own agents. A policy without it lets no one ask.
+
   A component that keeps its data outside Issho's documents (a grid of
   your database, which writes it itself) asks too, with
   `Issho.Participant.authorize/2`.
@@ -88,7 +94,26 @@ defmodule Issho.Policy do
   @callback document(Identity.t() | nil, document_id :: String.t()) ::
               {:ok, document()} | {:error, term()}
 
-  @optional_callbacks document: 2
+  @doc "Whether the person may ask the agent with this key privately, in the room."
+  @callback ask(Identity.t(), room :: String.t(), agent :: String.t()) :: :ok | {:error, term()}
+
+  @optional_callbacks document: 2, ask: 3
+
+  @doc false
+  @spec ask(module(), Identity.t(), String.t(), String.t()) :: :ok | {:error, term()}
+  def ask(policy, identity, room, agent) do
+    Code.ensure_loaded(policy)
+
+    if function_exported?(policy, :ask, 3) do
+      case policy.ask(identity, room, agent) do
+        :ok -> :ok
+        {:error, _reason} = error -> error
+        other -> raise ArgumentError, "#{inspect(policy)}.ask/3 returned #{inspect(other)}"
+      end
+    else
+      {:error, :forbidden}
+    end
+  end
 
   @doc false
   @spec authorize(module(), Identity.t(), String.t(), action()) :: :ok | {:error, term()}

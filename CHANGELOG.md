@@ -9,6 +9,20 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Ask my agent (#33): a person asks their own agent privately about what
+  they selected (`Issho.Live.ask/3`, `Issho.Requests.ask/5`), with their
+  place, its label, the version they saw and the app's data, bounded and
+  cleaned. The policy's new optional `ask/3` says who may ask whom (none
+  without it). The agent hears it alone: `"agent.asked"` in the room, in
+  its inbox away (woken as for a mention, read once). It answers with a
+  stream (`start_stream`'s `request`), whose events carry the request's
+  id and go to the person, their agents and its writer only.
+  `Requests.accept/5` runs the app's change (made `if_revision`) and
+  closes the stream `"accepted"` once it is made, once, under a lock;
+  `reject/4` closes it `"rejected"`. `Issho.Event`'s `:to`: a private
+  event, to its sessions only. An agent now hears its own stream closed
+  or failed by someone else.
+
 - Changes only on what their author saw (#34): a transaction's
   `"if_revision"` (its base revision again) applies it only while the
   document is at that revision of that epoch. Changed since, or of

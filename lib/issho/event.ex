@@ -10,6 +10,10 @@ defmodule Issho.Event do
       whom it acts for, a service), or `nil`.
     * `:data`: what else there is to know, a map of the event's.
     * `:at`: when, a `DateTime` in UTC.
+    * `:to`: `nil` for everyone who may read the room, or the keys it is
+      for (and the agents of those keys' people): a private event, such
+      as a request to an agent. It goes to their sessions only, never on
+      the room's topic (`Issho.Events.subscribe/2`).
 
   ## Names
 
@@ -37,6 +41,9 @@ defmodule Issho.Event do
     * `"stream.started"`, `"stream.finished"`, `"stream.failed"`,
       `"stream.closed"`: a stream of the room (`Issho.Streams`), `data`
       `%{stream: id, kind: kind, for: for}` and the reason or outcome.
+    * `"agent.asked"`: a person asked their agent privately (`to` the
+      agent, `Issho.Requests`), `data` `%{request: id, text, place,
+      version, data}`; a stream answering it carries `request: id`.
     * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
       `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
       comments (`Issho.Comments`).
@@ -46,7 +53,7 @@ defmodule Issho.Event do
   """
 
   @enforce_keys [:name, :room, :at]
-  defstruct [:name, :room, :document, :by, :at, data: %{}]
+  defstruct [:name, :room, :document, :by, :at, :to, data: %{}]
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -54,7 +61,8 @@ defmodule Issho.Event do
           document: String.t() | nil,
           by: Issho.Identity.t() | nil,
           data: map(),
-          at: DateTime.t()
+          at: DateTime.t(),
+          to: [String.t()] | nil
         }
 
   @doc """

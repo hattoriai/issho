@@ -338,9 +338,16 @@ defmodule Issho.Participant do
 
   defp notify(%{notify: nil}, _event, _payload), do: :ok
 
-  # What it made happen itself, it knows.
-  defp notify(%{session: %{identity: %{key: key}}}, "event", %Issho.Event{by: %{key: key}}),
-    do: :ok
+  # What it made happen itself, it knows; but not how its stream was
+  # taken, left or ended by someone else (the event is its stream's, `by`
+  # its writer).
+  defp notify(
+         %{session: %{identity: %{key: key}}},
+         "event",
+         %Issho.Event{by: %{key: key}} = event
+       )
+       when event.name not in ["stream.closed", "stream.failed"],
+       do: :ok
 
   defp notify(%{notify: pid}, event, payload), do: send(pid, {__MODULE__, self(), event, payload})
 

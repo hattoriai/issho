@@ -346,6 +346,20 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     def merge_block(room, document, changes) when is_binary(document) and is_map(changes),
       do: aware(room, Issho.Awareness.put_block(awareness(room), document, changes))
 
+    @doc """
+    Asks an agent privately, as this session's person, about what they
+    selected (`Issho.Requests`): `:agent` (its key, required), `:place`
+    (this session's place unless given), `:version` and `:data`. Gives
+    `{:ok, request}`.
+    """
+    @spec ask(String.t(), String.t(), keyword()) :: {:ok, Issho.Requests.t()} | {:error, term()}
+    def ask(room, text, opts) do
+      with {:ok, session} <- fetch(room) do
+        opts = Keyword.put_new_lazy(opts, :place, fn -> session.place end)
+        Issho.Requests.ask(session.instance, room, session.identity, text, opts)
+      end
+    end
+
     @doc "This session's own awareness state (an empty map for none)."
     @spec awareness(String.t()) :: map()
     def awareness(room), do: Process.get({__MODULE__, :aware, room}) || %{}
