@@ -280,9 +280,15 @@ defmodule Issho.Session do
   def handle(%__MODULE__{room: room} = session, {Issho, :room_event, %Event{room: room} = event}) do
     config = Config.get(session.instance)
 
-    case Policy.authorize(config.policy, session.identity, session.room, :read) do
-      :ok -> {:push, "event", event, session}
-      {:error, _} -> {:stop, :unauthorized}
+    cond do
+      not Events.for?(event, session.identity) ->
+        {:skip, session}
+
+      Policy.authorize(config.policy, session.identity, session.room, :read) == :ok ->
+        {:push, "event", event, session}
+
+      true ->
+        {:stop, :unauthorized}
     end
   end
 

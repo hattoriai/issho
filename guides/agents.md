@@ -82,6 +82,49 @@ def wake("assistant:" <> _ = key, item), do: MyApp.Assistants.start(key, item["r
 def wake(_key, _item), do: :ok
 ```
 
+## Asked about what I selected
+
+A person may ask their own agent, privately, about what they selected:
+"make this shorter", on the paragraph they picked. It is not a comment:
+no thread, and no one else in the room hears it (`Issho.Requests`).
+
+```elixir
+# The policy says who may ask whom: a person, their own agents.
+@impl Issho.Policy
+def ask(%{claims: %{"user_id" => user}}, _room, "assistant:" <> id),
+  do: if(MyApp.Assistants.owner?(id, user), do: :ok, else: {:error, :forbidden})
+
+# In the LiveView: the person's place (and its label) go with it.
+{:ok, request} = Issho.Live.ask(room, "Make this shorter", agent: "assistant:42", version: version)
+```
+
+The agent hears it as an `"agent.asked"` event when it is in the room,
+and in its inbox when it is away (which wakes it, as a mention does):
+the words, the place, the version of the document the person saw, the
+app's data. It answers in place, with a stream for the person:
+
+```text
+start_stream {"room": "notebook:7", "kind": "suggestion", "request": "<its id>",
+              "document": "notebook:7/intro", "at": {"block": 3}}
+```
+
+The app shows the stream as a suggestion, with Accept and Reject.
+Accepting runs the app's change, made only on the version the person
+saw, and closes the stream `"accepted"` once it is made; a selection
+changed since is refused as stale, and the suggestion stays to look at.
+Taken in two tabs at once, the change is made once.
+
+```elixir
+Issho.Requests.accept(MyApp.Issho, request, stream_id, user, fn request ->
+  Issho.transact(MyApp.Issho, request.place["doc"], ops, if_revision: request.version, author: user)
+end)
+
+Issho.Requests.reject(MyApp.Issho, request, stream_id, user)
+```
+
+The agent hears which (`"stream.closed"`, with the request's id), and so
+do the person and their agents only.
+
 ## Seen at work, and stopped
 
 People follow an agent better when they see what it is doing, and trust

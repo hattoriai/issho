@@ -59,6 +59,10 @@ defmodule Issho.Stream do
           pid: pid()
         }
 
+  @doc "The id of the request it answers (`Issho.Requests`), from its meta, or `nil`."
+  @spec request(t()) :: String.t() | nil
+  def request(%__MODULE__{meta: meta}), do: meta[:request] || meta["request"]
+
   @doc """
   The stream as JSON (string keys, the time in ISO 8601), for a model or a
   browser: who writes it is their public identity.

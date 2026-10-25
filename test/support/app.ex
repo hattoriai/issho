@@ -24,6 +24,18 @@ defmodule IsshoTest.Policy do
     end
   end
 
+  # A person may ask their own agents: "user:ada" asks "agent:ada-…".
+  @impl true
+  def ask(identity, _room, "agent:" <> agent) do
+    person = String.replace_prefix(identity.key, "user:", "")
+
+    if not denied?(identity.key) and String.starts_with?(agent, person <> "-"),
+      do: :ok,
+      else: {:error, :forbidden}
+  end
+
+  def ask(_identity, _room, _agent), do: {:error, :forbidden}
+
   @impl true
   def document(_identity, "missing:" <> _), do: {:error, :not_found}
   # A canvas's document is its component's (a spec it gives as it opens).

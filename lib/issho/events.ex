@@ -99,10 +99,25 @@ defmodule Issho.Events do
     )
 
     # The sessions of the room hear it on a topic of their own, so that a
-    # process with a session that also subscribed itself gets both.
-    with :ok <- Phoenix.PubSub.broadcast(pubsub, topic(room), {Issho, :event, event}),
+    # process with a session that also subscribed itself gets both. A
+    # private event (`to`) goes to the sessions only, each its own.
+    with :ok <- public(pubsub, event),
          do: Phoenix.PubSub.broadcast(pubsub, sessions_topic(room), {Issho, :room_event, event})
   end
+
+  defp public(_pubsub, %Event{to: to}) when is_list(to), do: :ok
+
+  defp public(pubsub, event),
+    do: Phoenix.PubSub.broadcast(pubsub, topic(event.room), {Issho, :event, event})
+
+  @doc false
+  # Whether a private event is for this identity: its key, or the person
+  # it acts for.
+  @spec for?(Event.t(), Issho.Identity.t()) :: boolean()
+  def for?(%Event{to: nil}, _identity), do: true
+
+  def for?(%Event{to: to}, identity),
+    do: identity.key in to or (identity.on_behalf_of != nil and identity.on_behalf_of.key in to)
 
   defp topic(room), do: "issho:events:" <> room
 

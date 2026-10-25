@@ -62,7 +62,10 @@ defmodule Issho.Streams do
   (`Issho.Event`): `"stream.started"`, `"stream.finished"`,
   `"stream.failed"` and `"stream.closed"`, with `data` `%{stream: id,
   kind: kind, for: for}` and the `reason` or `outcome`; so an agent learns
-  whether its draft was taken. Their content is not in them.
+  whether its draft was taken. Their content is not in them. A stream
+  answering a request (`meta: %{request: id}`, `Issho.Requests`) says
+  which in its events, which go to its person, their agents and its
+  writer only.
 
   ## Limits
 
@@ -426,15 +429,29 @@ defmodule Issho.Streams do
         do: send(pid, {Issho, :stream, data.stream.id, message})
   end
 
+  # A stream answering a request (Issho.Requests) says which, to its
+  # person, their agents and its writer only.
   defp emit(%{stream: stream}, name, data) do
+    {to, data} =
+      case Stream.request(stream) do
+        nil -> {nil, data}
+        request -> {audience(stream), Map.put(data, :request, request)}
+      end
+
     Events.broadcast(Config.get(stream.instance).pubsub, %Event{
       name: name,
       room: stream.room,
       by: stream.by,
+      to: to,
       data: Map.merge(%{stream: stream.id, kind: stream.kind, for: for_word(stream.for)}, data),
       at: DateTime.utc_now()
     })
   end
+
+  defp audience(%Stream{for: for, by: by}) when is_binary(for),
+    do: Enum.uniq([for | if(by, do: [by.key], else: [])])
+
+  defp audience(_stream), do: nil
 
   defp for_word(scope) when is_atom(scope), do: Atom.to_string(scope)
   defp for_word(key), do: key

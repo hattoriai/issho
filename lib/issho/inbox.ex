@@ -1,7 +1,8 @@
 defmodule Issho.Inbox do
   @moduledoc ~S"""
   What was said to someone while they were away: each comment that
-  mentions them, in any room, kept until they have read it. An agent
+  mentions them, and each request to them (`Issho.Requests`), in any
+  room, kept until they have read it. An agent
   that was not in the room when a person wrote "@Claude, a look?" finds
   it here when it next comes (the `inbox` tool), and the app can wake it
   at once (`:on_mention`).
@@ -126,12 +127,13 @@ defmodule Issho.Inbox do
   def heard(_instance, _key, []), do: :ok
 
   def heard(instance, key, events) do
-    heard = MapSet.new(events, &{&1.room, &1.data[:comment]})
+    heard = MapSet.new(events, &{&1.room, &1.data[:comment] || &1.data[:request]})
 
     with {:ok, all} <- stored(instance, key) do
       ids =
         for %{"room" => room, "data" => data, "id" => id} <- all,
-            is_binary(data["comment"]) and {room, data["comment"]} in heard,
+            said = data["comment"] || data["request"],
+            is_binary(said) and {room, said} in heard,
             do: id
 
       mark_read(instance, key, ids)
@@ -171,6 +173,19 @@ defmodule Issho.Inbox do
 
         :ok
     end
+  end
+
+  @doc false
+  # Puts a private event (a request, Issho.Requests) in one inbox, and
+  # wakes its reader, in a process of its own.
+  @spec deliver_to(Config.t(), String.t(), Event.t()) :: :ok
+  def deliver_to(%Config{} = config, key, %Event{} = event) when is_binary(key) do
+    {:ok, _pid} =
+      Task.Supervisor.start_child(Config.child_name(config.name, Tasks), fn ->
+        put(config, key, event)
+      end)
+
+    :ok
   end
 
   # A thread's first comment is its own event too: the inbox has the comment.
