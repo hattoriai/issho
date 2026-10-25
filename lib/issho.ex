@@ -148,18 +148,13 @@ defmodule Issho do
   through the same checks and authority as everyone else's. `:author` is
   who made it: an actor (`Issho.Actor`, your user or an agent, as the
   hook's `:by` gets it) or a key (`"server"` unless given, a service).
+  `:if_revision`: the version they were made on (`Issho.Version`), to
+  apply only on it (`Issho.Transaction`).
   """
   @spec transact(atom(), String.t(), [map()], keyword()) :: {:ok, map()} | {:error, term()}
   def transact(instance, document_id, ops, opts \\ []) when is_list(ops) do
     with {:ok, pid} <- Issho.Documents.open(instance, document_id),
-         {:ok, snapshot} <- Issho.Authority.snapshot(pid) do
-      transaction = %{
-        "id" => Keyword.get_lazy(opts, :id, &Issho.Transaction.id/0),
-        "epoch" => snapshot["epoch"],
-        "base_revision" => snapshot["revision"],
-        "ops" => ops
-      }
-
+         {:ok, transaction} <- Issho.Transaction.new(pid, ops, opts) do
       Issho.Authority.commit(pid, transaction, author(Keyword.get(opts, :author, "server")))
     end
   end

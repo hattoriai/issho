@@ -287,6 +287,30 @@ defmodule Issho.Tool.Context do
   def error(:other_room), do: {:error, "That document is not in this room."}
   def error(:no_documents), do: {:error, "There is no such document open in this room."}
   def error({:interrupted, by}), do: {:error, Issho.Work.message(by)}
+  def error({:stale, details}), do: {:error, stale(details)}
+  def error(:invalid_version), do: {:error, "That is not a version: give the one a read gave."}
   def error(reason) when is_binary(reason), do: {:error, reason}
   def error(reason), do: {:error, "Refused: #{inspect(reason)}"}
+
+  # What changed since the version the agent saw, in words, and the
+  # version to read again.
+  defp stale(%{"version" => version} = details) do
+    since =
+      case details do
+        %{"complete" => true, "count" => count, "changes" => changes} ->
+          by = changes |> Enum.map(& &1["author"]) |> Enum.uniq() |> Enum.join(", ")
+          " #{count} #{if count == 1, do: "change", else: "changes"} since, by #{by}."
+
+        %{"count" => count} when is_integer(count) ->
+          " #{count} changes since, the last by #{details["changes"] |> List.last() |> Map.get("author")}."
+
+        _other ->
+          " Which changes, Issho no longer knows."
+      end
+
+    "Not changed: the document is no longer the version you read." <>
+      since <>
+      " It is now at #{version}: read it again, then make your change on what it says now" <>
+      " (if_revision: #{version})."
+  end
 end

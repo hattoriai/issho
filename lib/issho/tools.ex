@@ -286,8 +286,10 @@ defmodule Issho.Tools.ReadDocument do
     name: "read_document",
     description: """
     Reads a document of the room as its engine holds it: its engine, its
-    revision and its state. A component's own tools (Kotoba's text,
-    Hakushi's canvas) read it in friendlier terms; prefer them.
+    revision, its version and its state. A component's own tools (Kotoba's
+    text, Hakushi's canvas) read it in friendlier terms; prefer them. Give
+    the version as if_revision to a change you make on what you read: it
+    is refused if anyone changed the document since.
     """,
     annotations: [read_only: true, idempotent: true]
 
@@ -307,6 +309,7 @@ defmodule Issho.Tools.ReadDocument do
            "document" => document,
            "engine" => snapshot["engine"],
            "revision" => snapshot["revision"],
+           "version" => Issho.Version.of(snapshot),
            "state" =>
              if(json?(state), do: state, else: "(not JSON: use the component's own tools)")
          }}
@@ -555,21 +558,26 @@ defmodule Issho.Tools.ChangeDocument do
     Changes a document with its engine's own operations, as one
     transaction: all of them apply, or none. A component's own tools
     (Kotoba's, Hakushi's) make its changes in friendlier terms; prefer
-    them.
+    them. With if_revision (the version read_document gave), only if no
+    one changed it since; else it says what changed, to read it again.
     """,
     annotations: [destructive: true]
 
   arg :room, :string, required: true
   arg :document, :string, description: "A document of the room; the room itself unless given"
   arg :ops, {:array, :any}, required: true, description: "The engine's operations"
+  arg :if_revision, :string, description: "The version you read: only if it is still that"
 
   alias Issho.Tool.Context
 
   @impl true
   def call(args, ctx) do
     with {:ok, participant, document, _snapshot} <- Context.open(ctx, args.room, args[:document]),
-         {:ok, receipt} <- Issho.Participant.transact(participant, document, args.ops) do
-      {:ok, %{"revision" => receipt["revision"]}}
+         {:ok, receipt} <-
+           Issho.Participant.transact(participant, document, args.ops,
+             if_revision: args[:if_revision]
+           ) do
+      {:ok, %{"revision" => receipt["revision"], "version" => receipt["version"]}}
     else
       {:error, reason} -> Context.error(reason)
     end
@@ -596,13 +604,15 @@ defmodule Issho.Tools.UpdateState do
     an "id" of your choosing, unique in its list. "insert" and "move"
     place an item "after" or "before" an id, or "at" "start" or "end"
     (the end unless given). Delete an item with its path:
-    ["cols", "todo", "c9"].
+    ["cols", "todo", "c9"]. With if_revision (the version read_document
+    gave), only if no one changed it since; else it says what changed.
     """,
     annotations: [destructive: true]
 
   arg :room, :string, required: true
   arg :document, :string, description: "A document of the room; the room itself unless given"
   arg :ops, {:array, :any}, required: true, description: "The operations"
+  arg :if_revision, :string, description: "The version you read: only if it is still that"
 
   alias Issho.Tool.Context
 
@@ -610,8 +620,11 @@ defmodule Issho.Tools.UpdateState do
   def call(args, ctx) do
     with {:ok, participant, document, snapshot} <- Context.open(ctx, args.room, args[:document]),
          :ok <- map?(snapshot),
-         {:ok, receipt} <- Issho.Participant.transact(participant, document, args.ops) do
-      {:ok, %{"revision" => receipt["revision"]}}
+         {:ok, receipt} <-
+           Issho.Participant.transact(participant, document, args.ops,
+             if_revision: args[:if_revision]
+           ) do
+      {:ok, %{"revision" => receipt["revision"], "version" => receipt["version"]}}
     else
       {:error, reason} -> Context.error(reason)
     end

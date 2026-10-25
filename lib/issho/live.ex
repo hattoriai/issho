@@ -287,23 +287,22 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
 
     @doc """
     Commits to an open document: a list of operations (on the document's
-    latest revision) or a whole transaction.
+    latest revision, or, `:if_revision`, only on the version given:
+    `Issho.Transaction`) or a whole transaction.
     """
-    @spec transact(String.t(), String.t(), [term()] | map()) :: {:ok, map()} | {:error, term()}
-    def transact(room, document_id, ops) when is_list(ops) do
+    @spec transact(String.t(), String.t(), [term()] | map(), keyword()) ::
+            {:ok, map()} | {:error, term()}
+    def transact(room, document_id, ops_or_transaction, opts \\ [])
+
+    def transact(room, document_id, ops, opts) when is_list(ops) do
       with {:ok, session} <- fetch(room),
            {:ok, pid} <- document(session, document_id),
-           {:ok, snapshot} <- Authority.snapshot(pid) do
-        Session.transact(session, document_id, %{
-          "id" => Transaction.id(),
-          "epoch" => snapshot["epoch"],
-          "base_revision" => snapshot["revision"],
-          "ops" => ops
-        })
+           {:ok, transaction} <- Transaction.new(pid, ops, opts) do
+        Session.transact(session, document_id, transaction)
       end
     end
 
-    def transact(room, document_id, %{} = transaction) do
+    def transact(room, document_id, %{} = transaction, _opts) do
       with {:ok, session} <- fetch(room), do: Session.transact(session, document_id, transaction)
     end
 

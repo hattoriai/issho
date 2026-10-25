@@ -57,11 +57,17 @@ defmodule Issho.Participant do
   @spec read(GenServer.server(), String.t()) :: {:ok, map()} | {:error, term()}
   def read(participant, document_id), do: GenServer.call(participant, {:read, document_id})
 
-  @doc "Commits operations, or a whole transaction, to an open document."
-  @spec transact(GenServer.server(), String.t(), [map()] | map()) ::
+  @doc """
+  Commits operations, or a whole transaction, to an open document.
+  Options: `:if_revision`, the version the operations were made on (an
+  `Issho.Version` token, as a read gives it): they apply only if the
+  document is still at it, or are refused with `{:error, {:stale,
+  details}}` (`Issho.Transaction`).
+  """
+  @spec transact(GenServer.server(), String.t(), [map()] | map(), keyword()) ::
           {:ok, map()} | {:error, term()}
-  def transact(participant, document_id, ops_or_transaction),
-    do: GenServer.call(participant, {:transact, document_id, ops_or_transaction}, 20_000)
+  def transact(participant, document_id, ops_or_transaction, opts \\ []),
+    do: GenServer.call(participant, {:transact, document_id, ops_or_transaction, opts}, 20_000)
 
   @doc """
   Whether the room's policy lets the participant do `action` (`:read`,
@@ -175,7 +181,7 @@ defmodule Issho.Participant do
 
   # Paused or stopped, it changes nothing: whole transactions only, so what
   # it changed before stays.
-  def handle_event({:call, from}, {:transact, _document_id, _ops}, state, data)
+  def handle_event({:call, from}, {:transact, _document_id, _ops, _opts}, state, data)
       when state in [:paused, :stopped],
       do:
         {:keep_state_and_data,
@@ -238,24 +244,17 @@ defmodule Issho.Participant do
     end
   end
 
-  defp call({:transact, document_id, ops}, data) when is_list(ops) do
+  defp call({:transact, document_id, ops, opts}, data) when is_list(ops) do
     reply =
       with {:ok, pid} <- Map.fetch(data.session.documents, document_id) |> ok_or(:not_open),
-           {:ok, snapshot} <- Authority.snapshot(pid) do
-        transaction = %{
-          "id" => Transaction.id(),
-          "epoch" => snapshot["epoch"],
-          "base_revision" => snapshot["revision"],
-          "ops" => ops
-        }
-
+           {:ok, transaction} <- Transaction.new(pid, ops, opts) do
         Session.transact(data.session, document_id, transaction)
       end
 
     {reply, data}
   end
 
-  defp call({:transact, document_id, transaction}, data) when is_map(transaction),
+  defp call({:transact, document_id, transaction, _opts}, data) when is_map(transaction),
     do: {Session.transact(data.session, document_id, transaction), data}
 
   defp call({:aware, changes}, data), do: replace_aware(data, Map.merge(data.aware, changes))

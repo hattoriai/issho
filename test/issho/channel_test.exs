@@ -74,6 +74,29 @@ defmodule Issho.ChannelTest do
     assert_push "tx", %{"doc" => ^room, "event" => %{"revision" => 1}}
   end
 
+  test "a browser's change only on the revision it saw is refused as stale, with the version now",
+       %{room: room} do
+    {:ok, _, ada} = enter(room, @ada)
+    ref = push(ada, "open", %{"doc" => room})
+    assert_reply ref, :ok, snapshot
+
+    t = tx(snapshot, [%{"op" => "set", "path" => ["title"], "value" => "Plan"}])
+    ref = push(ada, "tx", %{"doc" => room, "tx" => t})
+    assert_reply ref, :ok, %{"revision" => 1, "version" => version}
+
+    stale =
+      snapshot
+      |> tx([%{"op" => "set", "path" => ["title"], "value" => "Other"}])
+      |> Map.put("if_revision", snapshot["revision"])
+
+    ref = push(ada, "tx", %{"doc" => room, "tx" => stale})
+
+    assert_reply ref, :error, %{
+      "reason" => "stale",
+      "stale" => %{"version" => ^version, "count" => 1}
+    }
+  end
+
   test "nested documents of the room open; another room's do not", %{room: room} do
     {:ok, _, ada} = enter(room, @ada)
     ref = push(ada, "open", %{"doc" => room <> "/n7/body"})

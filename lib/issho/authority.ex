@@ -8,7 +8,8 @@ defmodule Issho.Authority do
 
     1. checks the envelope (`Issho.Transaction`) and its receipt: a retry
        of an accepted transaction gets its revision again, and changes
-       nothing;
+       nothing; and a transaction only on the revision it saw
+       (`"if_revision"`) that someone changed since is refused as stale;
     2. applies the operations with the document's engine, all or none;
     3. validates the result (`c:Issho.Engine.validate/2`);
     4. saves the document and its content, comparing the stored version;
@@ -63,8 +64,10 @@ defmodule Issho.Authority do
   only its key. The key is what the journal and the receipts keep; the
   identity, when given, is what the document's hook gets as `:by` (who
   made the change: a person, an agent and whom it acts for, a service).
-  Gives `{:ok, %{"id" => id, "revision" => revision}}`, with `"duplicate"
-  => true` for a retry, or `{:error, reason}`.
+  Gives `{:ok, %{"id" => id, "revision" => revision, "version" => token}}`
+  (`Issho.Version`), with `"duplicate" => true` for a retry, or
+  `{:error, reason}` (`{:error, {:stale, details}}` for a change only on
+  a revision someone changed since: `Issho.Transaction`).
   """
   @spec commit(GenServer.server(), Transaction.t(), String.t() | Issho.Identity.t()) ::
           {:ok, map()} | {:error, term()}
@@ -268,9 +271,10 @@ defmodule Issho.Authority do
     document = state.document
     author = by.key
 
-    with :ok <- Transaction.check(transaction, document["epoch"], document["revision"]),
+    with :ok <- check(document, transaction),
          digest = Transaction.digest(transaction, author),
          :new <- receipt(document, transaction["id"], digest),
+         :ok <- unchanged(document, transaction),
          {:ok, engine_state} <-
            state.engine.apply(document["state"], transaction["ops"], [
              {:author, author} | state.opts
@@ -296,7 +300,13 @@ defmodule Issho.Authority do
       persist(state, next, content, event, by)
     else
       {:duplicate, revision} ->
-        {:ok, %{"id" => transaction["id"], "revision" => revision, "duplicate" => true}, state}
+        {:ok,
+         %{
+           "id" => transaction["id"],
+           "revision" => revision,
+           "version" => Issho.Version.new(document["epoch"], revision),
+           "duplicate" => true
+         }, state}
 
       {:error, reason} ->
         {:error, reason, state}
@@ -370,6 +380,54 @@ defmodule Issho.Authority do
       )
   end
 
+  # A conditional transaction from another epoch is stale, as one from
+  # an older revision is; anything else is the envelope's to refuse.
+  defp check(document, transaction) do
+    case Transaction.check(transaction, document["epoch"], document["revision"]) do
+      {:error, :epoch_mismatch} = error ->
+        if Transaction.conditional?(transaction), do: stale(document, transaction), else: error
+
+      result ->
+        result
+    end
+  end
+
+  # Only on the revision it saw: still the document's.
+  defp unchanged(%{"revision" => revision}, %{"if_revision" => revision}), do: :ok
+
+  defp unchanged(document, transaction) do
+    if Transaction.conditional?(transaction), do: stale(document, transaction), else: :ok
+  end
+
+  @changes 20
+
+  # The document's version now, and what changed since the author saw it:
+  # each change's revision and author (never its operations), the latest
+  # @changes, when the journal still holds them all.
+  defp stale(document, %{"epoch" => epoch, "if_revision" => seen}) do
+    base = Map.get(document, "base", 0)
+
+    since =
+      if epoch == document["epoch"] and seen >= base,
+        do: Enum.drop(document["journal"], seen - base),
+        else: nil
+
+    changes =
+      for event <- Enum.take(since || [], -@changes),
+          do: %{"revision" => event["revision"], "author" => event["author"]}
+
+    {:error,
+     {:stale,
+      %{
+        "version" => Issho.Version.of(document),
+        "epoch" => document["epoch"],
+        "revision" => document["revision"],
+        "count" => since && length(since),
+        "changes" => changes,
+        "complete" => since != nil and length(since) <= @changes
+      }}}
+  end
+
   defp receipt(document, id, digest) do
     case document["receipts"][id] do
       nil -> :new
@@ -405,8 +463,12 @@ defmodule Issho.Authority do
 
         emit(state, event, by, next["state"])
 
-        {:ok, %{"id" => event["id"], "revision" => event["revision"]},
-         %{state | document: next, content: content}}
+        {:ok,
+         %{
+           "id" => event["id"],
+           "revision" => event["revision"],
+           "version" => Issho.Version.new(next["epoch"], event["revision"])
+         }, %{state | document: next, content: content}}
 
       {:error, :conflict} ->
         Logger.warning("Issho: a newer #{state.id} was saved elsewhere; this authority stops")
