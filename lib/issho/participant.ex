@@ -275,6 +275,8 @@ defmodule Issho.Participant do
     do: {Awareness.locks(data.session.instance, data.session.room), data}
 
   defp replace_aware(data, aware) do
+    aware = Issho.Place.clean_state(aware)
+
     case Session.aware(data.session, aware) do
       {:ok, session} -> {:ok, %{data | session: session, aware: aware}}
       {:error, _} = error -> {error, data}

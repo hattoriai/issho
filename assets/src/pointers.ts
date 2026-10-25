@@ -88,7 +88,7 @@ export interface Pointing {
   /** An agent's last gesture (Issho.Motion): how long its way there takes, and what it does there. */
   motion?: { gesture: string; ms: number; seq: number; fresh?: true };
   /** An agent's place in a document, where it is drawn when the element it went to is not on this page. */
-  place?: { doc: string; at: unknown };
+  place?: { doc: string; at: unknown; label?: string };
   /** In a block of another room (`doc`): not drawn here, that room draws them. */
   away?: true;
 }
