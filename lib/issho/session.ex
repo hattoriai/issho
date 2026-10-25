@@ -201,6 +201,7 @@ defmodule Issho.Session do
   def aware(%__MODULE__{} = session, state) when is_map(state) do
     config = Config.get(session.instance)
     validator = &Map.get(session.places, &1)
+    state = Place.clean_state(state)
     locks = Map.get(state, "locks", [])
 
     with true <-

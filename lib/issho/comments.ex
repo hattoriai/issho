@@ -234,8 +234,13 @@ defmodule Issho.Comments do
   defp check_op(%{"op" => "place"} = op, _author, room), do: check_place(op, room)
   defp check_op(_op, _author, _room), do: :ok
 
-  defp check_place(%{"place" => %{"doc" => doc}}, room) when is_binary(doc) do
-    if Policy.room(doc) == room, do: :ok, else: {:error, :other_room}
+  # In the room, and its label words with nothing hidden in them.
+  defp check_place(%{"place" => %{"doc" => doc} = place}, room) when is_binary(doc) do
+    cond do
+      Policy.room(doc) != room -> {:error, :other_room}
+      Issho.Place.clean(place) != place -> {:error, :invalid_label}
+      true -> :ok
+    end
   end
 
   defp check_place(_op, _room), do: :ok
@@ -313,9 +318,10 @@ defmodule Issho.Comments.Ops do
       {:ok, _} = Issho.Live.transact(room, Issho.Comments.document(room), [op])
 
   A new comment is its author's, as their identity says it (`author/1`),
-  at the server's time, its words cleaned (`Issho.Text.clean/2`): the
-  comments document's hook holds it to who commits it, and refuses words
-  with anything hidden in them (`{:error, :invalid_text}`).
+  at the server's time, its words cleaned (`Issho.Text.clean/2`), its
+  place's label too (`Issho.Place.clean/1`): the comments document's hook
+  holds it to who commits it, and refuses words with anything hidden in
+  them (`{:error, :invalid_text}`, `{:error, :invalid_label}`).
   """
 
   alias Issho.Identity
@@ -326,8 +332,12 @@ defmodule Issho.Comments.Ops do
     {comment, id} = comment(by, body, opts)
     thread = Keyword.get_lazy(opts, :thread, &new_id/0)
 
-    {%{"op" => "start", "thread" => thread, "place" => place, "comment" => comment},
-     %{thread: thread, comment: id}}
+    {%{
+       "op" => "start",
+       "thread" => thread,
+       "place" => Issho.Place.clean(place),
+       "comment" => comment
+     }, %{thread: thread, comment: id}}
   end
 
   @doc "A reply in a thread: `{op, %{thread: id, comment: id}}`."
@@ -374,7 +384,8 @@ defmodule Issho.Comments.Ops do
 
   @doc "A thread at another place (its component's content moved)."
   @spec place(String.t(), map() | nil) :: map()
-  def place(thread, place), do: %{"op" => "place", "thread" => thread, "place" => place}
+  def place(thread, place),
+    do: %{"op" => "place", "thread" => thread, "place" => Issho.Place.clean(place)}
 
   @doc """
   A comment's author, as an identity says it: its key, name, kind,

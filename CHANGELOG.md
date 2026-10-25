@@ -7,6 +7,20 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Labels on places (#32): a place may say what it is in a few words,
+  its `"label"`, written by the component that knows (a text's selected
+  words, a card's title, a cell's column and row). Issho cleans and cuts
+  it to 60 characters wherever a place comes in (awareness, locks,
+  comments, streams), refuses a comments change whose label is not
+  clean words (`{:error, :invalid_label}`), and shows it where it shows
+  a place: `look_around`, `wait_for_events` and `selection.changed`,
+  the inbox, and the comments panel ("“Fold it, again”" for "Your
+  selection" and a thread's place, the `:place` slot's `default`).
+  `Issho.Place.label/1`, `clean/1` and `words/2`. A label is only words,
+  never authority: `"at"` still locates the place.
+
 ### Changed
 
 - The Sumi theme follows Sumi's seven themes and their accents. The

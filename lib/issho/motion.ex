@@ -92,7 +92,12 @@ defmodule Issho.Motion do
 
     changes =
       if Map.has_key?(target, "doc") and Keyword.get(opts, :place, true),
-        do: Map.put(changes, "place", Map.take(target, ["doc", "at"])),
+        do:
+          Map.put(
+            changes,
+            "place",
+            target |> Map.take(["doc", "at", "label"]) |> Issho.Place.clean()
+          ),
         else: changes
 
     changes = Map.merge(Keyword.get(opts, :aware, %{}), changes)

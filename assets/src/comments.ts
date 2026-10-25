@@ -8,7 +8,7 @@ import { locatePlace, type Box } from "./pointers";
 /** A thread the page marks: where it is, and what its mark says. */
 export interface Marked {
   id: string;
-  place: { doc: string; at?: unknown };
+  place: { doc: string; at?: unknown; label?: string };
   /** Its comments, the number on the mark. */
   count: number;
   /** What a screen reader says of it: "3 comments, Ada: Should this go first?". */

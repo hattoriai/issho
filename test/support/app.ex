@@ -335,7 +335,9 @@ defmodule IsshoTest.CommentsLive do
     ~H"""
     <Issho.Components.comments id="comments" room={@room} mentionable={[%{key: "agent:claude", name: "Claude"}]}>
       <:place :let={%{place: place, default: default}}>
-        {if place, do: "Path " <> Enum.join(place["at"]["path"], "."), else: default}
+        {if place && !place["label"],
+          do: "Path " <> Enum.join(place["at"]["path"], "."),
+          else: default}
       </:place>
     </Issho.Components.comments>
     """
