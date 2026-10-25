@@ -25,7 +25,8 @@ defmodule Issho.Event do
       `%{can: "write"}`.
     * `"selection.changed"`: a session's place changed (`data`: `%{place:
       place, session: id}`, the place `nil` when it has none): what
-      someone selected, in the document's own terms.
+      someone selected, in the document's own terms, and in words when
+      its component labels it (`Issho.Place`).
     * `"agent.started"` (`%{title, steps}`) and `"agent.finished"`
       (`%{title, summary}`): an agent began or ended a task
       (`Issho.Work`); `"agent.interrupted"` (`%{agent: key, action:

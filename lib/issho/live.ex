@@ -317,6 +317,8 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     @doc "Sets this session's awareness state (`nil` clears it)."
     @spec aware(String.t(), map() | nil) :: :ok | {:error, term()}
     def aware(room, state) do
+      state = Issho.Place.clean_state(state)
+
       with {:ok, session} <- fetch(room),
            {:ok, session} <- Session.aware(session, state) do
         put_session(session)

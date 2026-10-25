@@ -385,7 +385,11 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
                 <input type="radio" name="where" value="selection" checked />
                 <Issho.Icons.icon name="map-pin" />
                 <span class="issho-where-label">
-                  <.place_label slot={@place} place={@selection} default="Your selection" />
+                  <.place_label
+                    slot={@place}
+                    place={@selection}
+                    default={Issho.Place.words(@selection, "Your selection")}
+                  />
                 </span>
               </label>
               <label class="issho-where">
@@ -427,7 +431,11 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
                   <.place_label
                     slot={@place}
                     place={thread["place"]}
-                    default={if thread["place"], do: "On a part of the page", else: "On the page"}
+                    default={
+                      if thread["place"],
+                        do: Issho.Place.words(thread["place"], "On a part of the page"),
+                        else: "On the page"
+                    }
                   />
                 </span>
               </button>

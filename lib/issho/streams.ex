@@ -93,6 +93,7 @@ defmodule Issho.Streams do
   @spec start(atom(), String.t(), keyword()) :: {:ok, Stream.t()} | {:error, term()}
   def start(instance, room, opts) when is_atom(instance) and is_binary(room) do
     config = Config.get(instance)
+    opts = Keyword.replace_lazy(opts, :place, &Issho.Place.clean/1)
 
     with {:ok, for} <- for_of(Keyword.fetch(opts, :for)),
          :ok <- Issho.Place.check(opts[:place], room, fn _doc -> nil end),

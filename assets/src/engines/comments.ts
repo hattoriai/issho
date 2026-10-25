@@ -30,7 +30,7 @@ export interface Comment {
 /** A thread of comments, at a place of a component or of the page. */
 export interface Thread {
   id: string;
-  place: { doc: string; at?: Json } | null;
+  place: { doc: string; at?: Json; label?: string } | null;
   status: "open" | "resolved";
   resolved: { by: string; at: string } | null;
   comments: Comment[];
