@@ -8,7 +8,7 @@ export interface Person {
   color: string | null;
   /** The theme's palette index (1 to 8) for a person with no colour. */
   palette: number;
-  kind: "human" | "agent" | "service";
+  kind: "human" | "agent" | "service" | "guest";
   on_behalf_of: Person | null;
   joined_at: number;
   /** "write" when any of the person's tabs may write; "read" for someone only viewing. */

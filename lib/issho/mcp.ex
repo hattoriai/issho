@@ -132,6 +132,7 @@ if Code.ensure_loaded?(Sake.Server) do
     @behaviour Sake.Middleware
 
     alias Issho.MCP.Session
+    alias Issho.Tool.Context
 
     @impl true
     def init(opts), do: opts
@@ -143,8 +144,7 @@ if Code.ensure_loaded?(Sake.Server) do
           {:cont, payload}
 
         context ->
-          {:cont,
-           %{payload | items: Enum.filter(items, &Issho.Tool.Context.given?(context, &1.name))}}
+          {:cont, %{payload | items: Enum.filter(items, &Context.given?(context, &1.name))}}
       end
     end
 

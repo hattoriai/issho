@@ -141,6 +141,10 @@ defmodule Issho.Policy do
 
   @doc false
   @spec authorize(module(), Identity.t(), String.t(), action()) :: :ok | {:error, term()}
+  def authorize(_policy, %Identity{kind: :guest}, _room, action)
+      when action in [:write, :lock, :interrupt],
+      do: {:error, :forbidden}
+
   def authorize(policy, identity, room, action) do
     case policy.authorize(identity, room, action) do
       :ok -> :ok
