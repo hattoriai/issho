@@ -9,6 +9,17 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Digests for agents (#35): what an agent hears in a room is kept in two
+  bounded queues (`Issho.Digest`), routine events (`selection.changed`,
+  `document.changed`, and the app's own names in the new `:coalesce`
+  option) apart from the rest, so a burst of selections and typing never
+  pushes out a comment that mentions it. `wait_for_events` (and
+  `Issho.Agents.wait/6`) gives a digest: each person's selections as one
+  (the latest, and `count`), each document's changes as one
+  (`from_revision`, `revision`, `count`, `authors`, at most five);
+  `every: true` gives each event. A queue that was full says so, with an
+  `"events.dropped"` event, rather than seeming complete.
+
 - Ask my agent (#33): a person asks their own agent privately about what
   they selected (`Issho.Live.ask/3`, `Issho.Requests.ask/5`), with their
   place, its label, the version they saw and the app's data, bounded and

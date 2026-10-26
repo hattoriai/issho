@@ -13,6 +13,7 @@ defmodule Issho.Config do
     :secret_key_base,
     :endpoint,
     :on_mention,
+    coalesce: %{},
     registry: :global,
     presence: true,
     ttl: 30_000,
@@ -52,8 +53,23 @@ defmodule Issho.Config do
       do: raise(ArgumentError, "Issho needs :endpoint or :secret_key_base, to sign join tokens")
 
     check_on_mention!(opts[:on_mention])
+    check_coalesce!(Keyword.get(opts, :coalesce, %{}))
     struct!(__MODULE__, opts)
   end
+
+  # The app's own event names an agent's digest coalesces, each with the
+  # keys of its data that say what it is of (Issho.Digest).
+  defp check_coalesce!(coalesce) when is_map(coalesce) do
+    for {name, fields} <- coalesce, not (is_binary(name) and is_list(fields)) do
+      raise ArgumentError,
+            "Issho's :coalesce maps event names to lists of data keys, got: #{inspect({name, fields})}"
+    end
+
+    :ok
+  end
+
+  defp check_coalesce!(other),
+    do: raise(ArgumentError, "Issho's :coalesce is a map, got: #{inspect(other)}")
 
   defp check_on_mention!(nil), do: :ok
   defp check_on_mention!({module, function}) when is_atom(module) and is_atom(function), do: :ok
