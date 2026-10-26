@@ -85,6 +85,34 @@ defmodule Issho.Action do
   (ten minutes), in the memory of the node that ran them: a retry that
   reaches another node runs again. Durable receipts are for later.
 
+  ## A component's action
+
+  A component's own commands are actions too: a canvas's "connect these
+  two cards" (Hakushi), its button and the agent's tool alike. Its change
+  is a transaction of the component's document, made as whoever runs it,
+  under the room's policy: `transact/4`, with the invocation, takes the
+  way the entry point reaches the room (the person's LiveView session,
+  the agent's participant).
+
+      @impl Issho.Action
+      def run(%{canvas: canvas} = args, invocation) do
+        Issho.Action.transact(invocation, canvas, [connect(args)])
+      end
+
+  ## Seen as it is done
+
+  An agent's action can be seen as it is done, as a person's is: its
+  `c:gesture/2` (optional) moves the agent's pointer to where the action
+  is (the two cards, the button), with `Issho.Motion`, before the change.
+  The pause is checked after it, right before the change: an agent
+  paused on its way changes nothing, and is told so. `visible: false`
+  (`invoke/5`) does it at once, the same change with no gesture; a
+  person's action has none.
+
+  An agent finds what it may do in a room with the `list_actions` tool
+  (`Issho.Tools`): the actions among its tools, each allowed or not, and
+  why not.
+
   ## What it does not do
 
   An action runs only your code: it never runs a LiveView's events, or
@@ -122,7 +150,22 @@ defmodule Issho.Action do
   @doc "What the room's `\"action.done\"` event says of it, beyond its name and invocation."
   @callback event(args :: map(), result :: term()) :: map()
 
-  @optional_callbacks authorize: 2, summary: 1, event: 2
+  @doc """
+  The agent's way to where the action is, before the change (`Issho.Motion`,
+  with the invocation's participant): `:ok`, or `{:error, reason}`, which
+  stops it (a node that is gone, an interruption). Only an agent's, and
+  only when `visible`.
+  """
+  @callback gesture(args :: map(), Invocation.t()) :: :ok | {:error, term()}
+
+  @doc """
+  Whether the action is offered in the room to `who`, beyond the policy's
+  `can`, for `list_actions`: `:ok`, or `{:error, reason}` (the room has
+  no canvas; only the page's people may).
+  """
+  @callback offer(room :: String.t(), Identity.t()) :: :ok | {:error, term()}
+
+  @optional_callbacks authorize: 2, summary: 1, event: 2, gesture: 2, offer: 2
 
   @doc false
   defmacro __using__(opts) do
@@ -148,9 +191,12 @@ defmodule Issho.Action do
   @doc """
   Runs the action as `who` (an actor or an identity), with `input` (string
   or atom keys). Options: `:id` (the invocation's id, for retries; a new
-  one unless given), `:on_behalf_of` and `:claims` (as a join's), and
-  `:participant` (the agent's, to be paused in; found for an agent of
-  `Issho.Agents` in the room).
+  one unless given), `:on_behalf_of` and `:claims` (as a join's),
+  `:participant` (the agent's, to be paused in and to make its changes
+  with; found for an agent of `Issho.Agents` in the room), `:transact`
+  (how the invocation's changes reach the room's documents, `transact/4`:
+  the participant's unless given) and `:visible` (`true`: an agent's
+  gesture is shown).
   """
   @spec invoke(atom(), module(), map(), Issho.Actor.t() | Identity.t(), keyword()) ::
           {:ok, Receipt.t()} | {:error, reason()}
@@ -164,13 +210,17 @@ defmodule Issho.Action do
 
       case Receipts.claim(instance, id, fingerprint(action, args, identity)) do
         {:ok, :new} ->
+          participant = opts[:participant] || participant(instance, identity, room)
+
           invocation = %Invocation{
             id: id,
             action: action,
             room: room,
             by: identity,
             args: args,
-            participant: opts[:participant] || participant(instance, identity, room)
+            participant: participant,
+            transact: opts[:transact] || participant_transact(participant),
+            visible: Keyword.get(opts, :visible, true)
           }
 
           execute(instance, invocation)
@@ -203,6 +253,55 @@ defmodule Issho.Action do
   @spec room(module(), map()) :: {:ok, String.t()} | {:error, {:invalid, String.t()}}
   def room(action, input) do
     with {:ok, args, _id} <- cast(action, input), do: {:ok, action.target(args)}
+  end
+
+  @doc """
+  Makes a transaction of a document of the action's room, as whoever runs
+  the invocation: for a component's action (`c:run/2`). Gives the
+  receipt, or `{:error, reason}`: `:not_in_room` when its entry point
+  gave no way to the room (your code, with no participant).
+  """
+  @spec transact(Invocation.t(), String.t(), term(), keyword()) ::
+          {:ok, map()} | {:error, term()}
+  def transact(invocation, document, transaction, opts \\ [])
+
+  def transact(%Invocation{transact: nil}, _document, _transaction, _opts),
+    do: {:error, :not_in_room}
+
+  def transact(%Invocation{transact: transact}, document, transaction, opts),
+    do: transact.(document, transaction, opts)
+
+  @doc """
+  The actions among `tools` as offered in the room to `who`: each one's
+  name and description, whether it is allowed, and why not (the policy's
+  `can`, the action's `c:offer/2`). For `list_actions`, and a page that
+  lists what a person may do.
+  """
+  @spec offered(atom(), [module()], String.t(), Issho.Actor.t() | Identity.t()) :: [map()]
+  def offered(instance, tools, room, who) do
+    identity = Identity.new(who)
+
+    for tool <- tools, action?(tool) do
+      entry = %{name: tool.name(), description: tool.description()}
+
+      case offer(instance, tool, room, identity) do
+        :ok -> Map.put(entry, :allowed, true)
+        {:error, why} -> Map.merge(entry, %{allowed: false, why: message(why)})
+      end
+    end
+  end
+
+  defp offer(instance, action, room, identity) do
+    with :ok <- Policy.authorize(Config.get(instance).policy, identity, room, action.can()) do
+      if function_exported?(action, :offer, 2), do: action.offer(room, identity), else: :ok
+    end
+  end
+
+  @doc "Whether a module is an action."
+  @spec action?(module()) :: boolean()
+  def action?(module) do
+    Code.ensure_loaded(module)
+    function_exported?(module, :target, 1) and function_exported?(module, :can, 0)
   end
 
   @doc "A reason an invocation did not run, in words a person or a model reads."
@@ -281,10 +380,20 @@ defmodule Issho.Action do
 
   defp participant(_instance, _identity, _room), do: nil
 
+  defp participant_transact(nil), do: nil
+
+  defp participant_transact(participant),
+    do: fn document, transaction, opts ->
+      # Open (it is, when the agent read it first), then changed.
+      with {:ok, _snapshot} <- Issho.Participant.open(participant, document),
+           do: Issho.Participant.transact(participant, document, transaction, opts)
+    end
+
   defp execute(instance, %Invocation{action: action} = invocation) do
     outcome =
       try do
-        guard(invocation, fn -> action.run(invocation.args, invocation) end)
+        with :ok <- gesture(invocation),
+             do: guard(invocation, fn -> action.run(invocation.args, invocation) end)
       catch
         kind, reason ->
           Receipts.release(instance, invocation.id)
@@ -315,6 +424,16 @@ defmodule Issho.Action do
         raise ArgumentError, "#{inspect(action)}.run/2 returned #{inspect(other)}"
     end
   end
+
+  # The agent's way there, seen, unless it acts at once.
+  defp gesture(%Invocation{participant: pid, visible: true, action: action} = invocation)
+       when is_pid(pid) do
+    if function_exported?(action, :gesture, 2),
+      do: action.gesture(invocation.args, invocation),
+      else: :ok
+  end
+
+  defp gesture(_invocation), do: :ok
 
   defp guard(%Invocation{participant: nil}, fun), do: fun.()
   defp guard(%Invocation{participant: participant}, fun), do: Work.guard(participant, fun)

@@ -9,6 +9,18 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A component's actions, seen as they are done (#39, #40). An action's
+  change can be a transaction of a component's document, made as whoever
+  runs it: `Issho.Action.transact/4`, through the person's LiveView
+  session (`Issho.Live.act/3`) or the agent's participant. Its optional
+  `gesture/2` moves an agent's pointer to where it acts before the
+  change, with the pause checked after it, right before the change: an
+  agent paused on its way changes nothing. `visible: false` makes the
+  same change at once. The `list_actions` room tool gives an agent the
+  actions among its tools, allowed in a room or not, and why
+  (`Issho.Action.offered/4`, the action's optional `offer/2`).
+  `Issho.Tool.Context`'s new `tools`: the tools the agent was given, put
+  in by `Issho.Tools.call/4` and `Issho.MCP`.
 - Actions (#39): one thing your app does, for a person's button, a
   keyboard command, your code and an agent's tool alike (`Issho.Action`,
   the actions guide). An action declares its arguments, its room

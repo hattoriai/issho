@@ -40,6 +40,12 @@ canvas), and yours. A tool runs as the agent of an `Issho.Tool.Context`,
 which joins the rooms it works in and stays between calls, until it
 leaves or has been idle for a while (`Issho.Agents`).
 
+Your app's actions (`Issho.Action`, the actions guide) are tools too: the
+same thing a person does with a button, not a tool that does it its own
+way. `list_actions` tells the agent which of them it may do in a room,
+and why not; an action's gesture lets people see it go to where it acts
+before it does.
+
 ## Waiting for people
 
 An agent in a room hears what happens in it (`Issho.Event`): someone

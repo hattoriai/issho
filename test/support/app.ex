@@ -201,6 +201,17 @@ defmodule IsshoTest.BoardLive do
     {:noreply, update(socket, :messages, &[message | &1])}
   end
 
+  # A person retitles the board: the component's action an agent runs too.
+  def handle_event("retitle", %{"title" => title}, socket) do
+    message =
+      case Issho.Live.act(IsshoTest.Retitle, %{board: socket.assigns.room, title: title}) do
+        {:ok, _receipt} -> "retitled"
+        {:error, reason} -> "retitled:" <> Issho.Action.message(reason)
+      end
+
+    {:noreply, update(socket, :messages, &[message | &1])}
+  end
+
   def handle_event("interrupt", %{"agent" => agent, "action" => action}, socket) do
     :ok = Issho.Live.interrupt(socket.assigns.room, agent, String.to_existing_atom(action))
     {:noreply, socket}
@@ -500,4 +511,52 @@ defmodule IsshoTest.CheckItem do
   def event(%{item: item, done: done}, _result), do: %{item: item, done: done}
 
   def entry(list, item), do: Agent.get(IsshoTest.Checklist, &Map.get(&1, {list, item}))
+end
+
+defmodule IsshoTest.Retitle do
+  @moduledoc false
+  # A component's action: the board document's title, changed as whoever
+  # runs it. An agent goes to the title first (its gesture), and waits
+  # there for the test's :go when it is told to (a :waiter).
+  use Issho.Action,
+    name: "retitle_board",
+    description: "Changes a board's title."
+
+  arg :board, :string, required: true
+  arg :title, :string, required: true, max_length: 120
+
+  @impl Issho.Action
+  def target(%{board: board}), do: Issho.Policy.room(board)
+
+  @impl Issho.Action
+  def gesture(%{board: board}, invocation) do
+    :ok =
+      Issho.Participant.place(invocation.participant, %{
+        "doc" => board,
+        "at" => %{"path" => ["title"]}
+      })
+
+    case :persistent_term.get({__MODULE__, :waiter}, nil) do
+      nil ->
+        :ok
+
+      waiter ->
+        send(waiter, {:on_the_way, self()})
+        receive do: (:go -> :ok)
+    end
+  end
+
+  @impl Issho.Action
+  def run(%{board: board, title: title}, invocation) do
+    Issho.Action.transact(invocation, board, [
+      %{"op" => "set", "path" => ["title"], "value" => title}
+    ])
+  end
+
+  @impl Issho.Action
+  def offer("canvas:" <> _, _who), do: {:error, "A canvas has no title."}
+  def offer(_room, _who), do: :ok
+
+  @impl Issho.Action
+  def summary(_receipt), do: "Retitled."
 end

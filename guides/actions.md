@@ -93,6 +93,58 @@ gives `{:error, reason}`, never a receipt, and the same id may run again.
 `Issho.Action.allowed/5` makes the same checks without running anything:
 for a button's disabled state, and its reason.
 
+## A component's action
+
+A component's commands are actions too. Hakushi's "connect these two
+cards" is one action: the canvas's own gesture (a person drawing the
+edge) and the agent's `connect_nodes` both run it. Its change is a
+transaction of the component's document, made as whoever runs it, under
+the room's policy:
+
+```elixir
+@impl Issho.Action
+def run(%{canvas: canvas} = args, invocation) do
+  Issho.Action.transact(invocation, canvas, [connect(args)])
+end
+```
+
+`Issho.Action.transact/4` makes it through the entry point's way to the
+room: the person's LiveView session (`Issho.Live.act/3`), or the agent's
+participant. Your code, with neither, gets `{:error, :not_in_room}`:
+join first (`Issho.join_as/4`) and give `:participant`.
+
+Typing and dragging need no action: a keystroke of a person and an
+agent's change of the same text are already one thing, a transaction of
+the document under its policy. An action is for a command: something
+with a name, rules of its own and an outcome to tell.
+
+## Seen as it is done
+
+An agent's action can be seen as a person's is. Its `gesture/2` moves the
+agent's pointer to where the action is, with `Issho.Motion`, before the
+change:
+
+```elixir
+@impl Issho.Action
+def gesture(%{source: source, target: target}, invocation) do
+  with :ok <- Issho.Motion.go(invocation.participant, place(source)),
+       do: Issho.Motion.go(invocation.participant, place(target))
+end
+```
+
+The pause is checked after the gesture, right before the change: an
+agent paused on its way changes nothing, and is told so, never "done".
+`visible: false` (`Issho.Action.invoke/5`) makes the same change at once,
+with no gesture. A person's action has none: they made their own.
+
+## What an agent may do here
+
+`list_actions` (`Issho.Tools`) gives an agent the actions among its tools,
+each allowed in the room or not, and why not: the policy's `can`, and the
+action's `offer/2` when it has one (the room has no canvas; only the
+page's people may). `Issho.Action.offered/4` is the same list, for a page
+that shows a person what they may do.
+
 ## Preconditions
 
 A change that depends on what its author saw says so in its arguments:

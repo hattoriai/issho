@@ -221,18 +221,22 @@ defmodule Issho.Tool.Context do
 
   The agent joins the rooms it works in and stays between calls, until it
   leaves or has been idle for `:idle` milliseconds (`Issho.Agents`).
+
+  `tools` are the tools the agent was given, which `Issho.Tools.call/4`
+  and `Issho.MCP` put in: for a tool about the others (`list_actions`).
   """
 
   alias Issho.{Agents, Identity}
 
   @enforce_keys [:instance, :actor]
-  defstruct [:instance, :actor, opts: [], idle: 600_000]
+  defstruct [:instance, :actor, opts: [], idle: 600_000, tools: []]
 
   @type t :: %__MODULE__{
           instance: atom(),
           actor: Issho.Actor.t(),
           opts: keyword(),
-          idle: pos_integer()
+          idle: pos_integer(),
+          tools: [module()]
         }
 
   @doc "A context: the instance, the agent, and `:on_behalf_of`, `:claims`, `:can` and `:idle`."
