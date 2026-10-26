@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, read what was said to you while away, write a long answer as it comes, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, read what was said to you while away, write a long answer as it comes, see what actions you may do, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -46,6 +46,7 @@ defmodule Issho.Tools do
       Issho.Tools.StartStream,
       Issho.Tools.AppendToStream,
       Issho.Tools.FinishStream,
+      Issho.Tools.ListActions,
       Issho.Tools.LeaveRoom
     ]
 
@@ -71,7 +72,7 @@ defmodule Issho.Tools do
   def call(tools, name, input, %Tool.Context{} = ctx) do
     case Enum.find(tools, &(&1.name() == name)) do
       nil -> {:error, "There is no tool #{inspect(name)}."}
-      tool -> run(tool, input, ctx)
+      tool -> run(tool, input, %{ctx | tools: tools})
     end
   end
 
@@ -1122,5 +1123,37 @@ defmodule Issho.Tools.LeaveRoom do
   def call(%{room: room}, ctx) do
     :ok = Context.leave(ctx, room)
     {:ok, "Left #{room}."}
+  end
+end
+
+defmodule Issho.Tools.ListActions do
+  @moduledoc false
+  use Issho.Tool,
+    name: "list_actions",
+    description: """
+    What you may do in a room with your actions: each of your tools that
+    does one of the app's actions (the same one people do with its
+    button), whether you may do it there, and why not. Look here before
+    you act on a room you have not worked in.
+    """,
+    annotations: [read_only: true, idempotent: true]
+
+  arg :room, :string, required: true
+
+  alias Issho.{Action, Config, Identity, Policy}
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(%{room: room}, ctx) do
+    identity = Identity.new(ctx.actor, Keyword.take(ctx.opts, [:on_behalf_of, :claims]))
+
+    case Policy.authorize(Config.get(ctx.instance).policy, identity, room, :read) do
+      :ok ->
+        {:ok,
+         %{"room" => room, "actions" => Action.offered(ctx.instance, ctx.tools, room, identity)}}
+
+      {:error, reason} ->
+        Context.error(reason)
+    end
   end
 end

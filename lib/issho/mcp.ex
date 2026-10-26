@@ -80,9 +80,9 @@ if Code.ensure_loaded?(Sake.Server) do
 
     @doc false
     # Runs an Issho tool for an MCP call.
-    def run(tool, args, %Sake.Context{} = ctx) do
+    def run(tool, args, %Sake.Context{} = ctx, tools \\ []) do
       Issho.MCP.served(ctx.server)
-      Issho.Tools.run(tool, args, context(ctx))
+      Issho.Tools.run(tool, args, %{context(ctx) | tools: tools})
     end
 
     defp agent(ctx) do
@@ -276,7 +276,7 @@ if Code.ensure_loaded?(Sake.Server) do
               absent: :omit
 
             @impl true
-            def execute(args, ctx), do: Session.run(unquote(tool), args, ctx)
+            def execute(args, ctx), do: Session.run(unquote(tool), args, ctx, unquote(tools))
           end
 
         Module.create(module, contents, Macro.Env.location(__ENV__))

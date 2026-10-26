@@ -370,7 +370,14 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
     def act(action, input, opts \\ []) do
       with {:ok, room} <- Issho.Action.room(action, input),
            {:ok, session} <- fetch(room),
-           do: Issho.Action.invoke(session.instance, action, input, session.identity, opts)
+           do:
+             Issho.Action.invoke(
+               session.instance,
+               action,
+               input,
+               session.identity,
+               Keyword.put(opts, :transact, &transact(room, &1, &2, &3))
+             )
     end
 
     @doc "This session's own awareness state (an empty map for none)."
