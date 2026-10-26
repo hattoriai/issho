@@ -108,8 +108,9 @@ def run(%{canvas: canvas} = args, invocation) do
 end
 ```
 
-`Issho.Action.transact/4` makes it through the entry point's way to the
-room: the person's LiveView session (`Issho.Live.act/3`), or the agent's
+`Issho.Action.read/2` reads the document first, to check what the action
+changes (the cards are there), and `Issho.Action.transact/4` makes the
+change, each through the entry point's way to the room: the person's LiveView session (`Issho.Live.act/3`), or the agent's
 participant. Your code, with neither, gets `{:error, :not_in_room}`:
 join first (`Issho.join_as/4`) and give `:participant`.
 

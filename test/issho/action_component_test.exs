@@ -58,6 +58,19 @@ defmodule Issho.ActionComponentTest do
     assert_receive {Issho, :event, %Event{name: "document.changed", by: %{key: "agent:claude"}}}
     assert title(room) == "Claude's plan"
 
+    # Each reads the document as itself first: the same check refuses both.
+    assert {:error, "It is already \"Claude's plan\"."} =
+             Tools.call(
+               tools,
+               "retitle_board",
+               %{"board" => room, "title" => "Claude's plan"},
+               ctx
+             )
+
+    render_click(view, "retitle", %{"title" => "Claude's plan"})
+    settle(view.pid)
+    assert render(view) =~ "retitled:It is already"
+
     # It went to the title first, seen there.
     agent = Agents.participant(@instance, "agent:claude", room)
     assert %{"place" => %{"at" => %{"path" => ["title"]}}} = Participant.awareness(agent)

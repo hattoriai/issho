@@ -376,7 +376,9 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
                action,
                input,
                session.identity,
-               Keyword.put(opts, :transact, &transact(room, &1, &2, &3))
+               opts
+               |> Keyword.put(:read, &read(room, &1))
+               |> Keyword.put(:transact, &transact(room, &1, &2, &3))
              )
     end
 
