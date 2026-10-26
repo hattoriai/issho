@@ -11,7 +11,8 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A component's actions, seen as they are done (#39, #40). An action's
   change can be a transaction of a component's document, made as whoever
-  runs it: `Issho.Action.transact/4`, through the person's LiveView
+  runs it, after reading it as them: `Issho.Action.read/2` and
+  `Issho.Action.transact/4`, through the person's LiveView
   session (`Issho.Live.act/3`) or the agent's participant. Its optional
   `gesture/2` moves an agent's pointer to where it acts before the
   change, with the pause checked after it, right before the change: an

@@ -548,9 +548,12 @@ defmodule IsshoTest.Retitle do
 
   @impl Issho.Action
   def run(%{board: board, title: title}, invocation) do
-    Issho.Action.transact(invocation, board, [
-      %{"op" => "set", "path" => ["title"], "value" => title}
-    ])
+    with {:ok, %{"state" => state}} <- Issho.Action.read(invocation, board),
+         true <- state["title"] != title || {:error, "It is already #{inspect(title)}."},
+         do:
+           Issho.Action.transact(invocation, board, [
+             %{"op" => "set", "path" => ["title"], "value" => title}
+           ])
   end
 
   @impl Issho.Action
