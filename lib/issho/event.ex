@@ -44,6 +44,9 @@ defmodule Issho.Event do
     * `"agent.asked"`: a person asked their agent privately (`to` the
       agent, `Issho.Requests`), `data` `%{request: id, text, place,
       version, data}`; a stream answering it carries `request: id`.
+    * `"events.dropped"`: an agent's digest lost events that would not fit
+      (`Issho.Digest`), `data` `%{count: n, important: n, routine: n}`:
+      only ever in what an agent takes, never broadcast.
     * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
       `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
       comments (`Issho.Comments`).

@@ -15,9 +15,11 @@ defmodule Issho.Agents do
   see the agent as they see anyone: its name, its place, its changes.
 
   An agent in a room hears its events (`Issho.Event`), but those it made
-  happen itself, and keeps the last 100 of them until it takes them
-  (`wait/5`, the `wait_for_events` tool): what people did between its
-  calls, and what it waits for (someone mentions it, a document changes).
+  happen itself, and keeps them until it takes them (`wait/6`, the
+  `wait_for_events` tool): what people did between its calls, and what it
+  waits for (someone mentions it, a document changes). It keeps them as a
+  digest (`Issho.Digest`): a burst of selections and typing is one entry
+  each, and never pushes out a comment that mentions it.
 
   An agent is one in the cluster (`:global`, as the documents'
   authorities are): a call on any node finds it, so an MCP endpoint
@@ -48,8 +50,6 @@ defmodule Issho.Agents do
   @idle 600_000
   # An agent with nothing to do for this long hibernates.
   @hibernate_after 15_000
-  # The events an agent keeps until it takes them.
-  @kept 100
 
   @doc """
   The agent's participant in the room, joining it on the first call.
@@ -93,15 +93,26 @@ defmodule Issho.Agents do
   one of `names` (`Issho.Events.match?/2`: a list of names, `"kind.*"`, or
   `:all`), oldest first; when there is none yet, waits up to `timeout`
   milliseconds for one. With `mentions_me: true`, only those whose data
-  mentions the agent (`mentions`, a comment's). Gives `{:ok, events}`, an empty list when none
-  came, or `{:error, :not_there}` for an agent not in the room.
+  mentions the agent (`mentions`, a comment's). As a digest
+  (`Issho.Digest`), or as they were with `every: true`. Gives `{:ok,
+  events}`, an empty list when none came, or `{:error, :not_there}` for
+  an agent not in the room.
   """
   @spec wait(atom(), String.t(), String.t(), :all | [String.t()], non_neg_integer(), keyword()) ::
           {:ok, [Issho.Event.t()]} | {:error, :not_there}
   def wait(instance, key, room, names, timeout, opts \\ [])
       when is_integer(timeout) and timeout >= 0 do
     wanted = {names, if(opts[:mentions_me], do: key)}
-    call(instance, key, room, {:wait, wanted, timeout}, {:error, :not_there}, timeout + 5_000)
+    mode = if opts[:every], do: :raw, else: :digest
+
+    call(
+      instance,
+      key,
+      room,
+      {:wait, wanted, mode, timeout},
+      {:error, :not_there},
+      timeout + 5_000
+    )
   end
 
   @doc """
@@ -225,7 +236,8 @@ defmodule Issho.Agents do
           room: room,
           idle: idle,
           memory: %{},
-          events: [],
+          digest: Issho.Digest.new(),
+          coalesce: Config.get(instance).coalesce,
           work: nil
         }
 
@@ -252,16 +264,17 @@ defmodule Issho.Agents do
 
   # The events kept that it wants, or a wait for the next one. A wait
   # before is answered, empty: an agent waits once at a time.
-  def handle_event({:call, from}, {:wait, wanted, timeout}, state, data) do
+  def handle_event({:call, from}, {:wait, wanted, mode, timeout}, state, data) do
     answered = answer(state, [])
+    wanted? = &wanted?(wanted, &1)
 
-    case take(data.events, wanted) do
-      {[], _events} ->
+    case Issho.Digest.take(data.digest, wanted?, mode, data.room, data.coalesce) do
+      {[], _digest} ->
         {:next_state, {:waiting, from, wanted}, data,
          answered ++ [{{:timeout, :wait}, timeout, :waited}, idle_timeout(data)]}
 
-      {events, rest} ->
-        {:next_state, :listening, %{data | events: rest},
+      {events, digest} ->
+        {:next_state, :listening, %{data | digest: digest},
          answered ++ [{:reply, from, {:ok, events}}, cancel_wait(), idle_timeout(data)]}
     end
   end
@@ -354,9 +367,7 @@ defmodule Issho.Agents do
   defp answer(:listening, _events), do: []
 
   defp keep(data, event),
-    do: %{data | events: Enum.take(data.events ++ [event], -@kept)}
-
-  defp take(events, wanted), do: Enum.split_with(events, &wanted?(wanted, &1))
+    do: %{data | digest: Issho.Digest.keep(data.digest, event, data.coalesce)}
 
   defp wanted?({names, nil}, event), do: Issho.Events.match?(names, event.name)
 
