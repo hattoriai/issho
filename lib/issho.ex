@@ -36,6 +36,8 @@ defmodule Issho do
     * `:stream_max_bytes` (1 MB), `:room_max_streams` (32) and
       `:stream_keep` (five minutes, in milliseconds): the limits of the
       rooms' streams (`Issho.Streams`).
+    * `:action_keep`: how long, in milliseconds, a receipt of an action
+      is kept for its retries (ten minutes, `Issho.Action`).
 
   See the architecture guide for how the parts fit together.
   """
@@ -89,7 +91,9 @@ defmodule Issho do
             id: Config.child_name(name, StreamGroups),
             start: {:pg, :start_link, [Config.child_name(name, StreamGroups)]}
           },
-          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Streams)}
+          {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Streams)},
+          # The receipts of the actions run on this node (`Issho.Action`).
+          {Issho.Action.Receipts, name}
         ]
 
     Supervisor.init(children, strategy: :one_for_one)

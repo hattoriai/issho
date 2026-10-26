@@ -25,7 +25,8 @@ defmodule Issho.Config do
     token_max_age: 300,
     stream_max_bytes: 1_000_000,
     room_max_streams: 32,
-    stream_keep: 300_000
+    stream_keep: 300_000,
+    action_keep: 600_000
   ]
 
   @type t :: %__MODULE__{}

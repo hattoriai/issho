@@ -360,6 +360,19 @@ if Code.ensure_loaded?(Phoenix.LiveView) do
       end
     end
 
+    @doc """
+    Runs an action (`Issho.Action`) as this session's person: the same
+    action an agent runs as a tool, under the same policy. The LiveView
+    is in the action's room (`join/4`). Options: `:id`, for a retry
+    (`Issho.Action.invoke/5`).
+    """
+    @spec act(module(), map(), keyword()) :: {:ok, Issho.Action.Receipt.t()} | {:error, term()}
+    def act(action, input, opts \\ []) do
+      with {:ok, room} <- Issho.Action.room(action, input),
+           {:ok, session} <- fetch(room),
+           do: Issho.Action.invoke(session.instance, action, input, session.identity, opts)
+    end
+
     @doc "This session's own awareness state (an empty map for none)."
     @spec awareness(String.t()) :: map()
     def awareness(room), do: Process.get({__MODULE__, :aware, room}) || %{}

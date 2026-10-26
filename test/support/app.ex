@@ -188,6 +188,19 @@ defmodule IsshoTest.BoardLive do
     {:noreply, socket}
   end
 
+  # A person checks an item: the action an agent runs as a tool.
+  def handle_event("check", %{"item" => item, "done" => done} = params, socket) do
+    args = %{list: socket.assigns.room, item: item, done: done == "true"}
+
+    message =
+      case Issho.Live.act(IsshoTest.CheckItem, args, id: params["id"]) do
+        {:ok, receipt} -> "acted:" <> if(receipt.replayed, do: "replayed", else: "ok")
+        {:error, reason} -> "acted:" <> Issho.Action.message(reason)
+      end
+
+    {:noreply, update(socket, :messages, &[message | &1])}
+  end
+
   def handle_event("interrupt", %{"agent" => agent, "action" => action}, socket) do
     :ok = Issho.Live.interrupt(socket.assigns.room, agent, String.to_existing_atom(action))
     {:noreply, socket}
@@ -438,4 +451,53 @@ defmodule IsshoTest.StreamsLive do
     </article>
     """
   end
+end
+
+defmodule IsshoTest.CheckItem do
+  @moduledoc false
+  # The test app's action: an item of a checklist, the app's own data (an
+  # Agent), checked by a person's button or an agent's tool. "archived:"
+  # items may not change (the app's invariant), "broken" fails, and "slow"
+  # waits for the test's :go.
+  use Issho.Action,
+    name: "check_item",
+    description: "Checks or unchecks an item of the room's checklist."
+
+  arg :list, :string, required: true, description: "The checklist's room."
+  arg :item, :string, required: true, max_length: 80
+  arg :done, :boolean, required: true
+
+  @impl Issho.Action
+  def target(%{list: list}), do: list
+
+  @impl Issho.Action
+  def authorize(%{item: "archived:" <> _}, _who), do: {:error, "That item is archived."}
+  def authorize(_args, _who), do: :ok
+
+  @impl Issho.Action
+  def run(%{item: "broken"}, _invocation), do: {:error, "That item is broken."}
+
+  def run(%{list: list, item: item, done: done}, invocation) do
+    if item == "slow" do
+      send(:persistent_term.get({__MODULE__, :waiter}), {:running, self()})
+      receive do: (:go -> :ok)
+    end
+
+    Agent.update(IsshoTest.Checklist, fn lists ->
+      Map.update(lists, {list, item}, %{done: done, by: invocation.by.key, runs: 1}, fn entry ->
+        %{entry | done: done, by: invocation.by.key, runs: entry.runs + 1}
+      end)
+    end)
+
+    {:ok, %{item: item, done: done}}
+  end
+
+  @impl Issho.Action
+  def summary(%{item: item, done: true}), do: "Checked #{item}."
+  def summary(%{item: item, done: false}), do: "Unchecked #{item}."
+
+  @impl Issho.Action
+  def event(%{item: item, done: done}, _result), do: %{item: item, done: done}
+
+  def entry(list, item), do: Agent.get(IsshoTest.Checklist, &Map.get(&1, {list, item}))
 end
