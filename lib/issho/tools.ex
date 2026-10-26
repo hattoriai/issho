@@ -22,7 +22,7 @@ defmodule Issho.Tools do
 
   alias Issho.Tool
 
-  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, read what was said to you while away, write a long answer as it comes, see what actions you may do, leave."
+  @doc "Issho's tools for rooms: join, look around, read, point, click, say what you do, your task and its steps, change, change shared state, comment, wait for what happens, read what was said to you while away, hand a task to another agent and answer one, write a long answer as it comes, see what actions you may do, leave."
   @spec room() :: [module()]
   def room,
     do: [
@@ -43,6 +43,8 @@ defmodule Issho.Tools do
       Issho.Tools.ResolveThread,
       Issho.Tools.WaitForEvents,
       Issho.Tools.Inbox,
+      Issho.Tools.HandOff,
+      Issho.Tools.AnswerHandoff,
       Issho.Tools.StartStream,
       Issho.Tools.AppendToStream,
       Issho.Tools.FinishStream,
@@ -965,11 +967,111 @@ defmodule Issho.Tools.Inbox do
       "text" => data["text"],
       "version" => data["version"],
       "data" => data["data"],
+      "handoff" => data["handoff"],
+      "task" => data["task"],
+      "status" => data["status"],
+      "for" => get_in(data, ["for", "name"]),
       "by" => by["name"] || by["key"],
       "yours" => Issho.Tools.yours?(ctx, by["key"]),
       "at" => item["at"],
       "read" => item["read"]
     }
+  end
+end
+
+defmodule Issho.Tools.HandOff do
+  @moduledoc false
+  use Issho.Tool,
+    name: "hand_off",
+    description: """
+    Hands a task to another agent, in the room: one that does it better,
+    or may do what you may not (a bot that tidies, a person's assistant
+    that knows the answer). `to` is the agent, by name if it is in the
+    room, else by its key. It hears it in the room or in its inbox, with
+    who you work for, and answers with answer_handoff: you hear
+    "accepted", "declined" or "done" (agent.handoff_replied). It works
+    with its own rights, not yours. Give what it needs in `task`, `data`
+    and the place it is about (`document` and `at`).
+    """,
+    annotations: [idempotent: false]
+
+  arg :room, :string, required: true
+  arg :to, :string, required: true, description: "The agent: its name in the room, or its key"
+  arg :task, :string, required: true, max_length: 4_000
+  arg :data, :any, description: "A small object of what it needs (ids, names)"
+  arg :document, :string, description: "The document of the place it is about"
+  arg :at, :any, description: "The place in the document, in its component's terms"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    with {:ok, participant} <- Context.join(ctx, args.room),
+         to = to(participant, args.to),
+         place = args[:document] && %{"doc" => args.document, "at" => args[:at]},
+         opts = Keyword.take(ctx.opts, [:on_behalf_of, :claims]),
+         {:ok, handoff} <-
+           Issho.Handoffs.hand_off(
+             ctx.instance,
+             args.room,
+             ctx.actor,
+             to,
+             args.task,
+             opts ++ [place: place, data: args[:data] || %{}]
+           ) do
+      {:ok, %{"handoff" => handoff.id, "to" => to}}
+    else
+      {:error, :to_yourself} ->
+        {:error, "That is you: hand it to another agent."}
+
+      {:error, :not_an_agent} ->
+        {:error, "Only an agent hands off."}
+
+      {:error, :forbidden} ->
+        {:error, "The room's policy does not let you hand off to #{args.to}."}
+
+      {:error, reason} ->
+        Context.error(reason)
+    end
+  end
+
+  # An agent of the room by its name, else what was given, as its key.
+  defp to(participant, who) do
+    case Issho.Tools.person_of(participant, who) do
+      {:ok, %{key: key}} -> key
+      {:error, _} -> String.trim(who)
+    end
+  end
+end
+
+defmodule Issho.Tools.AnswerHandoff do
+  @moduledoc false
+  use Issho.Tool,
+    name: "answer_handoff",
+    description: """
+    Says what became of a task another agent handed you (hand_off; its
+    `handoff` in your inbox or in wait_for_events, agent.handed_off):
+    "accepted" when you take it on, "declined" (and why) when you will
+    not, "done" (and what you did) when it is. The agent that handed it
+    hears it.
+    """,
+    annotations: [idempotent: false]
+
+  arg :handoff, :string, required: true
+  arg :status, {:enum, ["accepted", "declined", "done"]}, required: true
+  arg :text, :string, max_length: 4_000, description: "A few words: why, or what you did"
+
+  alias Issho.Tool.Context
+
+  @impl true
+  def call(args, ctx) do
+    case Issho.Handoffs.reply(ctx.instance, args.handoff, ctx.actor, args.status, args[:text]) do
+      :ok -> {:ok, %{"handoff" => args.handoff, "status" => args.status}}
+      {:error, :not_yours} -> {:error, "That task was handed to another agent, not you."}
+      {:error, :expired} -> {:error, "That handoff is more than a week old."}
+      {:error, :invalid} -> {:error, "That is not a handoff: give the one you were handed."}
+      {:error, reason} -> Context.error(reason)
+    end
   end
 end
 

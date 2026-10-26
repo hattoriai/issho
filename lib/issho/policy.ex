@@ -97,7 +97,31 @@ defmodule Issho.Policy do
   @doc "Whether the person may ask the agent with this key privately, in the room."
   @callback ask(Identity.t(), room :: String.t(), agent :: String.t()) :: :ok | {:error, term()}
 
-  @optional_callbacks document: 2, ask: 3
+  @doc """
+  Whether the agent (an `Issho.Identity` of kind `:agent` or `:service`)
+  may hand a task to the agent with this key, in the room
+  (`Issho.Handoffs`). A policy without it lets no one hand off.
+  """
+  @callback hand_off(Identity.t(), room :: String.t(), agent :: String.t()) ::
+              :ok | {:error, term()}
+
+  @optional_callbacks document: 2, ask: 3, hand_off: 3
+
+  @doc false
+  @spec hand_off(module(), Identity.t(), String.t(), String.t()) :: :ok | {:error, term()}
+  def hand_off(policy, identity, room, agent) do
+    Code.ensure_loaded(policy)
+
+    if function_exported?(policy, :hand_off, 3) do
+      case policy.hand_off(identity, room, agent) do
+        :ok -> :ok
+        {:error, _reason} = error -> error
+        other -> raise ArgumentError, "#{inspect(policy)}.hand_off/3 returned #{inspect(other)}"
+      end
+    else
+      {:error, :forbidden}
+    end
+  end
 
   @doc false
   @spec ask(module(), Identity.t(), String.t(), String.t()) :: :ok | {:error, term()}

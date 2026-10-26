@@ -151,6 +151,37 @@ Issho.Requests.reject(MyApp.Issho, request, stream_id, user)
 The agent hears which (`"stream.closed"`, with the request's id), and so
 do the person and their agents only.
 
+## Handing off to another agent
+
+An agent hands a task to another one (`Issho.Handoffs`, the `hand_off`
+tool): a person's assistant to the app's bot that tidies a folder, a bot
+that answers visitors to the agent of the person who knows the answer.
+
+```elixir
+{:ok, handoff} =
+  Issho.Handoffs.hand_off(MyApp.Issho, "page:7", assistant, "bot:gardener",
+    "Tidy the tags of this folder", on_behalf_of: ada, data: %{"folder" => 3})
+```
+
+It goes to that agent alone: `"agent.handed_off"` in the room
+(`wait_for_events`), or its inbox when it is away, which wakes it
+(`:on_mention`). It says who handed it, and for whom: the person the
+first agent works for. The agent it goes to works with its own rights,
+never the hander's: a handoff asks, it grants nothing. It answers with
+`answer_handoff` (`"accepted"`, `"declined"`, `"done"`, and a few words),
+and the first agent hears it (`"agent.handoff_replied"`). The handoff's
+id is signed: only the agent it went to answers it, for a week.
+
+Your policy says who hands off to whom:
+
+```elixir
+@impl Issho.Policy
+def hand_off(%Issho.Identity{kind: kind}, _room, "bot:" <> _) when kind in [:agent, :service], do: :ok
+def hand_off(_identity, _room, _to), do: {:error, :forbidden}
+```
+
+A policy without `hand_off/3` lets no one hand off.
+
 ## Seen at work, and stopped
 
 People follow an agent better when they see what it is doing, and trust
