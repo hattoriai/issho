@@ -132,6 +132,85 @@ defmodule Issho.WorkTest do
              call(tools, ctx, "change_document", %{"room" => room, "ops" => ops})
   end
 
+  describe "beyond Issho's documents" do
+    setup %{room: room, ctx: ctx, tools: tools} do
+      {:ok, _} = call(tools, ctx, "start_task", %{"room" => room, "title" => "Choose"})
+      {:ok, ada} = Issho.join_as(@instance, ada(), room)
+      {:present, %{session: session}} = :sys.get_state(ada)
+      %{session: session, place: %{"doc" => room, "at" => %{"path" => ["title"]}}}
+    end
+
+    defp pause(session, room) do
+      :ok = Issho.Session.interrupt(session, "agent:claude", :pause)
+      assert_receive {Issho, :event, %Event{name: "agent.interrupted"}}
+      settle(agent(room))
+    end
+
+    test "paused, it goes nowhere new and holds no lock; it may still clear, say its task, leave",
+         %{
+           room: room,
+           session: session,
+           place: place
+         } do
+      agent = agent(room)
+      :ok = Participant.place(agent, place)
+      :ok = Participant.lock(agent, [place])
+      pause(session, room)
+
+      # Its locks are released, so the people it would block go on; its
+      # place stays, where it stopped.
+      assert %{"locks" => [], "place" => ^place} = Participant.awareness(agent)
+
+      other = %{"doc" => room, "at" => %{"path" => ["body"]}}
+      assert {:error, {:interrupted, %{"action" => "pause"}}} = Participant.place(agent, other)
+      assert {:error, {:interrupted, _}} = Participant.lock(agent, [other])
+      assert {:error, {:interrupted, _}} = Issho.Motion.go(agent, other)
+
+      assert {:error, {:interrupted, _}} =
+               Participant.aware_block(agent, room, %{"cursor" => [1, 2]})
+
+      assert :ok = Participant.aware(agent, %{"status" => "Waiting"})
+      assert :ok = Participant.aware_block(agent, room, %{"cursor" => nil})
+      assert :ok = Work.progress(agent, 0, :done)
+      assert :ok = Participant.place(agent, nil)
+
+      :ok = Issho.Session.interrupt(session, "agent:claude", :resume)
+      assert_receive {Issho, :event, %Event{name: "agent.resumed"}}
+      settle(agent)
+      assert :ok = Participant.place(agent, other)
+    end
+
+    test "guard/2: the app's own change runs unless it is paused or stopped", %{
+      room: room,
+      session: session
+    } do
+      agent = agent(room)
+      assert {:ok, :saved} = Work.guard(agent, fn -> {:ok, :saved} end)
+
+      pause(session, room)
+      test = self()
+
+      assert {:error, {:interrupted, %{"action" => "pause", "by" => %{"name" => "Ada"}}}} =
+               Work.guard(agent, fn -> send(test, :written) end)
+
+      refute_received :written
+    end
+
+    test "Tool.Context.guard/3: for a tool whose arguments do not name the room", %{
+      room: room,
+      ctx: ctx,
+      session: session
+    } do
+      assert :ran = Tool.Context.guard(ctx, room, fn -> :ran end)
+      # Not in that room: not paused there.
+      assert :ran = Tool.Context.guard(ctx, "board:elsewhere", fn -> :ran end)
+
+      pause(session, room)
+      assert {:error, {:interrupted, by}} = Tool.Context.guard(ctx, room, fn -> :ran end)
+      assert {:error, "Ada paused you." <> _} = Tool.Context.error({:interrupted, by})
+    end
+  end
+
   test "stopped, it finishes, and may begin another task", %{room: room, ctx: ctx, tools: tools} do
     {:ok, _} = call(tools, ctx, "start_task", %{"room" => room, "title" => "Rename"})
     :ok = Work.interrupt(@instance, room, "agent:claude", :stop, by: ada())

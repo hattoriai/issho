@@ -35,6 +35,25 @@ defmodule Issho.Work do
   at once: its work ends wherever it is. One that crashes says so
   (`failed/2`).
 
+  ## Beyond Issho's documents
+
+  A paused or stopped agent goes nowhere new either: setting a place,
+  taking a lock, a gesture (`Issho.Motion`) or a pointer, in its state or
+  a component's, is refused as a transaction is; clearing them, saying
+  its task and leaving are not. It holds no lock while paused or stopped:
+  Issho releases them, so it blocks no one, and leaves its place, so the
+  people see where it stopped.
+
+  What a component or a tool changes of your app's own data (an Ecto
+  write, a call to another service) Issho does not make: guard it with
+  `guard/2` (or `Issho.Tool.Context.guard/3` in a tool), the last thing
+  before the write. Paused or stopped before it, the change does not
+  happen, and the caller gets `{:error, {:interrupted, by}}`, the same
+  shape as a refused transaction; after it, the change goes on, and is
+  not undone. An action that takes a while on purpose (a walk to a
+  picker, then the choice) puts the guard between the walk and the
+  write, so a pause during the walk stops it.
+
   ## What is yours
 
   Issho keeps the task, its state and its events; it decides nothing of
@@ -204,6 +223,21 @@ defmodule Issho.Work do
   def interrupt(instance, room, key, action, opts) when action in [:pause, :resume, :stop] do
     by = Identity.new(Keyword.fetch!(opts, :by))
     broadcast(Config.get(instance).pubsub, room, key, action, by)
+  end
+
+  @doc """
+  Runs `fun`, a change of your app's own data, only if the agent of the
+  participant is neither paused nor stopped: its result, or `{:error,
+  {:interrupted, by}}`. The check is the boundary: put it last, right
+  before the write. `fun` runs in the caller's process.
+  """
+  @spec guard(GenServer.server(), (-> result)) :: result | {:error, {:interrupted, map()}}
+        when result: term()
+  def guard(participant, fun) when is_function(fun, 0) do
+    case Participant.interrupted(participant) do
+      nil -> fun.()
+      by -> {:error, {:interrupted, by}}
+    end
   end
 
   @doc false
