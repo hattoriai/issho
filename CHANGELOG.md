@@ -25,6 +25,16 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Issho.Action.allowed/5` makes the checks alone, for a disabled
   button. Receipts are kept on the node, for `:action_keep` (ten
   minutes).
+- Digests for agents (#35): what an agent hears in a room is kept in two
+  bounded queues (`Issho.Digest`), routine events (`selection.changed`,
+  `document.changed`, and the app's own names in the new `:coalesce`
+  option) apart from the rest, so a burst of selections and typing never
+  pushes out a comment that mentions it. `wait_for_events` (and
+  `Issho.Agents.wait/6`) gives a digest: each person's selections as one
+  (the latest, and `count`), each document's changes as one
+  (`from_revision`, `revision`, `count`, `authors`, at most five);
+  `every: true` gives each event. A queue that was full says so, with an
+  `"events.dropped"` event, rather than seeming complete.
 - Pause and Stop reach what an agent does outside Issho's documents
   (#31). `Issho.Work.guard/2` (and `Issho.Tool.Context.guard/3` for a
   tool whose arguments do not name the room) runs the app's own change,

@@ -88,6 +88,50 @@ defmodule Issho.EventsTest do
     end
   end
 
+  describe "wait_for_events" do
+    test "a person's selections come as one, with how many; every: true gives each", %{room: room} do
+      ctx = Tool.Context.new(@instance, claude())
+      {:ok, _} = Tools.call(Tools.room(), "join_room", %{"room" => room}, ctx)
+      {:ok, ada} = Issho.join_as(@instance, ada(), room)
+
+      for n <- 1..12,
+          do: :ok = Participant.place(ada, %{"doc" => room, "at" => %{"path" => ["n#{n}"]}})
+
+      Process.sleep(100)
+
+      {:ok, %{"events" => events}} =
+        Tools.call(
+          Tools.room(),
+          "wait_for_events",
+          %{"room" => room, "seconds" => 0, "names" => ["selection.*"]},
+          ctx
+        )
+
+      assert [
+               %{
+                 "name" => "selection.changed",
+                 "data" => %{"count" => 12, "place" => %{"at" => %{"path" => ["n12"]}}}
+               }
+             ] =
+               events
+
+      for n <- 1..3,
+          do: :ok = Participant.place(ada, %{"doc" => room, "at" => %{"path" => ["m#{n}"]}})
+
+      Process.sleep(100)
+
+      {:ok, %{"events" => events}} =
+        Tools.call(
+          Tools.room(),
+          "wait_for_events",
+          %{"room" => room, "seconds" => 0, "names" => ["selection.*"], "every" => true},
+          ctx
+        )
+
+      assert length(events) == 3
+    end
+  end
+
   test "every event is a telemetry event", %{room: room} do
     test = self()
     id = {__MODULE__, room}
