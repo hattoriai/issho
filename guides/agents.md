@@ -152,6 +152,17 @@ who paused or stopped it and what to do: wait for `"agent.resumed"`, or
 `finish_task`. Each start, finish, pause and resume is an event of the
 room.
 
+Paused, an agent goes nowhere new either (no place, lock or gesture) and
+holds no lock, so it blocks no one. What a component or a tool writes to
+your app's own data, Issho guards when asked: put `Issho.Work.guard/2`
+(or `Issho.Tool.Context.guard/3` in a tool) right before the write, and
+a pause before it stops the write:
+
+```elixir
+with :ok <- Issho.Motion.go(agent, picker),
+     do: Issho.Work.guard(agent, fn -> MyApp.Pages.set_property(page, value) end)
+```
+
 An agent that reaches your app over MCP runs elsewhere: Issho can only
 refuse what it does next. Your app's own agent can run its work under
 Issho, and then Stop is immediate:
