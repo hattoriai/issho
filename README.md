@@ -2,6 +2,18 @@
 
 ![Issho — Collaboration for Phoenix](https://raw.githubusercontent.com/hattoriai/issho/main/media/banner.png)
 
+<p>
+  <a href="https://hex.pm/packages/issho">
+    <img alt="Hex Version" src="https://img.shields.io/hexpm/v/issho.svg">
+  </a>
+  <a href="https://hexdocs.pm/issho">
+    <img src="https://img.shields.io/badge/docs-hexdocs-blue" alt="HexDocs">
+  </a>
+  <a href="https://github.com/hattoriai/issho/actions">
+    <img alt="CI Status" src="https://github.com/hattoriai/issho/actions/workflows/ci.yml/badge.svg">
+  </a>
+</p>
+
 Issho (一緒, "together") is an open-source collaboration toolkit for
 Phoenix that makes it easier to build applications where people and AI
 agents work together in real time.
