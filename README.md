@@ -36,7 +36,7 @@ work across all of them.
 ```elixir
 def deps do
   [
-    {:issho, "~> 0.4"}
+    {:issho, "~> 0.5"}
   ]
 end
 ```
