@@ -9,6 +9,22 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Actions (#39): one thing your app does, for a person's button, a
+  keyboard command, your code and an agent's tool alike (`Issho.Action`,
+  the actions guide). An action declares its arguments, its room
+  (`target/1`), what the policy must allow there (`can`), its own
+  rules (`authorize/2`) and its change (`run/2`). A person runs it with
+  `Issho.Live.act/3`, your code with `Issho.Action.invoke/5`, and an
+  agent as a tool: an action is one, with an `invocation_id` for
+  retries. Each invocation is checked the same way: arguments, policy,
+  its id (a retry gives the first receipt and does nothing again; the
+  id reused for other arguments is refused; one running is
+  `:in_progress`), and the agent's pause or stop right before the
+  change. Done, it gives a receipt and the room hears `"action.done"`;
+  otherwise `{:error, reason}`, never a receipt.
+  `Issho.Action.allowed/5` makes the checks alone, for a disabled
+  button. Receipts are kept on the node, for `:action_keep` (ten
+  minutes).
 - Pause and Stop reach what an agent does outside Issho's documents
   (#31). `Issho.Work.guard/2` (and `Issho.Tool.Context.guard/3` for a
   tool whose arguments do not name the room) runs the app's own change,

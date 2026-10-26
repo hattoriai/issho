@@ -44,6 +44,8 @@ defmodule Issho.Event do
     * `"agent.asked"`: a person asked their agent privately (`to` the
       agent, `Issho.Requests`), `data` `%{request: id, text, place,
       version, data}`; a stream answering it carries `request: id`.
+    * `"action.done"`: an action ran (`Issho.Action`), by whoever ran it,
+      `data` `%{action: name, invocation: id}` and what the action adds.
     * `"thread.created"`, `"comment.created"`, `"comment.edited"`,
       `"comment.deleted"`, `"thread.resolved"`, `"thread.reopened"`:
       comments (`Issho.Comments`).

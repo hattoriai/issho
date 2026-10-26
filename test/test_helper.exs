@@ -4,6 +4,11 @@ children = [
   # Sake's streams: an MCP client that listens for changes (the inbox).
   {Sake, []},
   {Issho.Store.Memory, name: IsshoTest.Store},
+  # The test app's own data, outside Issho's documents: its checklists.
+  %{
+    id: IsshoTest.Checklist,
+    start: {Agent, :start_link, [fn -> %{} end, [name: IsshoTest.Checklist]]}
+  },
   {Issho,
    name: IsshoTest.Issho,
    pubsub: IsshoTest.PubSub,
