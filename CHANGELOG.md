@@ -7,6 +7,13 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-26
+
+Agents work the way people do: one action for a person's button and an
+agent's tool, seen as it is done, paused when its person says so, told
+what happened rather than every moment of it, and asked privately about
+what someone selected.
+
 ### Added
 
 - Some tools, not all: `Issho.Tool.Context`'s `:only` names the tools an

@@ -1,7 +1,7 @@
 defmodule Issho.MixProject do
   use Mix.Project
 
-  @version "0.4.2"
+  @version "0.5.0"
   @source_url "https://github.com/hattoriai/issho"
 
   def project do
