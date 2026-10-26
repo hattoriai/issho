@@ -89,6 +89,7 @@ defmodule Issho.Requests do
     with true <- is_binary(agent) || {:error, :no_agent},
          :ok <- Policy.authorize(config.policy, identity, room, :read),
          :ok <- Policy.ask(config.policy, identity, room, agent),
+         :ok <- guest(instance, identity),
          {:ok, text} <- words(text),
          :ok <- Place.check(place, room, fn _doc -> nil end),
          {:ok, version} <- version(opts[:version]),
@@ -189,6 +190,10 @@ defmodule Issho.Requests do
     :ok = Events.broadcast(config.pubsub, event)
     Issho.Inbox.deliver_to(config, request.to, event)
   end
+
+  # A guest's requests are counted (`Issho.Guests`).
+  defp guest(instance, %Identity{kind: :guest, key: key}), do: Issho.Guests.hit(instance, key)
+  defp guest(_instance, _identity), do: :ok
 
   defp words(text) do
     case Text.clean(text, max: @max_text) |> String.trim() do

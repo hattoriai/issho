@@ -34,7 +34,19 @@ defmodule IsshoTest.Policy do
       else: {:error, :forbidden}
   end
 
+  # A visitor asks the room's bots.
+  def ask(%{kind: :guest}, _room, "bot:" <> _), do: :ok
   def ask(_identity, _room, _agent), do: {:error, :forbidden}
+
+  # An agent hands off to the bots and the agents, unless denied.
+  @impl true
+  def hand_off(identity, _room, "bot:" <> _),
+    do: if(denied?(identity.key), do: {:error, :forbidden}, else: :ok)
+
+  def hand_off(identity, _room, "agent:" <> _),
+    do: if(denied?(identity.key), do: {:error, :forbidden}, else: :ok)
+
+  def hand_off(_identity, _room, _to), do: {:error, :forbidden}
 
   @impl true
   def document(_identity, "missing:" <> _), do: {:error, :not_found}

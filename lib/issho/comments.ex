@@ -198,10 +198,32 @@ defmodule Issho.Comments do
   # The comments document's hook: each new comment's author is whoever
   # made the change, its times near the server's, its places in the room.
   @spec check([map()], map()) :: :ok | {:error, term()}
-  def check(ops, %{by: by, document: document}) do
+  def check(ops, %{by: by, document: document} = context) do
     author = Ops.author(by)
     room = Policy.room(document)
 
+    with :ok <- guest(context, by, ops) do
+      check_ops(ops, author, room)
+    end
+  end
+
+  # A guest's new comments are counted (`Issho.Guests`).
+  defp guest(%{instance: instance}, %Identity{kind: :guest, key: key}, ops) do
+    Enum.reduce_while(ops, :ok, fn
+      %{"op" => op}, :ok when op in ["start", "reply"] ->
+        case Issho.Guests.hit(instance, key) do
+          :ok -> {:cont, :ok}
+          error -> {:halt, error}
+        end
+
+      _op, :ok ->
+        {:cont, :ok}
+    end)
+  end
+
+  defp guest(_context, _by, _ops), do: :ok
+
+  defp check_ops(ops, author, room) do
     Enum.reduce_while(ops, :ok, fn op, :ok ->
       case check_op(op, author, room) do
         :ok -> {:cont, :ok}

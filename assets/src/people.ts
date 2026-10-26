@@ -120,7 +120,7 @@ function item({ person, status, you }: Someone, room?: string): HTMLLIElement {
     into.append(avatar);
   }
 
-  if (person.kind !== "human" && !own) {
+  if ((person.kind === "agent" || person.kind === "service") && !own) {
     const badge = document.createElement("span");
     badge.className = "issho-badge";
     badge.setAttribute("aria-hidden", "true");
@@ -150,6 +150,7 @@ export function describe({ person, status, you }: Someone): string {
   if (you) text += " (you)";
   if (person.kind === "agent") text += person.on_behalf_of ? `, an agent for ${person.on_behalf_of.name ?? person.on_behalf_of.key}` : ", an agent";
   if (person.kind === "service") text += ", the app";
+  if (person.kind === "guest") text += ", a visitor";
   if (person.can === "read") text += ", viewing";
   if (status) text += `: ${status}`;
   return text;

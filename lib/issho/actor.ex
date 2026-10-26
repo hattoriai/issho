@@ -20,7 +20,7 @@ defprotocol Issho.Actor do
 
   `display/1` is what the other people in a room see, so give it only what
   they may see: `:name`, `:avatar` (an image's URL), `:color` (a CSS
-  colour) and `:kind` (`:human`, `:agent` or `:service`, `:human` unless
+  colour) and `:kind` (`:human`, `:agent`, `:service` or `:guest`, `:human` unless
   given). Issho checks the colour before it reaches anyone's browser.
 
   Maps with an `:id` work without an implementation, for scripts and

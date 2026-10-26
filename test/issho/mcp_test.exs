@@ -132,6 +132,9 @@ defmodule Issho.MCPTest do
       do: {%{id: "assistant:#{id}", name: "Assistant", kind: :agent}, on_behalf_of: person}
 
     def bot(_ctx), do: {%{id: "bot:app", name: "App bot", kind: :service}, []}
+
+    def reader(_ctx),
+      do: {%{id: "bot:reader", name: "Reader", kind: :service}, only: ~w(join_room read_document)}
   end
 
   defmodule People do
@@ -156,6 +159,13 @@ defmodule Issho.MCPTest do
     plug Sake.Plug, server: IsshoTest.MCP, secret: String.duplicate("s", 64)
   end
 
+  defmodule Reader do
+    @moduledoc false
+    use Plug.Builder
+    plug Issho.MCP.Setup, agent: {Issho.MCPTest.Mapping, :reader}
+    plug Sake.Plug, server: IsshoTest.MCP, secret: String.duplicate("s", 64)
+  end
+
   defmodule Endpoints do
     @moduledoc false
     use Plug.Router
@@ -165,6 +175,7 @@ defmodule Issho.MCPTest do
 
     forward "/people/mcp", to: Issho.MCPTest.People
     forward "/bot/mcp", to: Issho.MCPTest.Bot
+    forward "/reader/mcp", to: Issho.MCPTest.Reader
   end
 
   test "an app has a person's assistant and its own bot at once, each on its endpoint",
@@ -187,6 +198,21 @@ defmodule Issho.MCPTest do
 
     people = Participant.people(ken)
     assert Map.has_key?(people, "assistant:user:ada") and Map.has_key?(people, "bot:app")
+  end
+
+  test "a caller given some tools lists those, and the others do not exist for it", %{room: room} do
+    reader = connect(IsshoTest.MCP, plug: Endpoints, path: "/reader/mcp")
+    {:ok, tools} = list_tools(reader)
+    assert ["join_room", "read_document"] == tools |> Enum.map(& &1.name) |> Enum.sort()
+
+    assert {:ok, %{structured: %{"you" => "bot:reader"}}} =
+             call_tool(reader, "join_room", %{"room" => room})
+
+    assert {:error, _unknown} = call_tool(reader, "comment", %{"room" => room, "body" => "Hi"})
+
+    bot = connect(IsshoTest.MCP, plug: Endpoints, path: "/bot/mcp")
+    {:ok, all} = list_tools(bot)
+    assert length(all) > 2
   end
 
   # Awareness frames carry what changed since the last one: wait for the frame with the status.

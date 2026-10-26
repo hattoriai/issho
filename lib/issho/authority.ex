@@ -319,6 +319,7 @@ defmodule Issho.Authority do
 
   defp hook(state, transaction, by, after_state, revision) do
     context = %{
+      instance: state.config.name,
       document: state.id,
       author: by.key,
       by: by,

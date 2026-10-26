@@ -44,6 +44,11 @@ defmodule Issho.Event do
     * `"agent.asked"`: a person asked their agent privately (`to` the
       agent, `Issho.Requests`), `data` `%{request: id, text, place,
       version, data}`; a stream answering it carries `request: id`.
+    * `"agent.handed_off"`: an agent handed a task to another (`to` it,
+      `Issho.Handoffs`), `data` `%{handoff: id, task, place, data, for}`
+      (`for` the person the first agent works for); `"agent.handoff_replied"`:
+      the agent it went to answered (`to` the one that handed it), `data`
+      `%{handoff: id, status, text}`.
     * `"action.done"`: an action ran (`Issho.Action`), by whoever ran it,
       `data` `%{action: name, invocation: id}` and what the action adds.
     * `"events.dropped"`: an agent's digest lost events that would not fit

@@ -26,6 +26,7 @@ defmodule Issho.Config do
     stream_max_bytes: 1_000_000,
     room_max_streams: 32,
     stream_keep: 300_000,
+    guest_limit: {10, 60},
     action_keep: 600_000
   ]
 

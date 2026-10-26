@@ -9,6 +9,26 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Some tools, not all: `Issho.Tool.Context`'s `:only` names the tools an
+  agent may call. `Issho.Tools.run/3` refuses the others in words the
+  model reads, `Issho.Tools.given/2` is what to show its model, and over
+  MCP `Issho.MCP.Given` (on every `Issho.MCP` server) leaves them out of
+  `tools/list`; a call to one is a tool that does not exist. The session's
+  `agent` gives `only:` with the join's options.
+- Handing off to another agent (`Issho.Handoffs`, the `hand_off` and
+  `answer_handoff` room tools): a task to another agent alone, in the
+  room (`"agent.handed_off"`) or its inbox, with who handed it and for
+  whom; it answers `accepted`, `declined` or `done`
+  (`"agent.handoff_replied"`), and only it can (the id is signed, for a
+  week). It works with its own rights. The policy's optional
+  `hand_off/3` says who hands off to whom.
+- Guests (`Issho.Guests`): visitors no one knows, `kind: :guest`, with a
+  key the app keeps for their session (`Issho.Guests.new/2`). The policy
+  decides what they may do, but a guest never writes, locks or
+  interrupts, and its comments and requests are limited to the
+  instance's `:guest_limit` (`{10, 60}`, ten a minute). The people list
+  says "a visitor", with no badge.
+
 - A component's actions, seen as they are done (#39, #40). An action's
   change can be a transaction of a component's document, made as whoever
   runs it, after reading it as them: `Issho.Action.read/2` and

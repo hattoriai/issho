@@ -12,12 +12,12 @@ defmodule Issho.Identity do
 
   alias Issho.Color
 
-  @kinds [:human, :agent, :service]
+  @kinds [:human, :agent, :service, :guest]
 
   @enforce_keys [:key]
   defstruct [:key, :name, :avatar, :color, :on_behalf_of, kind: :human, claims: %{}]
 
-  @type kind :: :human | :agent | :service
+  @type kind :: :human | :agent | :service | :guest
 
   @type t :: %__MODULE__{
           key: String.t(),
@@ -129,5 +129,6 @@ defmodule Issho.Identity do
 
   defp kind("agent"), do: :agent
   defp kind("service"), do: :service
+  defp kind("guest"), do: :guest
   defp kind(_), do: :human
 end

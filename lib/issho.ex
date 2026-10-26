@@ -93,7 +93,9 @@ defmodule Issho do
           },
           {DynamicSupervisor, strategy: :one_for_one, name: Config.child_name(name, Streams)},
           # The receipts of the actions run on this node (`Issho.Action`).
-          {Issho.Action.Receipts, name}
+          {Issho.Action.Receipts, name},
+          # The guests' comments and requests, counted (`Issho.Guests`).
+          {Issho.Guests, name}
         ]
 
     Supervisor.init(children, strategy: :one_for_one)

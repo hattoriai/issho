@@ -233,7 +233,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
                 <%= if !one.avatar do %>{one.initials}<% end %>
               </span>
             <% end %>
-            <span :if={one.kind != "human" and @person == []} class="issho-badge" aria-hidden="true">
+            <span :if={one.kind in ["agent", "service"] and @person == []} class="issho-badge" aria-hidden="true">
               {if one.kind == "agent", do: "AI", else: "App"}
             </span>
             <span class="issho-person-label">{one.description}</span>
@@ -277,6 +277,7 @@ if Code.ensure_loaded?(Phoenix.Component) do
           {"agent", nil} -> ", an agent"
           {"agent", behalf} -> ", an agent for #{behalf}"
           {"service", _} -> ", the app"
+          {"guest", _} -> ", a visitor"
           _ -> nil
         end,
         if(can == "read", do: ", viewing")

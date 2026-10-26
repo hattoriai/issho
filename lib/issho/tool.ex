@@ -224,31 +224,62 @@ defmodule Issho.Tool.Context do
 
   `tools` are the tools the agent was given, which `Issho.Tools.call/4`
   and `Issho.MCP` put in: for a tool about the others (`list_actions`).
+
+  `:only` limits an agent to some of them, by name: a bot that answers
+  visitors reads and replies, and changes nothing.
+
+      ctx = Issho.Tool.Context.new(MyApp.Issho, bot, only: ~w(read_document comment))
+
+  A tool it was not given is refused when it calls it (`Issho.Tools.run/3`,
+  over MCP too), and left out of `Issho.Tools.given/2`, what to show its
+  model. Without `:only`, it may call every tool.
   """
 
   alias Issho.{Agents, Identity}
 
   @enforce_keys [:instance, :actor]
-  defstruct [:instance, :actor, opts: [], idle: 600_000, tools: []]
+  defstruct [:instance, :actor, :only, opts: [], idle: 600_000, tools: []]
 
   @type t :: %__MODULE__{
           instance: atom(),
           actor: Issho.Actor.t(),
           opts: keyword(),
           idle: pos_integer(),
-          tools: [module()]
+          tools: [module()],
+          only: [String.t()] | nil
         }
 
-  @doc "A context: the instance, the agent, and `:on_behalf_of`, `:claims`, `:can` and `:idle`."
+  @doc """
+  A context: the instance, the agent, and `:on_behalf_of`, `:claims`,
+  `:can`, `:idle` and `:only` (the names of the tools it may call).
+  """
   @spec new(atom(), Issho.Actor.t(), keyword()) :: t()
   def new(instance, actor, opts \\ []) do
     %__MODULE__{
       instance: instance,
       actor: actor,
       opts: Keyword.take(opts, [:on_behalf_of, :claims, :can]),
-      idle: Keyword.get(opts, :idle, 600_000)
+      idle: Keyword.get(opts, :idle, 600_000),
+      only: only(Keyword.get(opts, :only))
     }
   end
+
+  defp only(nil), do: nil
+
+  defp only(names) when is_list(names) do
+    if Enum.all?(names, &is_binary/1),
+      do: Enum.uniq(names),
+      else: raise(ArgumentError, ":only is a list of tool names, got: #{inspect(names)}")
+  end
+
+  defp only(other),
+    do: raise(ArgumentError, ":only is a list of tool names, got: #{inspect(other)}")
+
+  @doc "Whether the agent was given the tool (`:only`): every tool without it."
+  @spec given?(t(), module() | String.t()) :: boolean()
+  def given?(%__MODULE__{only: nil}, _tool), do: true
+  def given?(%__MODULE__{only: only}, name) when is_binary(name), do: name in only
+  def given?(%__MODULE__{} = ctx, tool) when is_atom(tool), do: given?(ctx, tool.name())
 
   @doc "The agent's participant in the room, joining it if it is not there."
   @spec join(t(), String.t()) :: {:ok, pid()} | {:error, term()}
