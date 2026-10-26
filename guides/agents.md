@@ -46,6 +46,26 @@ way. `list_actions` tells the agent which of them it may do in a room,
 and why not; an action's gesture lets people see it go to where it acts
 before it does.
 
+### Some tools, not all
+
+An agent may be given some of the tools only, by name (`:only`): a bot
+that answers visitors reads and replies, and changes nothing, whatever
+your policy would let it do.
+
+```elixir
+ctx = Issho.Tool.Context.new(MyApp.Issho, bot, only: ~w(join_room read_document comment))
+
+# What to show its model: the tools it was given.
+definitions = tools |> Issho.Tools.given(ctx) |> Issho.Tools.schemas()
+```
+
+A tool it was not given is refused when it calls it, in words the model
+reads. Over MCP, `Issho.MCP.Session`'s `agent` gives `only:` with the
+join's options, and the caller lists those tools only (`Issho.MCP.Given`):
+a call to another is answered as one to a tool that does not exist. The
+policy still decides what each tool may do: `:only` narrows, it never
+widens.
+
 ## Waiting for people
 
 An agent in a room hears what happens in it (`Issho.Event`): someone

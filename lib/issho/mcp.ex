@@ -45,8 +45,9 @@ if Code.ensure_loaded?(Sake.Server) do
     `agent` is `{module, function}` or a function of one argument, called
     with the call's `Sake.Context` (its `scope` is the principal your
     endpoint's authorization put there; nil without one). It gives
-    `{actor, opts}`: the agent, and the options of its joins
-    (`:on_behalf_of`, `:claims`, `:can`):
+    `{actor, opts}`: the agent, the options of its joins
+    (`:on_behalf_of`, `:claims`, `:can`), and `:only`, the tools it may
+    call (`Issho.MCP.Given` shows it only those):
 
         def agent(%Sake.Context{scope: %MyApp.User{} = user}),
           do: {%{id: "assistant:#{user.id}", name: "Assistant", kind: :agent}, on_behalf_of: user}
@@ -119,6 +120,35 @@ if Code.ensure_loaded?(Sake.Server) do
       endpoint = (ctx.conn_assigns || %{})[:issho] || []
       Keyword.get(endpoint, key) || Keyword.get(Application.get_env(:issho, Issho.MCP, []), key)
     end
+  end
+
+  defmodule Issho.MCP.Given do
+    @moduledoc """
+    Shows an MCP caller only the tools its agent was given (the `:only`
+    of its `Issho.MCP.Session`): the others are left out of `tools/list`,
+    and Sake answers a call to one as to a tool that does not exist. Every
+    `Issho.MCP` server has it.
+    """
+    @behaviour Sake.Middleware
+
+    alias Issho.MCP.Session
+
+    @impl true
+    def init(opts), do: opts
+
+    @impl true
+    def call(%{kind: :tools, items: items, ctx: ctx} = payload, _opts) do
+      case Session.context(ctx) do
+        %{only: nil} ->
+          {:cont, payload}
+
+        context ->
+          {:cont,
+           %{payload | items: Enum.filter(items, &Issho.Tool.Context.given?(context, &1.name))}}
+      end
+    end
+
+    def call(payload, _opts), do: {:cont, payload}
   end
 
   defmodule Issho.MCP.Inbox do
@@ -210,6 +240,7 @@ if Code.ensure_loaded?(Sake.Server) do
         use Sake.Server, unquote(server)
         tools(Issho.MCP.__wrap__(__MODULE__, unquote(tools)))
         resources([Issho.MCP.Inbox])
+        middleware(:after_list, [Issho.MCP.Given])
       end
     end
 

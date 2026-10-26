@@ -62,6 +62,24 @@ defmodule Issho.ToolsTest do
     assert {:error, "There is no tool \"fly\"."} = Tools.call(Tools.room(), "fly", %{}, ctx)
   end
 
+  test "an agent given some tools sees those, and is refused the others", %{room: room} do
+    bot = %{id: "bot:visitors", name: "Visitors", kind: :service}
+    ctx = Tool.Context.new(@instance, bot, only: ~w(join_room read_document))
+
+    assert ["join_room", "read_document"] ==
+             Tools.room() |> Tools.given(ctx) |> Tools.schemas() |> Enum.map(& &1["name"])
+
+    assert {:ok, _} = Tools.call(Tools.room(), "join_room", %{"room" => room}, ctx)
+
+    ops = [%{"op" => "set", "path" => ["title"], "value" => "Plan"}]
+
+    assert {:error,
+            "You were not given the tool change_document: you may use join_room, read_document."} =
+             Tools.call(Tools.room(), "change_document", %{"room" => room, "ops" => ops}, ctx)
+
+    assert_raise ArgumentError, fn -> Tool.Context.new(@instance, bot, only: [:join_room]) end
+  end
+
   defmodule Sort do
     use Issho.Tool, name: "sort", description: "Sorts."
 

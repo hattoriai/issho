@@ -65,6 +65,13 @@ defmodule Issho.Tools do
   end
 
   @doc """
+  The tools the context's agent was given (its `:only`), of these: what
+  to show its model with `schemas/1`.
+  """
+  @spec given([module()], Tool.Context.t()) :: [module()]
+  def given(tools, %Tool.Context{} = ctx), do: Enum.filter(tools, &Tool.Context.given?(ctx, &1))
+
+  @doc """
   Runs the tool of that name with the input a model gave, as the agent of
   the context. Gives `{:ok, result}` or `{:error, text}`, for the model.
   """
@@ -72,7 +79,7 @@ defmodule Issho.Tools do
   def call(tools, name, input, %Tool.Context{} = ctx) do
     case Enum.find(tools, &(&1.name() == name)) do
       nil -> {:error, "There is no tool #{inspect(name)}."}
-      tool -> run(tool, input, %{ctx | tools: tools})
+      tool -> run(tool, input, %{ctx | tools: given(tools, ctx)})
     end
   end
 
@@ -83,9 +90,18 @@ defmodule Issho.Tools do
   """
   @spec run(module(), map(), Tool.Context.t()) :: Tool.result()
   def run(tool, input, %Tool.Context{} = ctx) do
-    with {:ok, args} <- Tool.cast(tool, input),
+    with :ok <- check_given(tool, ctx),
+         {:ok, args} <- Tool.cast(tool, input),
          :ok <- not_interrupted(tool, args, ctx),
          do: Issho.Motion.within(fn -> tool.call(args, ctx) end)
+  end
+
+  defp check_given(tool, ctx) do
+    if Tool.Context.given?(ctx, tool),
+      do: :ok,
+      else:
+        {:error,
+         "You were not given the tool #{tool.name()}: you may use #{Enum.join(ctx.only, ", ")}."}
   end
 
   # What an agent that was paused or stopped in the room may still do:
