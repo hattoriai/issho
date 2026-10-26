@@ -193,9 +193,9 @@ defmodule Issho.Action do
   or atom keys). Options: `:id` (the invocation's id, for retries; a new
   one unless given), `:on_behalf_of` and `:claims` (as a join's),
   `:participant` (the agent's, to be paused in and to make its changes
-  with; found for an agent of `Issho.Agents` in the room), `:transact`
-  (how the invocation's changes reach the room's documents, `transact/4`:
-  the participant's unless given) and `:visible` (`true`: an agent's
+  with; found for an agent of `Issho.Agents` in the room), `:read` and
+  `:transact` (how the invocation reads and changes the room's documents,
+  `read/2` and `transact/4`: the participant's unless given) and `:visible` (`true`: an agent's
   gesture is shown).
   """
   @spec invoke(atom(), module(), map(), Issho.Actor.t() | Identity.t(), keyword()) ::
@@ -219,6 +219,7 @@ defmodule Issho.Action do
             by: identity,
             args: args,
             participant: participant,
+            read: opts[:read] || participant_read(participant),
             transact: opts[:transact] || participant_transact(participant),
             visible: Keyword.get(opts, :visible, true)
           }
@@ -254,6 +255,15 @@ defmodule Issho.Action do
   def room(action, input) do
     with {:ok, args, _id} <- cast(action, input), do: {:ok, action.target(args)}
   end
+
+  @doc """
+  A document of the action's room as it is now (its snapshot), read as
+  whoever runs the invocation: for a component's action, which checks
+  what it changes. `{:error, :not_in_room}` as `transact/4` gives it.
+  """
+  @spec read(Invocation.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  def read(%Invocation{read: nil}, _document), do: {:error, :not_in_room}
+  def read(%Invocation{read: read}, document), do: read.(document)
 
   @doc """
   Makes a transaction of a document of the action's room, as whoever runs
@@ -379,6 +389,9 @@ defmodule Issho.Action do
   end
 
   defp participant(_instance, _identity, _room), do: nil
+
+  defp participant_read(nil), do: nil
+  defp participant_read(participant), do: &Issho.Participant.open(participant, &1)
 
   defp participant_transact(nil), do: nil
 
