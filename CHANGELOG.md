@@ -21,9 +21,6 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is refused; clearing them, its task and leaving are not. Its locks are
   released when it is paused or stopped, so it blocks no one; its place
   stays, where it stopped.
-
-### Added
-
 - Ask my agent (#33): a person asks their own agent privately about what
   they selected (`Issho.Live.ask/3`, `Issho.Requests.ask/5`), with their
   place, its label, the version they saw and the app's data, bounded and
