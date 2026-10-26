@@ -314,7 +314,11 @@ defmodule Issho.Action do
     function_exported?(module, :target, 1) and function_exported?(module, :can, 0)
   end
 
-  @doc "A reason an invocation did not run, in words a person or a model reads."
+  @doc """
+  A reason an invocation did not run, in words a person or a model reads:
+  an exception's message (an app's error, which its own views read as it
+  is), Issho's reasons, or the text the action gave.
+  """
   @spec message(reason()) :: String.t()
   def message({:invalid, text}), do: text
   def message(:in_progress), do: "That change is still being made: look again in a moment."
@@ -322,6 +326,7 @@ defmodule Issho.Action do
   def message(:id_reused),
     do: "That invocation_id was used for another change: give a new one for this change."
 
+  def message(%{__exception__: true} = exception), do: Exception.message(exception)
   def message(reason), do: reason |> Tool.Context.error() |> elem(1)
 
   @doc false

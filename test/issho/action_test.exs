@@ -109,6 +109,8 @@ defmodule Issho.ActionTest do
                ada()
              )
 
+    assert Action.message(%ArgumentError{message: "bad item"}) == "bad item"
+
     assert {:error, {:invalid, "done is required."}} =
              Action.invoke(@instance, CheckItem, %{list: room, item: "A"}, ada())
 
