@@ -262,6 +262,22 @@ defmodule Issho.Tool.Context do
          do: {:ok, participant, document, snapshot}
   end
 
+  @doc """
+  Runs `fun`, a change of your app's own data, unless the agent is paused
+  or stopped in the room (`Issho.Work.guard/2`): for a tool whose
+  arguments do not name the room (a record of a page, a value of a
+  picker), or whose write comes after a while. Outside the room, the
+  agent is not paused there: `fun` runs.
+  """
+  @spec guard(t(), String.t(), (-> result)) :: result | {:error, {:interrupted, map()}}
+        when result: term()
+  def guard(%__MODULE__{} = ctx, room, fun) when is_binary(room) and is_function(fun, 0) do
+    case Agents.participant(ctx.instance, key(ctx), room) do
+      participant when is_pid(participant) -> Issho.Work.guard(participant, fun)
+      _absent -> fun.()
+    end
+  end
+
   @doc "The agent's key in the rooms."
   @spec key(t()) :: String.t()
   def key(%__MODULE__{actor: actor}), do: Identity.new(actor).key

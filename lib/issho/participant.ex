@@ -177,7 +177,8 @@ defmodule Issho.Participant do
   # Entering a state: its task, if it has one, says it, for the people.
   def handle_event(:enter, same, same, _data), do: :keep_state_and_data
 
-  def handle_event(:enter, _old, state, data), do: {:keep_state, show(data, state)}
+  def handle_event(:enter, _old, state, data),
+    do: {:keep_state, data |> show(state) |> release_locks(state)}
 
   # Paused or stopped, it changes nothing: whole transactions only, so what
   # it changed before stays.
@@ -186,6 +187,27 @@ defmodule Issho.Participant do
       do:
         {:keep_state_and_data,
          {:reply, from, {:error, {:interrupted, interruption(state, data)}}}}
+
+  # Paused or stopped, it goes nowhere new: no place, lock, gesture or
+  # pointer, in its state or a component's; it may still clear them, say
+  # its task, and leave.
+  def handle_event({:call, from}, {:aware, changes}, state, data)
+      when state in [:paused, :stopped] and is_map(changes) do
+    if forward?(changes),
+      do:
+        {:keep_state_and_data,
+         {:reply, from, {:error, {:interrupted, interruption(state, data)}}}},
+      else: reply(call({:aware, changes}, data), from)
+  end
+
+  def handle_event({:call, from}, {:aware_block, document, changes}, state, data)
+      when state in [:paused, :stopped] and is_map(changes) do
+    if Enum.any?(changes, fn {_key, value} -> value != nil end),
+      do:
+        {:keep_state_and_data,
+         {:reply, from, {:error, {:interrupted, interruption(state, data)}}}},
+      else: reply(call({:aware_block, document, changes}, data), from)
+  end
 
   def handle_event({:call, from}, :interrupted, :present, _data),
     do: {:keep_state_and_data, {:reply, from, nil}}
@@ -305,6 +327,30 @@ defmodule Issho.Participant do
        }}
     end
   end
+
+  defp reply({reply, data}, from), do: {:keep_state, data, {:reply, from, reply}}
+
+  # Changes that would take it somewhere: a place, locks, a gesture, a
+  # pointer, a page.
+  defp forward?(changes) do
+    Enum.any?(changes, fn
+      {"locks", locks} -> locks not in [nil, []]
+      {key, value} when key in ["place", "motion", "pointer", "path"] -> value != nil
+      _other -> false
+    end)
+  end
+
+  # Paused or stopped, it holds no lock: the people it would block go on.
+  # Its place stays, where it stopped.
+  defp release_locks(%{aware: %{"locks" => [_ | _]}} = data, state)
+       when state in [:paused, :stopped] do
+    case replace_aware(data, Map.put(data.aware, "locks", [])) do
+      {:ok, data} -> data
+      {_error, data} -> data
+    end
+  end
+
+  defp release_locks(data, _state), do: data
 
   defp interrupted_state("pause"), do: :paused
   defp interrupted_state("stop"), do: :stopped

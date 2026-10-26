@@ -9,6 +9,21 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Pause and Stop reach what an agent does outside Issho's documents
+  (#31). `Issho.Work.guard/2` (and `Issho.Tool.Context.guard/3` for a
+  tool whose arguments do not name the room) runs the app's own change,
+  an Ecto write or another service's call, only if the agent is neither
+  paused nor stopped, else gives `{:error, {:interrupted, by}}`, the
+  shape of a refused transaction: the boundary a component or a tool
+  puts right before the write, between a visible walk and the change.
+- A paused or stopped agent goes nowhere new: a place, a lock, a gesture
+  (`Issho.Motion`), a pointer or a page, in its state or a component's,
+  is refused; clearing them, its task and leaving are not. Its locks are
+  released when it is paused or stopped, so it blocks no one; its place
+  stays, where it stopped.
+
+### Added
+
 - Ask my agent (#33): a person asks their own agent privately about what
   they selected (`Issho.Live.ask/3`, `Issho.Requests.ask/5`), with their
   place, its label, the version they saw and the app's data, bounded and
