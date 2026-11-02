@@ -74,6 +74,6 @@ defmodule Issho.Test do
     {:ok, %{"epoch" => epoch, "revision" => revision, "content" => content}} =
       Authority.content(pid)
 
-    Authority.content_at(pid, epoch, revision) == {:ok, content}
+    Authority.replayed(pid, epoch, revision) == {:ok, content}
   end
 end
