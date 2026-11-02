@@ -94,6 +94,13 @@ defmodule Issho.Authority do
     do: GenServer.call(server, {:content_at, epoch, revision})
 
   @doc false
+  # Issho.Test.replays?/2: content_at/3 answers the current revision without a replay.
+  @spec replayed(GenServer.server(), String.t(), non_neg_integer()) ::
+          {:ok, term()} | {:error, term()}
+  def replayed(server, epoch, revision),
+    do: GenServer.call(server, {:replayed, epoch, revision})
+
+  @doc false
   @spec topic(String.t()) :: String.t()
   def topic(document_id), do: "issho:document:" <> document_id
 
@@ -240,6 +247,10 @@ defmodule Issho.Authority do
 
   def handle_call({:content_at, epoch, revision}, _from, state) do
     {:reply, content_at_revision(state, epoch, revision), state}
+  end
+
+  def handle_call({:replayed, epoch, revision}, _from, state) do
+    {:reply, replayed_content(state, epoch, revision), state}
   end
 
   def handle_call({:accepted, ids, author}, _from, state) do
@@ -492,7 +503,9 @@ defmodule Issho.Authority do
        ),
        do: {:ok, state.content}
 
-  defp content_at_revision(state, epoch, revision) do
+  defp content_at_revision(state, epoch, revision), do: replayed_content(state, epoch, revision)
+
+  defp replayed_content(state, epoch, revision) do
     document = state.document
     base = Map.get(document, "base", 0)
 
