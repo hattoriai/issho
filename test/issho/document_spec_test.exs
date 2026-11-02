@@ -127,6 +127,39 @@ defmodule Issho.DocumentSpecTest do
     assert Documents.whereis(@instance, id) == pid
   end
 
+  defmodule ObservedEngine do
+    @moduledoc false
+    # The map engine, telling the test process each time it applies operations.
+    @behaviour Issho.Engine
+    alias Issho.Engine.Map, as: MapEngine
+
+    def name, do: "observed"
+    def version, do: 1
+    defdelegate init(initial, opts), to: MapEngine
+
+    def apply(state, ops, opts) do
+      send(Keyword.fetch!(opts, :observer), {:applied, ops})
+      MapEngine.apply(state, ops, opts)
+    end
+  end
+
+  test "reads the current revision without replaying the journal" do
+    id = "canvas:" <> Transaction.id()
+    spec = %{engine: ObservedEngine, opts: [observer: self()], store: :none}
+    {:ok, pid} = Documents.open(@instance, id, nil, spec: spec)
+    {:ok, _} = Authority.commit(pid, tx(pid, [set("a", 1)]), "u")
+    {:ok, %{"revision" => 2}} = Authority.commit(pid, tx(pid, [set("b", 2)]), "u")
+    assert_received {:applied, _}
+    assert_received {:applied, _}
+    {:ok, %{"epoch" => epoch}} = Authority.snapshot(pid)
+
+    assert {:ok, %{"a" => 1, "b" => 2}} = Authority.content_at(pid, epoch, 2)
+    refute_received {:applied, _}
+
+    assert {:ok, %{"a" => 1}} = Authority.content_at(pid, epoch, 1)
+    assert_received {:applied, _}
+  end
+
   defmodule UpgradingEngine do
     @moduledoc false
     # The map engine, a version 3, which opens the documents of version 2 and
