@@ -19,8 +19,10 @@ defmodule Issho.Authority do
   engine's name and version, an epoch, a revision, the state the epoch
   began with, a journal of the accepted transactions, and their receipts.
   The journal can rebuild any revision of the epoch (`content_at/3`), so a
-  form can publish exactly the revision a person saw. (An upgraded document
-  that kept no journal rebuilds the revisions from its upgrade on.)
+  form can publish exactly the revision a person saw. The current revision
+  needs no rebuilding: its content is the one the authority keeps. (An
+  upgraded document that kept no journal rebuilds the revisions from its
+  upgrade on.)
 
   A store that answers `{:error, :conflict}` means another process saved
   meanwhile (a node that lost touch with the cluster): this one stops, and
@@ -482,6 +484,13 @@ defmodule Issho.Authority do
         {:error, {:storage, reason}, state}
     end
   end
+
+  defp content_at_revision(
+         %{document: %{"epoch" => epoch, "revision" => revision}} = state,
+         epoch,
+         revision
+       ),
+       do: {:ok, state.content}
 
   defp content_at_revision(state, epoch, revision) do
     document = state.document
