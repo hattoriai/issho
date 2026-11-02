@@ -127,6 +127,26 @@ defmodule Issho.DocumentSpecTest do
     assert Documents.whereis(@instance, id) == pid
   end
 
+  defmodule DriftingEngine do
+    @moduledoc false
+    # Applies no operation the same way twice, so its journal does not replay.
+    @behaviour Issho.Engine
+
+    def name, do: "drifting"
+    def version, do: 1
+    defdelegate init(initial, opts), to: Issho.Engine.Map
+    def apply(state, _ops, _opts), do: {:ok, Map.put(state, "n", System.unique_integer())}
+  end
+
+  test "replays? notices a journal that does not replay" do
+    id = "canvas:" <> Transaction.id()
+    spec = %{engine: DriftingEngine, store: :none}
+    {:ok, pid} = Documents.open(@instance, id, nil, spec: spec)
+    {:ok, _} = Authority.commit(pid, tx(pid, [set("a", 1)]), "u")
+
+    refute Issho.Test.replays?(@instance, id)
+  end
+
   defmodule ObservedEngine do
     @moduledoc false
     # The map engine, telling the test process each time it applies operations.
