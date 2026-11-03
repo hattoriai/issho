@@ -7,6 +7,13 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- `Issho.content/4` (and `Issho.Authority.content_at/3`) answers the
+  current revision with the content the authority keeps, without replaying
+  the journal. Publishing what a person saw replayed the whole epoch, so a
+  form on a document with a long history took seconds and could time out.
+
 ## [0.5.0] - 2026-10-26
 
 Agents work the way people do: one action for a person's button and an
