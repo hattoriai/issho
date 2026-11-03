@@ -7,6 +7,19 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-03
+
+Issho's MCP servers run on Sake 0.6, whose `actors` let one connection
+act as several identities, call by call.
+
+### Changed
+
+- The optional Sake requirement is now `~> 0.6` (it was `~> 0.4.4`). An
+  app that serves Issho over MCP moves to Sake 0.6 with it. Nothing in
+  Issho's MCP API changes, and the tests pass on Sake 0.6 as before.
+  With Sake 0.6, a server's `agent` can read `ctx.actor`: who a call acts
+  as, when the server declares `actors` (see Sake's `guides/actors.md`).
+
 ## [0.5.0] - 2026-10-26
 
 Agents work the way people do: one action for a person's button and an
