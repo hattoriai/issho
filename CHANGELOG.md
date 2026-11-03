@@ -7,6 +7,14 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A batch stays open when the server accepts this browser's own
+  transaction before it, and takes that revision as its base. Before, a
+  person who typed on through a round trip sent a transaction about once a
+  round trip, or with each change when the server answered faster than
+  they typed, whatever the `batch` delay.
+
 ## [0.5.0] - 2026-10-26
 
 Agents work the way people do: one action for a person's button and an
