@@ -1,7 +1,7 @@
 defmodule Issho.MixProject do
   use Mix.Project
 
-  @version "0.5.0"
+  @version "0.6.0"
   @source_url "https://github.com/hattoriai/issho"
 
   def project do
@@ -51,7 +51,7 @@ defmodule Issho.MixProject do
       {:phoenix, "~> 1.7.14 or ~> 1.8"},
       # Issho.Live, for apps with LiveView.
       {:phoenix_live_view, "~> 1.1", optional: true},
-      {:sake, "~> 0.4.4", optional: true},
+      {:sake, "~> 0.6", optional: true},
       {:phoenix_pubsub, "~> 2.1"},
       {:stream_data, "~> 1.1", only: :test},
       {:telemetry, "~> 1.0"}

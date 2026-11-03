@@ -280,7 +280,7 @@ other) with `Issho.MCP`, a [Sake](https://hex.pm/packages/sake) server.
 Add Sake to your dependencies:
 
 ```elixir
-{:sake, "~> 0.4"}
+{:sake, "~> 0.6"}
 ```
 
 ```elixir
