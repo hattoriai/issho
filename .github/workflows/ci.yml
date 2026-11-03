@@ -18,7 +18,7 @@ jobs:
           version-file: .tool-versions
           version-type: strict
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             deps
@@ -88,7 +88,7 @@ jobs:
 
       - run: mix local.hex --force && mix local.rebar --force
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             deps
