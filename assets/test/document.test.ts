@@ -328,6 +328,55 @@ test("a batch holds at most maxOps operations, and not across others' changes", 
   assert.deepEqual(server.state, { a: 1, n: 4 });
 });
 
+test("a batch stays open while only this browser's own transactions are accepted", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer();
+  const ada = batched(server, "ada", { delay: 80 });
+
+  ada.change([inc("n")]);
+  ada.flush();
+  ada.change([inc("n")]);
+  await server.settle();
+  // Her first transaction is accepted, and nothing else: she goes on typing into the batch.
+  ada.change([inc("n")]);
+  ada.change([set("title", "Plan")]);
+  assert.deepEqual(
+    ada.pending.map((tx) => [tx.id, tx.base_revision, tx.ops.length]),
+    [["ada-2", 1, 3]],
+  );
+  assert.deepEqual(server.sends, ["ada-1"]);
+
+  t.mock.timers.tick(80);
+  await server.settle();
+  assert.deepEqual(server.sends, ["ada-1", "ada-2"]);
+  assert.deepEqual(server.state, { n: 3, title: "Plan" });
+});
+
+test("a batch made before another's change was accepted stays closed after this browser's own is", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer({ a: 0 });
+  const ada = batched(server, "ada", { delay: 80 });
+  const ken = server.connect("ken");
+
+  ada.change([inc("n")]);
+  ken.change([inc("a")]);
+  ada.flush();
+  ada.change([inc("n")]);
+  await server.settle();
+  // Ken's change was accepted before Ada's first transaction: her batch was made without it.
+  assert.equal(ada.revision, 2);
+  ada.change([inc("n")]);
+  assert.deepEqual(
+    ada.pending.map((tx) => tx.ops.length),
+    [1, 1],
+  );
+
+  t.mock.timers.tick(80);
+  await server.settle();
+  assert.equal(ada.pending.length, 0);
+  assert.deepEqual(server.state, { a: 1, n: 3 });
+});
+
 test("held, changes show and batch but do not go until released", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const server = new FakeServer();
