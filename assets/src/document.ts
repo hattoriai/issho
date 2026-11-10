@@ -192,7 +192,7 @@ export class SharedDocument {
     const own = this.queue.findIndex((tx) => tx.id === event.id);
     if (own >= 0) {
       this.queue.splice(own, 1);
-      this.rebaseLast(event.revision);
+      this.rebaseBatch(event.revision);
     }
     this.acked.delete(event.id);
     this.sent.delete(event.id);
@@ -271,12 +271,10 @@ export class SharedDocument {
     return transaction;
   }
 
-  // The last transaction, not sent, was made on the state before this
-  // browser's own transaction at `revision`: it is made on the accepted
-  // state still, so it takes the next changes.
-  private rebaseLast(revision: number): void {
+  private rebaseBatch(revision: number): void {
     const last = this.queue[this.queue.length - 1];
-    if (!last || this.sent.has(last.id) || last.epoch !== this.accepted.epoch || last.base_revision !== revision - 1) return;
+    if (!last || last.id !== this.batching?.id || this.sent.has(last.id) || last.if_revision != null) return;
+    if (last.epoch !== this.accepted.epoch || last.base_revision !== revision - 1) return;
     this.queue[this.queue.length - 1] = { ...last, base_revision: revision };
   }
 

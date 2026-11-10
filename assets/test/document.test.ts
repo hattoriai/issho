@@ -384,6 +384,68 @@ test("a batch stays open while only this browser's own transactions are accepted
   assert.deepEqual(server.state, { n: 3, title: "Plan" });
 });
 
+test("a restored transaction sent before reload keeps its original base after an own acceptance", async () => {
+  const server = new FakeServer();
+  const snapshot = server.snapshot();
+  const first: Transaction = { id: "ada-1", epoch: snapshot.epoch, base_revision: 0, ops: [inc("n")] };
+  const last: Transaction = { ...first, id: "ada-2" };
+  await server.commit(first, "ada");
+  await server.commit(last, "ada");
+  const original = structuredClone(last);
+  const resent: Transaction[] = [];
+  const link: DocumentLink = {
+    send: (_id, tx) => {
+      resent.push(tx);
+      return server.commit(tx, "ada");
+    },
+  };
+  const ada = new SharedDocument(snapshot, link, { author: "ada", batch: { delay: 80 }, pending: [first, last] });
+
+  ada.receive({ ...first, revision: 1, author: "ada" });
+  assert.deepEqual(ada.pending, [original]);
+  await server.settle();
+  assert.deepEqual(resent, [original]);
+
+  ada.receive({ ...last, revision: 2, author: "ada" });
+  await ada.settled();
+  assert.deepEqual(ada.state, server.state);
+});
+
+test("a closed batch keeps its original base after an own acceptance", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer();
+  const ada = batched(server, "ada", { delay: 80 });
+
+  ada.change([inc("n")]);
+  ada.flush();
+  ada.hold();
+  ada.change([inc("n")]);
+  ada.flush();
+  await server.settle();
+  assert.equal(ada.pending[0].base_revision, 0);
+
+  ada.release();
+  await server.settle();
+  assert.equal(ada.pending.length, 0);
+  assert.deepEqual(ada.state, server.state);
+});
+
+test("a conditional batch keeps its original base after an own acceptance", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const server = new FakeServer();
+  const ada = batched(server, "ada", { delay: 80 });
+
+  ada.change([inc("n")]);
+  ada.flush();
+  const made = ada.change([inc("n")]);
+  assert(made.ok);
+  made.transaction.if_revision = 0;
+  const conditional = { ...made.transaction };
+
+  await server.settle();
+  assert.deepEqual(ada.pending, [conditional]);
+});
+
 test("a batch made before another's change was accepted stays closed after this browser's own is", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const server = new FakeServer({ a: 0 });
