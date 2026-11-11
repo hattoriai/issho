@@ -7,7 +7,21 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Optional `:history` bounds retained transaction receipts. Transactions
+  too old to distinguish from an accepted retry are refused as `:expired`.
+- Optional `:journal` folds older transactions into the stored `"initial"`
+  state and advances `"base"`, preserving the existing journal format.
+  Both options keep all history by default.
+
 ### Fixed
+
+- Expired browser edits are reported through `Room.onStaleDraft` and kept
+  across reloads until `Room.discardStaleDraft` removes them.
+- Stale conditional transactions report exact change counts after a
+  history fold. Journal replay failures return `:replay_failed` without
+  stopping the authority.
 
 - A batch stays open when the server accepts this browser's own
   transaction before it, and takes that revision as its base. Before, a

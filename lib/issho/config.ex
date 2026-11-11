@@ -17,6 +17,8 @@ defmodule Issho.Config do
     registry: :global,
     presence: true,
     ttl: 30_000,
+    history: nil,
+    journal: nil,
     awareness_interval: 50,
     awareness_full_every: 100,
     max_document_bytes: 16_000_000,
@@ -54,6 +56,8 @@ defmodule Issho.Config do
     unless opts[:secret_key_base] || opts[:endpoint],
       do: raise(ArgumentError, "Issho needs :endpoint or :secret_key_base, to sign join tokens")
 
+    check_history!(opts[:history])
+    check_journal!(opts[:journal])
     check_on_mention!(opts[:on_mention])
     check_coalesce!(Keyword.get(opts, :coalesce, %{}))
     struct!(__MODULE__, opts)
@@ -72,6 +76,19 @@ defmodule Issho.Config do
 
   defp check_coalesce!(other),
     do: raise(ArgumentError, "Issho's :coalesce is a map, got: #{inspect(other)}")
+
+  # At least the latest changes a stale transaction reports (Issho.Authority).
+  defp check_history!(nil), do: :ok
+  defp check_history!(keep) when is_integer(keep) and keep >= 20, do: :ok
+
+  defp check_history!(_keep),
+    do: raise(ArgumentError, "Issho's :history is nil or a number of transactions, at least 20")
+
+  defp check_journal!(nil), do: :ok
+  defp check_journal!(cap) when is_integer(cap) and cap >= 0, do: :ok
+
+  defp check_journal!(_cap),
+    do: raise(ArgumentError, "Issho's :journal is nil or a number of transactions")
 
   defp check_on_mention!(nil), do: :ok
   defp check_on_mention!({module, function}) when is_atom(module) and is_atom(function), do: :ok

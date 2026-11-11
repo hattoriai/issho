@@ -22,6 +22,27 @@ defmodule Issho.Authority do
   form can publish exactly the revision a person saw. (An upgraded document
   that kept no journal rebuilds the revisions from its upgrade on.)
 
+  The instance's `:history` option bounds transaction receipts. The
+  stored `"horizon"` is the revision before the retained receipts. A retry
+  with a retained receipt gets the same answer. An unconditional
+  transaction with no receipt and a base before the horizon is refused as
+  `:expired`, because it may already have applied. Without `:history`, all
+  receipts remain. Stale conditional transactions report an exact change
+  count, with details only for retained receipts.
+
+  The instance's `:journal` option bounds replay history. When it grows a
+  quarter past the limit, older events fold into `"initial"` and `"base"`
+  advances, preserving `length(journal) == revision - base`. Only revisions
+  from `"base"` onward can be rebuilt. Opening an over-limit journal starts
+  history at the current state without replaying it. Without `:journal`,
+  all events remain. A failed fold is logged and leaves history unchanged.
+
+  These documents retain Issho 0.5.0's stored shape. An older build can
+  load them, rebuild retained revisions, and append transactions. It
+  ignores `"horizon"`, so after a rollback it may apply a retry whose
+  receipt was dropped. Do not enable `:history` while such older writers
+  can still accept transactions.
+
   A store that answers `{:error, :conflict}` means another process saved
   meanwhile (a node that lost touch with the cluster): this one stops, and
   the next open loads the newer document.
@@ -34,6 +55,7 @@ defmodule Issho.Authority do
 
   use GenServer, restart: :temporary
 
+  alias Issho.Authority.{Journal, Ledger}
   alias Issho.{Config, Engine, Transaction}
 
   require Logger
@@ -109,6 +131,7 @@ defmodule Issho.Authority do
     with {:ok, loaded} <- store.load(context, id),
          {stored, spec} = initial(loaded, spec),
          {:ok, document} <- document(stored, engine, spec, engine_opts),
+         document = document |> Ledger.load(config.history) |> Journal.load(config.journal),
          {:ok, content} <- Engine.validate(engine, document["state"], engine_opts),
          :ok <- first_save(stored, store, context, id, document, content) do
       {:ok,
@@ -240,14 +263,8 @@ defmodule Issho.Authority do
     {:reply, content_at_revision(state, epoch, revision), state}
   end
 
-  def handle_call({:accepted, ids, author}, _from, state) do
-    receipts = state.document["receipts"]
-
-    accepted =
-      for id <- List.wrap(ids), is_binary(id), get_in(receipts, [id, "author"]) == author, do: id
-
-    {:reply, accepted, state}
-  end
+  def handle_call({:accepted, ids, author}, _from, state),
+    do: {:reply, Ledger.accepted(state.document, ids, author), state}
 
   def handle_call({:commit, transaction, %Issho.Identity{} = by}, _from, state) do
     started = System.monotonic_time()
@@ -273,7 +290,7 @@ defmodule Issho.Authority do
 
     with :ok <- check(document, transaction),
          digest = Transaction.digest(transaction, author),
-         :new <- receipt(document, transaction["id"], digest),
+         :new <- Ledger.check(document, transaction, digest),
          :ok <- unchanged(document, transaction),
          {:ok, engine_state} <-
            state.engine.apply(document["state"], transaction["ops"], [
@@ -290,12 +307,13 @@ defmodule Issho.Authority do
       next =
         document
         |> Map.merge(%{"state" => engine_state, "revision" => revision})
-        |> Map.update!("journal", &(&1 ++ [event]))
-        |> put_in(["receipts", transaction["id"]], %{
-          "digest" => digest,
-          "revision" => revision,
-          "author" => author
-        })
+        |> Journal.append(event)
+        |> fold(state)
+        |> Ledger.record(
+          transaction["id"],
+          %{"digest" => digest, "revision" => revision, "author" => author},
+          state.config.history
+        )
 
       persist(state, next, content, event, by)
     else
@@ -310,6 +328,21 @@ defmodule Issho.Authority do
 
       {:error, reason} ->
         {:error, reason, state}
+    end
+  end
+
+  # Past the instance's :journal, the oldest events fold into "initial",
+  # before the save, so the stored document stays bounded. A fold that
+  # fails (an engine that does not apply a transaction again as it did)
+  # leaves the journal as it was: the commit goes on.
+  defp fold(document, state) do
+    case Journal.fold(document, state.config.journal, &replay(state, &1, &2)) do
+      {:ok, folded} ->
+        folded
+
+      {:error, reason} ->
+        Logger.error("Issho: #{state.id} kept its journal unfolded: #{inspect(reason)}")
+        document
     end
   end
 
@@ -404,18 +437,11 @@ defmodule Issho.Authority do
 
   # The document's version now, and what changed since the author saw it:
   # each change's revision and author (never its operations), the latest
-  # @changes, when the journal still holds them all.
+  # @changes whose receipts it keeps. Revisions are dense, so the count is
+  # exact; nil for another epoch.
   defp stale(document, %{"epoch" => epoch, "if_revision" => seen}) do
-    base = Map.get(document, "base", 0)
-
-    since =
-      if epoch == document["epoch"] and seen >= base,
-        do: Enum.drop(document["journal"], seen - base),
-        else: nil
-
-    changes =
-      for event <- Enum.take(since || [], -@changes),
-          do: %{"revision" => event["revision"], "author" => event["author"]}
+    count = if epoch == document["epoch"], do: document["revision"] - seen
+    changes = if count, do: Ledger.since(document, seen, @changes), else: []
 
     {:error,
      {:stale,
@@ -423,18 +449,10 @@ defmodule Issho.Authority do
         "version" => Issho.Version.of(document),
         "epoch" => document["epoch"],
         "revision" => document["revision"],
-        "count" => since && length(since),
+        "count" => count,
         "changes" => changes,
-        "complete" => since != nil and length(since) <= @changes
+        "complete" => count == length(changes)
       }}}
-  end
-
-  defp receipt(document, id, digest) do
-    case document["receipts"][id] do
-      nil -> :new
-      %{"digest" => ^digest, "revision" => revision} -> {:duplicate, revision}
-      _ -> {:error, :id_reused}
-    end
   end
 
   defp persist(state, next, content, event, by) do
@@ -484,29 +502,29 @@ defmodule Issho.Authority do
   end
 
   defp content_at_revision(state, epoch, revision) do
-    document = state.document
-    base = Map.get(document, "base", 0)
-
-    if epoch == document["epoch"] and is_integer(revision) and revision >= base and
-         revision <= document["revision"] do
-      # Each transaction as it was accepted: an engine may limit the
-      # operations of one.
-      events = Enum.take(document["journal"], revision - base)
-
-      with {:ok, engine_state} <- replay(state, document["initial"], events),
-           do: Engine.validate(state.engine, engine_state, state.opts)
-    else
-      {:error, :unknown_revision}
-    end
+    with {:ok, initial, events} <- Journal.rebuild(state.document, epoch, revision),
+         {:ok, engine_state} <- replay(state, initial, events),
+         do: Engine.validate(state.engine, engine_state, state.opts)
   end
 
-  defp replay(_state, engine_state, []), do: {:ok, engine_state}
+  # Each transaction as it was accepted, with its author: an engine may
+  # limit the operations of one. An engine that raises gives an error,
+  # and the document goes on.
+  defp replay(state, engine_state, events) do
+    Enum.reduce_while(events, {:ok, engine_state}, fn event, {:ok, acc} ->
+      case state.engine.apply(acc, event["ops"], [{:author, event["author"]} | state.opts]) do
+        {:ok, next} -> {:cont, {:ok, next}}
+        error -> {:halt, error}
+      end
+    end)
+  rescue
+    error ->
+      Logger.error(
+        "Issho: replaying the journal of #{state.id} raised: " <>
+          Exception.format(:error, error, __STACKTRACE__)
+      )
 
-  defp replay(state, engine_state, [event | rest]) do
-    opts = [{:author, event["author"]} | state.opts]
-
-    with {:ok, next} <- state.engine.apply(engine_state, event["ops"], opts),
-         do: replay(state, next, rest)
+      {:error, :replay_failed}
   end
 
   defp snapshot_of(state) do

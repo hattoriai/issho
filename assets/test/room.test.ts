@@ -14,6 +14,7 @@ class FakeTransport implements RoomTransport {
   statusCallbacks: ((status: "joined" | "closed") => void)[] = [];
   pushes: { event: string; payload: unknown }[] = [];
   connected = true;
+  refuse: string | null = null;
   docs = new Map<string, { epoch: string; revision: number; state: State; receipts: Map<string, number> }>();
 
   async join() {
@@ -30,6 +31,7 @@ class FakeTransport implements RoomTransport {
       return { id: doc, engine: "map", epoch: d.epoch, revision: d.revision, state: d.state, accepted: pending.filter((id) => d.receipts.has(id)) };
     }
     if (event === "tx") {
+      if (this.refuse) throw new Refused(this.refuse);
       const { doc, tx } = payload as { doc: string; tx: Transaction };
       return this.commit(doc, tx, "ada", true);
     }
@@ -239,6 +241,45 @@ test("a draft of another epoch is reported and kept aside, never sent", async ()
 
   await after.discardStaleDraft("board:1");
   assert.equal([...drafts.drafts.keys()].filter((k) => k.endsWith(":stale")).length, 0);
+});
+
+test("expired edits survive later refusals and a reload until the app discards them", async () => {
+  const transport = new FakeTransport();
+  const drafts = new MemoryDraftStore();
+  const session = tab();
+  const room = new Room(transport, { self: "ada", room: "board:1", drafts, session });
+  const stale: string[][] = [];
+  room.onStaleDraft(({ draft, reason }) => {
+    assert.equal(reason, "expired");
+    stale.push(draft.pending.map((tx) => tx.id));
+  });
+  await room.connect();
+  const document = await room.open("board:1");
+  transport.drop();
+  document.change([{ op: "increment", path: ["n"], by: 1 }]);
+  document.change([{ op: "increment", path: ["n"], by: 2 }]);
+  const pending = document.pending.map((tx) => tx.id);
+  await room.flushDrafts();
+
+  transport.refuse = "expired";
+  transport.restore();
+  await tick();
+  await room.flushDrafts();
+  assert.equal(document.pending.length, 0);
+  assert.deepEqual(stale.at(-1), pending);
+  assert.deepEqual(transport.doc("board:1").state, {});
+
+  const after = new Room(transport, { self: "ada", room: "board:1", drafts, session: { ...session, locks: null } });
+  const recovered: string[][] = [];
+  after.onStaleDraft(({ draft, reason }) => {
+    assert.equal(reason, "expired");
+    recovered.push(draft.pending.map((tx) => tx.id));
+  });
+  await after.connect();
+  await after.open("board:1");
+  assert.deepEqual(recovered, [pending]);
+  await after.discardStaleDraft("board:1");
+  assert.equal(drafts.drafts.size, 0);
 });
 
 test("a tab keeps its session across reloads; a duplicated tab gets its own", async () => {
