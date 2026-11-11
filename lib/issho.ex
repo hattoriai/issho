@@ -141,12 +141,16 @@ defmodule Issho do
   @doc """
   The content of a document's revision, for a form that publishes exactly
   what a person saw: the `epoch` and `revision` the browser posts.
+  `{:error, :timeout}` when the document's authority does not answer
+  within the `:timeout` option, in milliseconds (5,000), and `{:error,
+  :unavailable}` when it is gone. These authority read failures return an
+  error instead of exiting the caller.
   """
-  @spec content(atom(), String.t(), String.t(), non_neg_integer()) ::
+  @spec content(atom(), String.t(), String.t(), non_neg_integer(), keyword()) ::
           {:ok, term()} | {:error, term()}
-  def content(instance, document_id, epoch, revision) do
+  def content(instance, document_id, epoch, revision, opts \\ []) do
     with {:ok, pid} <- Issho.Documents.open(instance, document_id),
-         do: Issho.Authority.content_at(pid, epoch, revision)
+         do: Issho.Authority.content_at(pid, epoch, revision, opts)
   end
 
   @doc """
