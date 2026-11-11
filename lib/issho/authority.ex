@@ -106,10 +106,6 @@ defmodule Issho.Authority do
   def content_at(server, epoch, revision, opts \\ []),
     do: read(server, {:content_at, epoch, revision}, Keyword.get(opts, :timeout, @read_timeout))
 
-  # commit/3 and join/2 exit instead: that ends the channel, and the
-  # browser's rejoin resends its pending transactions, which receipts keep
-  # from applying twice. A read has no such retry, and its caller (a
-  # LiveView publishing what a person saw) outlives a slow authority.
   defp read(server, request, timeout \\ @read_timeout) do
     GenServer.call(server, request, timeout)
   catch
