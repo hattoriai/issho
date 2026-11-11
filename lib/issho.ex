@@ -37,6 +37,10 @@ defmodule Issho do
       in its journal (`nil`: every one). Each revision from the oldest of
       them on can be rebuilt (`Issho.Authority.content_at/4`); the older
       fold into the state the journal starts from. See `Issho.Authority`.
+    * `:compact`: whether an idle document whose engine compacts
+      (`c:Issho.Engine.compact/2`) is saved without what only its past
+      needed, as a new epoch that continues the last (`false`). See
+      `Issho.Authority`.
     * `:awareness_interval`: milliseconds between awareness frames (50).
     * `:awareness_max_bytes`: the largest awareness state of a session, as
       JSON (64 KB).

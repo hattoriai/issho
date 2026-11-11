@@ -1,7 +1,7 @@
 defmodule Issho.CompatibilityTest do
   # What this Issho saves, Issho 0.5.0 loads, commits to and rebuilds
   # revisions of, whatever the options: a document folded to its
-  # :journal, reopened from a journal too long,
+  # :journal, compacted, reopened from a journal too long,
   # or kept whole. V050 below is 0.5.0's own reading of a stored
   # document, line for line from its lib/issho/authority.ex (v0.5.0); the
   # tests run it over documents this code saved, then load what it
@@ -78,13 +78,28 @@ defmodule Issho.CompatibilityTest do
     end
   end
 
+  defmodule Compacting do
+    @moduledoc false
+    # The map engine, whose "trash" key only its past needs: its content
+    # is the map without it, and compact/2 drops it.
+    @behaviour Issho.Engine
+    alias Issho.Engine.Map, as: MapEngine
+
+    def name, do: "compacting"
+    def version, do: 1
+    defdelegate init(initial, opts), to: MapEngine
+    defdelegate apply(state, ops, opts), to: MapEngine
+    def validate(state, _opts), do: {:ok, Map.delete(state, "trash")}
+    def compact(state, _opts), do: {:ok, Map.delete(state, "trash")}
+  end
+
   defmodule Policy do
     @moduledoc false
     @behaviour Issho.Policy
     @impl true
     def authorize(_identity, _room, _action), do: :ok
     @impl true
-    def document(_identity, _id), do: {:ok, %{engine: Issho.Engine.Map, initial: %{}}}
+    def document(_identity, _id), do: {:ok, %{engine: Compacting, initial: %{}}}
   end
 
   @ttl 10
@@ -98,7 +113,7 @@ defmodule Issho.CompatibilityTest do
     end
 
     %{
-      bounded: start.(history: 20, journal: 8),
+      bounded: start.(history: 20, journal: 8, compact: true),
       unbounded: start.([])
     }
   end
@@ -142,6 +157,12 @@ defmodule Issho.CompatibilityTest do
     :ok
   end
 
+  defp trash(pid) do
+    {:ok, %{"epoch" => epoch, "revision" => revision}} = Authority.snapshot(pid)
+    big = %{"op" => "set", "path" => ["trash"], "value" => String.duplicate("x", 100_000)}
+    {:ok, _} = Authority.commit(pid, %{tx(epoch, revision, 0) | "ops" => [big]}, "user:ada")
+  end
+
   defp stored(instance, id) do
     {:ok, document} = Store.Memory.load(store(instance), id)
     document
@@ -154,27 +175,24 @@ defmodule Issho.CompatibilityTest do
   defp assert_050_reads(instance, id, pid) do
     document = stored(instance, id)
     content = Store.Memory.content(store(instance), id)
-    assert {:ok, ^document} = V050.load(document, Issho.Engine.Map)
+    assert {:ok, ^document} = V050.load(document, Compacting)
 
     %{"epoch" => epoch, "revision" => revision} = document
     base = Map.get(document, "base", 0)
-    assert {:ok, ^content} = V050.content_at(document, Issho.Engine.Map, epoch, revision)
+    assert {:ok, ^content} = V050.content_at(document, Compacting, epoch, revision)
 
     for seen <- base..revision//1 do
-      assert V050.content_at(document, Issho.Engine.Map, epoch, seen) ==
+      assert V050.content_at(document, Compacting, epoch, seen) ==
                Authority.content_at(pid, epoch, seen)
 
       assert length(V050.since(document, seen)) == revision - seen
     end
 
     close(instance, id, pid)
-    committed = V050.commit(document, Issho.Engine.Map, tx(epoch, revision, "0.5.0"), "user:ken")
-    {:ok, after_commit} = Engine.validate(Issho.Engine.Map, committed["state"], [])
+    committed = V050.commit(document, Compacting, tx(epoch, revision, "0.5.0"), "user:ken")
+    {:ok, after_commit} = Engine.validate(Compacting, committed["state"], [])
     assert after_commit == Map.put(content, "n", "0.5.0")
-
-    assert {:ok, ^after_commit} =
-             V050.content_at(committed, Issho.Engine.Map, epoch, revision + 1)
-
+    assert {:ok, ^after_commit} = V050.content_at(committed, Compacting, epoch, revision + 1)
     :ok = Store.Memory.save(store(instance), id, {epoch, revision}, committed, after_commit)
 
     pid = open(instance, id)
@@ -197,6 +215,20 @@ defmodule Issho.CompatibilityTest do
     assert_050_reads(instance, id, pid)
   end
 
+  test "a compacted document, before and after its next transactions", %{bounded: instance} do
+    id = "doc:" <> Transaction.id()
+    pid = open(instance, id)
+    commit_n(pid, 1..5)
+    trash(pid)
+    close(instance, id, pid)
+    assert %{"continues" => _epoch, "journal" => []} = stored(instance, id)
+
+    pid = open(instance, id)
+    pid = assert_050_reads(instance, id, pid)
+    commit_n(pid, 6..20)
+    assert_050_reads(instance, id, pid)
+  end
+
   test "a document saved with a journal too long, once this code commits to it",
        %{bounded: instance} do
     long = "doc:" <> Transaction.id()
@@ -209,7 +241,7 @@ defmodule Issho.CompatibilityTest do
 
     document =
       Enum.reduce(1..40, created, fn n, document ->
-        V050.commit(document, Issho.Engine.Map, tx(epoch, n - 1, n), "user:ada")
+        V050.commit(document, Compacting, tx(epoch, n - 1, n), "user:ada")
       end)
 
     :ok = Store.Memory.save(store(instance), long, {epoch, 0}, document, %{"n" => 40})

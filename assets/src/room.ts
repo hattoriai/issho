@@ -6,6 +6,7 @@ import { Awareness, withBlock, type AwarenessOptions, type AwarenessState, type 
 import {
   Refused,
   SharedDocument,
+  carries,
   type AcceptedTransaction,
   type DocumentLink,
   type DocumentOptions,
@@ -124,14 +125,18 @@ export class Room {
         send: (doc, transaction) => this.transport.push("tx", { doc, tx: transaction }) as Promise<Receipt>,
       };
 
-      // A draft of another epoch can never apply: report it, keep it aside.
-      let restore: Transaction[] = [];
-      if (draft && key && draft.epoch !== snapshot.epoch) {
-        await this.options.drafts!.save(`${key}:stale`, draft);
-        for (const listener of this.draftListeners) listener({ document: documentId, draft, reason: "epoch_mismatch" });
-      } else if (draft) {
-        restore = draft.pending;
+      // What the server accepted is done. The rest of a draft goes again,
+      // but what is of an epoch the document neither is nor continues can
+      // never apply: report it, keep it aside.
+      const accepted = new Set(snapshot.accepted ?? []);
+      const unsent = draft ? draft.pending.filter((tx) => !accepted.has(tx.id)) : [];
+      const lost = unsent.filter((tx) => !carries(snapshot, tx));
+      if (draft && key && lost.length > 0) {
+        const stale = { ...draft, pending: lost };
+        await this.options.drafts!.save(`${key}:stale`, stale);
+        for (const listener of this.draftListeners) listener({ document: documentId, draft: stale, reason: "epoch_mismatch" });
       }
+      const restore = unsent.filter((tx) => carries(snapshot, tx));
 
       const document = new SharedDocument(snapshot, link, {
         author: this.options.self,

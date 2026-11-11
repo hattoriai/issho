@@ -2,11 +2,27 @@ defmodule Issho.HistoryTest do
   # A document keeps the receipts of its latest transactions (the
   # instance's :history), not of every one: a transaction it can no longer
   # tell from one it applied is refused, :expired, and never applied twice.
-  # Its journal (the instance's :journal) stays as Issho 0.5.0 reads it.
+  # Its journal (the instance's :journal) stays as Issho 0.5.0 reads it,
+  # across folds and compactions.
   use ExUnit.Case, async: true
   use ExUnitProperties
 
   alias Issho.{Authority, Documents, Store, Transaction}
+
+  defmodule Compacting do
+    @moduledoc false
+    # The map engine, whose "trash" key only its past needs: its content
+    # is the map without it, and compact/2 drops it.
+    @behaviour Issho.Engine
+    alias Issho.Engine.Map, as: MapEngine
+
+    def name, do: "compacting"
+    def version, do: 1
+    defdelegate init(initial, opts), to: MapEngine
+    defdelegate apply(state, ops, opts), to: MapEngine
+    def validate(state, _opts), do: {:ok, Map.delete(state, "trash")}
+    def compact(state, _opts), do: {:ok, Map.delete(state, "trash")}
+  end
 
   defmodule Policy do
     @moduledoc false
@@ -14,8 +30,10 @@ defmodule Issho.HistoryTest do
     @impl true
     def authorize(_identity, _room, _action), do: :ok
     @impl true
-    def document(_identity, _id), do: {:ok, %{engine: Issho.Engine.Map, initial: %{}}}
+    def document(_identity, _id), do: {:ok, %{engine: Compacting, initial: %{}}}
   end
+
+  @ttl 10
 
   setup do
     unique = System.unique_integer([:positive])
@@ -33,7 +51,8 @@ defmodule Issho.HistoryTest do
            history: keep,
            journal: cap,
            store: {Store.Memory, store},
-           ttl: 60_000
+           compact: true,
+           ttl: @ttl
          )}
       end)
 
@@ -67,16 +86,17 @@ defmodule Issho.HistoryTest do
     :ok
   end
 
-  defp open(instance) do
-    id = "doc:" <> Transaction.id()
+  # Open while the test has it, as a page has it while it is open.
+  defp open(instance, id \\ "doc:" <> Transaction.id()) do
     {:ok, pid} = Documents.open(instance, id)
+    {:ok, _snapshot, _engine} = Authority.join(pid, self())
     {id, pid}
   end
 
   defp reopen(instance, id, pid) do
     :ok = GenServer.stop(pid)
     await_gone(instance, id, pid)
-    {:ok, again} = Documents.open(instance, id)
+    {^id, again} = open(instance, id)
     again
   end
 
@@ -161,7 +181,7 @@ defmodule Issho.HistoryTest do
     advance(pid, 25)
     :ok = GenServer.stop(pid)
 
-    {:ok, pid} = Documents.open(instances[{27, 30}], id)
+    {^id, pid} = open(instances[{27, 30}], id)
     assert {:error, :expired} = Authority.commit(pid, t, "user:ada")
     assert applied(pid, t) == 1
   end
@@ -191,8 +211,8 @@ defmodule Issho.HistoryTest do
 
     # As Issho 0.5.0 saves it: every receipt, and the journal from revision 0.
     stored = %{
-      "engine" => "map",
-      "engine_version" => 2,
+      "engine" => "compacting",
+      "engine_version" => 1,
       "epoch" => "e1",
       "revision" => 40,
       "state" => state,
@@ -202,7 +222,7 @@ defmodule Issho.HistoryTest do
     }
 
     :ok = Store.Memory.save(store, id, nil, stored, state)
-    {:ok, pid} = Documents.open(instance, id)
+    {^id, pid} = open(instance, id)
     found = Map.new(transactions)
 
     assert {:ok, %{"revision" => 35, "duplicate" => true}} =
@@ -252,7 +272,8 @@ defmodule Issho.HistoryTest do
   # Of the transactions made, some are sent at once and some later (an
   # offline tab), mostly on a recent revision, some up to three times
   # :history behind, and any is sent again (a lost reply, a reconnect), now
-  # and then across a restart of the document's authority.
+  # and then across a restart of the document's authority, or a compaction
+  # when its last session leaves.
   defp step do
     behind = frequency([{4, integer(0..2)}, {2, integer(0..30)}, {1, integer(0..80)}])
 
@@ -260,11 +281,12 @@ defmodule Issho.HistoryTest do
       {4, tuple({constant(:send), behind})},
       {2, tuple({constant(:hold), behind})},
       {4, tuple({constant(:retry), non_negative_integer()})},
-      {1, constant(:restart)}
+      {1, constant(:restart)},
+      {1, constant(:compact)}
     ])
   end
 
-  property "a transaction applies at most once, is refused only when older than :history, and the journal replays",
+  property "a transaction applies at most once, is refused only when older than :history or two epochs back, and the journal replays",
            %{instances: instances, store: store} do
     check all(
             {keep, cap} = limits <- member_of(Map.keys(instances)),
@@ -280,6 +302,7 @@ defmodule Issho.HistoryTest do
         store: store,
         id: id,
         epoch: epoch,
+        continues: nil,
         keep: keep,
         cap: cap,
         pid: pid,
@@ -316,11 +339,11 @@ defmodule Issho.HistoryTest do
       journal
       |> Enum.take(stored["revision"] - base)
       |> Enum.reduce(stored["initial"], fn event, state ->
-        {:ok, next} = Issho.Engine.Map.apply(state, event["ops"], author: event["author"])
+        {:ok, next} = Compacting.apply(state, event["ops"], author: event["author"])
         next
       end)
 
-    assert replayed == Store.Memory.content(model.store, model.id)
+    assert Compacting.validate(replayed, []) == {:ok, Store.Memory.content(model.store, model.id)}
     stored
   end
 
@@ -348,12 +371,32 @@ defmodule Issho.HistoryTest do
     %{model | pid: reopen(model.instance, model.id, model.pid)}
   end
 
+  # Trash enough to be worth compacting, then the last session leaves.
+  defp run(:compact, model) do
+    trash = %{"op" => "set", "path" => ["trash"], "value" => String.duplicate("x", 100_000)}
+    made = %{tx: %{tx(model.epoch, model.revision) | "ops" => [trash]}, applied: nil}
+    {made, model} = deliver(made, model)
+
+    ref = Process.monitor(model.pid)
+    Authority.leave(model.pid, self())
+    assert_receive {:DOWN, ^ref, :process, _pid, :normal}, 2_000
+    await_gone(model.instance, model.id, model.pid)
+
+    model = %{model | made: model.made ++ [made]}
+    assert %{"continues" => continues, "epoch" => epoch} = assert_stored(model)
+    assert continues == model.epoch
+    {_id, pid} = open(model.instance, model.id)
+    %{model | pid: pid, epoch: epoch, continues: continues}
+  end
+
   # What the authority may answer, given what the transaction is: its
   # receipt is kept while it is one of the latest :history (all of them
-  # without one), and a transaction made on one of the latest :history
-  # revisions without a receipt is new.
+  # without one), from any epoch; a transaction made on one of the latest
+  # :history revisions without a receipt is new, when it was made on the
+  # document's epoch or the one it continues.
   defp deliver(%{tx: t, applied: applied} = made, model) do
     latest = if model.keep, do: model.revision - model.keep, else: 0
+    line? = t["epoch"] in [model.epoch, model.continues]
 
     case {Authority.commit(model.pid, t, "user:ada"), applied} do
       {{:ok, %{"duplicate" => true, "revision" => revision}}, revision} ->
@@ -361,6 +404,7 @@ defmodule Issho.HistoryTest do
 
       {{:ok, %{"revision" => revision} = receipt}, nil} ->
         refute Map.has_key?(receipt, "duplicate")
+        assert line?
         assert revision == model.revision + 1
         {%{made | applied: revision}, %{model | revision: revision}}
 
@@ -370,6 +414,11 @@ defmodule Issho.HistoryTest do
 
       {{:error, :expired}, revision} ->
         assert revision <= latest
+        {made, model}
+
+      {{:error, :epoch_mismatch}, applied} ->
+        refute line?
+        if applied, do: assert(applied <= latest)
         {made, model}
 
       {other, applied} ->

@@ -19,6 +19,7 @@ defmodule Issho.Config do
     ttl: 30_000,
     history: nil,
     journal: nil,
+    compact: false,
     awareness_interval: 50,
     awareness_full_every: 100,
     max_document_bytes: 16_000_000,
@@ -58,6 +59,7 @@ defmodule Issho.Config do
 
     check_history!(opts[:history])
     check_journal!(opts[:journal])
+    check_compact!(Keyword.get(opts, :compact, false))
     check_on_mention!(opts[:on_mention])
     check_coalesce!(Keyword.get(opts, :coalesce, %{}))
     struct!(__MODULE__, opts)
@@ -89,6 +91,9 @@ defmodule Issho.Config do
 
   defp check_journal!(_cap),
     do: raise(ArgumentError, "Issho's :journal is nil or a number of transactions")
+
+  defp check_compact!(compact) when is_boolean(compact), do: :ok
+  defp check_compact!(_compact), do: raise(ArgumentError, "Issho's :compact is true or false")
 
   defp check_on_mention!(nil), do: :ok
   defp check_on_mention!({module, function}) when is_atom(module) and is_atom(function), do: :ok
