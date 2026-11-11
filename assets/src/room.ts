@@ -6,6 +6,7 @@ import { Awareness, withBlock, type AwarenessOptions, type AwarenessState, type 
 import {
   Refused,
   SharedDocument,
+  carries,
   type AcceptedTransaction,
   type DocumentLink,
   type DocumentOptions,
@@ -50,7 +51,7 @@ export interface RoomOptions {
 export interface StaleDraft {
   document: string;
   draft: Draft;
-  reason: "epoch_mismatch";
+  reason: "epoch_mismatch" | "expired";
 }
 
 export class Room {
@@ -114,20 +115,25 @@ export class Room {
     const promise = (async () => {
       const key = await this.draftKey(documentId);
       const draft = key ? await this.options.drafts!.load(key) : null;
+      if (key) {
+        const expired = await this.options.drafts!.load(`${key}:expired`);
+        if (expired) this.reportStale(documentId, expired, "expired");
+      }
       const pendingIds = draft?.pending.map((tx) => tx.id) ?? [];
       const snapshot = (await this.transport.push("open", { doc: documentId, pending: pendingIds })) as Snapshot;
       const link: DocumentLink = {
         send: (doc, transaction) => this.transport.push("tx", { doc, tx: transaction }) as Promise<Receipt>,
       };
 
-      // A draft of another epoch can never apply: report it, keep it aside.
-      let restore: Transaction[] = [];
-      if (draft && key && draft.epoch !== snapshot.epoch) {
-        await this.options.drafts!.save(`${key}:stale`, draft);
-        for (const listener of this.draftListeners) listener({ document: documentId, draft, reason: "epoch_mismatch" });
-      } else if (draft) {
-        restore = draft.pending;
+      const accepted = new Set(snapshot.accepted ?? []);
+      const unsent = draft ? draft.pending.filter((tx) => !accepted.has(tx.id)) : [];
+      const lost = unsent.filter((tx) => !carries(snapshot, tx));
+      if (draft && key && lost.length > 0) {
+        const stale = { ...draft, pending: lost };
+        await this.options.drafts!.save(`${key}:stale`, stale);
+        for (const listener of this.draftListeners) listener({ document: documentId, draft: stale, reason: "epoch_mismatch" });
       }
+      const restore = unsent.filter((tx) => carries(snapshot, tx));
 
       const document = new SharedDocument(snapshot, link, {
         author: this.options.self,
@@ -137,6 +143,9 @@ export class Room {
       });
       document.on((event) => {
         if (event.type === "out_of_step") void this.reopen(document);
+        if (event.type === "refused" && event.reason === "expired") {
+          this.keepExpired(key, documentId, event.transaction);
+        }
       });
       this.documents.set(documentId, document);
       return document;
@@ -146,7 +155,7 @@ export class Room {
     return promise.finally(() => this.opening.delete(documentId));
   }
 
-  /** Called with each draft the server could no longer take, when its document opens. */
+  /** Called when edits expire, and when their saved draft's document opens. */
   onStaleDraft(listener: (stale: StaleDraft) => void): () => void {
     this.draftListeners.add(listener);
     return () => this.draftListeners.delete(listener);
@@ -155,7 +164,35 @@ export class Room {
   /** Throws away a document's stale draft, once the app has offered it back. */
   async discardStaleDraft(documentId: string): Promise<void> {
     const key = await this.draftKey(documentId);
-    if (key) await this.options.drafts!.remove(`${key}:stale`);
+    if (key) {
+      await this.flushDrafts();
+      await this.options.drafts!.remove(`${key}:stale`);
+      await this.options.drafts!.remove(`${key}:expired`);
+    }
+  }
+
+  private keepExpired(key: string | null, documentId: string, transaction: Transaction): void {
+    const draft: Draft = { epoch: transaction.epoch, revision: transaction.base_revision, pending: [transaction] };
+    if (!key) {
+      this.reportStale(documentId, draft, "expired");
+      return;
+    }
+    const store = this.options.drafts!;
+    const previous = this.writes.get(key) ?? Promise.resolve();
+    const next = previous.then(async () => {
+      const saved = await store.load(`${key}:expired`);
+      const kept = saved ?? draft;
+      const pending = new Map(kept.pending.map((tx) => [tx.id, tx]));
+      pending.set(transaction.id, transaction);
+      const stale = { ...kept, pending: [...pending.values()] };
+      await store.save(`${key}:expired`, stale);
+      this.reportStale(documentId, stale, "expired");
+    }).catch(() => this.reportStale(documentId, draft, "expired"));
+    this.writes.set(key, next);
+  }
+
+  private reportStale(document: string, draft: Draft, reason: StaleDraft["reason"]): void {
+    for (const listener of this.draftListeners) listener({ document, draft, reason });
   }
 
   // Writes of one draft go in order; an empty queue leaves nothing behind.

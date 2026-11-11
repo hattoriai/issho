@@ -25,7 +25,8 @@ defmodule Issho.Transaction do
   a new epoch, the whole transaction is refused, before its operations or
   the document's hook run, with `{:error, {:stale, details}}`: the
   document's version now, and the changes since (their revisions and
-  authors, the latest 20) when the journal still holds them. An agent
+  authors, the latest 20 whose receipts it keeps), with an exact count
+  when the epoch is unchanged. An agent
   that read the document, then thought, changes what it read, or reads
   it again (`Issho.Version`).
 

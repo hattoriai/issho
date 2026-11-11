@@ -7,7 +7,32 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Optional `:compact` saves idle documents in a new epoch that continues
+  the previous one. Engines opt in with `compact/2`; bindings delegate it.
+  Compaction preserves content, revision, and receipts, and restarts the
+  journal from the compacted state. It requires a store and savings of
+  at least 64 KB and one quarter of the state. The
+  `[:issho, :document, :compact]` telemetry event reports attempts.
+
+- Optional `:history` bounds retained transaction receipts. Transactions
+  too old to distinguish from an accepted retry are refused as `:expired`.
+- Optional `:journal` folds older transactions into the stored `"initial"`
+  state and advances `"base"`, preserving the existing journal format.
+  Both options keep all history by default.
+
 ### Fixed
+
+- Browser pending work survives a compaction, including accepted edits
+  whose reply was lost. Drafts from the preceding epoch remain eligible
+  for retry. An epoch refusal reopens the document before later edits.
+
+- Expired browser edits are reported through `Room.onStaleDraft` and kept
+  across reloads until `Room.discardStaleDraft` removes them.
+- Stale conditional transactions report exact change counts after a
+  history fold. Journal replay failures return `:replay_failed` without
+  stopping the authority.
 
 - A batch stays open when the server accepts this browser's own
   transaction before it, and takes that revision as its base. Before, a
