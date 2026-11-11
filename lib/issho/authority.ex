@@ -331,10 +331,6 @@ defmodule Issho.Authority do
     end
   end
 
-  # Past the instance's :journal, the oldest events fold into "initial",
-  # before the save, so the stored document stays bounded. A fold that
-  # fails (an engine that does not apply a transaction again as it did)
-  # leaves the journal as it was: the commit goes on.
   defp fold(document, state) do
     case Journal.fold(document, state.config.journal, &replay(state, &1, &2)) do
       {:ok, folded} ->
@@ -507,9 +503,6 @@ defmodule Issho.Authority do
          do: Engine.validate(state.engine, engine_state, state.opts)
   end
 
-  # Each transaction as it was accepted, with its author: an engine may
-  # limit the operations of one. An engine that raises gives an error,
-  # and the document goes on.
   defp replay(state, engine_state, events) do
     Enum.reduce_while(events, {:ok, engine_state}, fn event, {:ok, acc} ->
       case state.engine.apply(acc, event["ops"], [{:author, event["author"]} | state.opts]) do

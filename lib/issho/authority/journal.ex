@@ -17,18 +17,12 @@ defmodule Issho.Authority.Journal do
 
   @type document :: map()
 
-  # A document as the journal keeps it: with its "base". One saved with a
-  # journal more than a quarter past the cap starts its
-  # journal at the revision it has rather than replaying the one it had.
-  # The next transaction saves it.
   @spec load(document(), non_neg_integer() | nil) :: document()
   def load(%{"journal" => journal} = document, cap) when is_list(journal) do
     document = Map.put_new(document, "base", 0)
     if over?(journal, cap), do: restart(document), else: document
   end
 
-  # The document with its journal starting over at the revision it has,
-  # from its state.
   @spec restart(document()) :: document()
   def restart(document) do
     Map.merge(document, %{
@@ -38,13 +32,9 @@ defmodule Issho.Authority.Journal do
     })
   end
 
-  # The document with an accepted transaction's event after the others.
   @spec append(document(), map()) :: document()
   def append(document, event), do: Map.update!(document, "journal", &(&1 ++ [event]))
 
-  # The document with its oldest events folded into "initial", once the
-  # journal is a quarter past the cap, leaving the latest `cap`. `replay`
-  # applies events to a state, as the authority does.
   @spec fold(
           document(),
           non_neg_integer() | nil,
@@ -63,8 +53,6 @@ defmodule Issho.Authority.Journal do
     end
   end
 
-  # What rebuilds a revision of the document's epoch: the state at "base"
-  # and the events after it up to that revision.
   @spec rebuild(document(), String.t(), term()) ::
           {:ok, term(), [map()]} | {:error, :unknown_revision}
   def rebuild(
