@@ -79,7 +79,6 @@ defmodule Issho.Config do
   defp check_coalesce!(other),
     do: raise(ArgumentError, "Issho's :coalesce is a map, got: #{inspect(other)}")
 
-  # At least the latest changes a stale transaction reports (Issho.Authority).
   defp check_history!(nil), do: :ok
   defp check_history!(keep) when is_integer(keep) and keep >= 20, do: :ok
 

@@ -204,6 +204,10 @@ defmodule Issho.CompactionTest do
 
     assert revision == seen + 1
     assert version == Issho.Version.new(new, revision)
+
+    assert {:ok, %{"duplicate" => true, "version" => ^version}} =
+             Authority.commit(pid, offline, "user:ada")
+
     assert_receive {Issho, :transaction, ^id, %{"epoch" => ^new, "revision" => ^revision}}
     assert content(pid) == %{"title" => "Offline"}
     assert {:ok, %{}} = Authority.content_at(pid, new, seen)

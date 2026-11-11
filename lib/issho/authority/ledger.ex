@@ -19,10 +19,6 @@ defmodule Issho.Authority.Ledger do
 
   @type document :: map()
 
-  # A document as the ledger keeps it: with its horizon (0 for one saved
-  # before there was one, which kept every receipt), and its receipts
-  # trimmed to the latest `keep` (all of them when nil). The next
-  # transaction saves it.
   @spec load(document(), pos_integer() | nil) :: document()
   def load(document, keep) do
     document
@@ -30,9 +26,6 @@ defmodule Issho.Authority.Ledger do
     |> trim(keep)
   end
 
-  # What the receipts say of a transaction about to be committed. A
-  # conditional one made before the horizon goes on, to be refused as
-  # stale with what changed since.
   @spec check(document(), Transaction.t(), String.t()) ::
           :new | {:duplicate, non_neg_integer()} | {:error, :id_reused | :expired}
   def check(document, transaction, digest) do
@@ -51,10 +44,6 @@ defmodule Issho.Authority.Ledger do
     end
   end
 
-  # The document with an accepted transaction's receipt, without those
-  # that fell out of the latest `keep`. It trims in steps of a quarter of
-  # `keep`, so the walk over the receipts runs once every `keep / 4`
-  # commits, not on each.
   @spec record(document(), String.t(), map(), pos_integer() | nil) :: document()
   def record(document, id, receipt, keep) do
     document
@@ -62,8 +51,6 @@ defmodule Issho.Authority.Ledger do
     |> trim(keep)
   end
 
-  # Which of these ids the author has receipts for: a reconnect's pending
-  # transactions that were accepted.
   @spec accepted(document(), [String.t()], String.t()) :: [String.t()]
   def accepted(document, ids, author) do
     for id <- List.wrap(ids),
@@ -72,9 +59,6 @@ defmodule Issho.Authority.Ledger do
         do: id
   end
 
-  # The latest `limit` changes after revision `seen`, oldest first, each
-  # its revision and author: fewer than happened when some fell before the
-  # horizon.
   @spec since(document(), non_neg_integer(), pos_integer()) :: [map()]
   def since(document, seen, limit) do
     document["receipts"]

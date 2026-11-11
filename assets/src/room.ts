@@ -125,9 +125,6 @@ export class Room {
         send: (doc, transaction) => this.transport.push("tx", { doc, tx: transaction }) as Promise<Receipt>,
       };
 
-      // What the server accepted is done. The rest of a draft goes again,
-      // but what is of an epoch the document neither is nor continues can
-      // never apply: report it, keep it aside.
       const accepted = new Set(snapshot.accepted ?? []);
       const unsent = draft ? draft.pending.filter((tx) => !accepted.has(tx.id)) : [];
       const lost = unsent.filter((tx) => !carries(snapshot, tx));

@@ -78,8 +78,6 @@ defmodule Issho.Authority do
 
   require Logger
 
-  # A compaction is worth a new epoch when it saves at least this share
-  # of the state, and at least this many bytes.
   @compact_share 4
   @compact_bytes 65_536
 
@@ -322,8 +320,6 @@ defmodule Issho.Authority do
          {:ok, content} <- Engine.validate(state.engine, engine_state, state.opts),
          revision = document["revision"] + 1,
          :ok <- hook(state, transaction, by, engine_state, revision) do
-      # Of the document's epoch, whichever its author made it on (the one
-      # this continues): every browser applies it.
       event =
         transaction
         |> Map.take(["id", "base_revision", "ops"])
@@ -336,20 +332,25 @@ defmodule Issho.Authority do
         |> fold(state)
         |> Ledger.record(
           transaction["id"],
-          %{"digest" => digest, "revision" => revision, "author" => author},
+          %{
+            "digest" => digest,
+            "epoch" => document["epoch"],
+            "revision" => revision,
+            "author" => author
+          },
           state.config.history
         )
 
       persist(state, next, content, event, by)
     else
-      # Its version is of the epoch it was made on, which may be one this
-      # document continues.
       {:duplicate, revision} ->
+        epoch = document["receipts"][transaction["id"]]["epoch"] || transaction["epoch"]
+
         {:ok,
          %{
            "id" => transaction["id"],
            "revision" => revision,
-           "version" => Issho.Version.new(transaction["epoch"], revision),
+           "version" => Issho.Version.new(epoch, revision),
            "duplicate" => true
          }, state}
 
@@ -358,10 +359,6 @@ defmodule Issho.Authority do
     end
   end
 
-  # Past the instance's :journal, the oldest events fold into "initial",
-  # before the save, so the stored document stays bounded. A fold that
-  # fails (an engine that does not apply a transaction again as it did)
-  # leaves the journal as it was: the commit goes on.
   defp fold(document, state) do
     case Journal.fold(document, state.config.journal, &replay(state, &1, &2)) do
       {:ok, folded} ->
@@ -441,7 +438,6 @@ defmodule Issho.Authority do
       )
   end
 
-  # The envelope's to refuse, but for a transaction of another epoch.
   defp check(document, transaction, author) do
     case Transaction.check(transaction, epoch(document, transaction), document["revision"]) do
       {:error, :epoch_mismatch} -> other_epoch(document, transaction, author)
@@ -449,9 +445,6 @@ defmodule Issho.Authority do
     end
   end
 
-  # A retry of a transaction the document applied, made on any epoch, gets
-  # its receipt; a conditional one is stale, as one from an older revision
-  # is; anything else is refused.
   defp other_epoch(document, transaction, author) do
     case Ledger.check(document, transaction, Transaction.digest(transaction, author)) do
       {:duplicate, _revision} = duplicate ->
@@ -464,8 +457,6 @@ defmodule Issho.Authority do
     end
   end
 
-  # The epoch a transaction is checked on: the document's, or the one it
-  # continues for an unconditional transaction made before a compaction.
   defp epoch(%{"continues" => continued} = document, %{"epoch" => continued} = transaction) do
     if Transaction.conditional?(transaction), do: document["epoch"], else: continued
   end
@@ -554,9 +545,6 @@ defmodule Issho.Authority do
          do: Engine.validate(state.engine, engine_state, state.opts)
   end
 
-  # Each transaction as it was accepted, with its author: an engine may
-  # limit the operations of one. An engine that raises gives an error,
-  # and the document goes on.
   defp replay(state, engine_state, events) do
     Enum.reduce_while(events, {:ok, engine_state}, fn event, {:ok, acc} ->
       case state.engine.apply(acc, event["ops"], [{:author, event["author"]} | state.opts]) do
@@ -610,11 +598,6 @@ defmodule Issho.Authority do
     state.config.compact and state.store != Issho.Store.None and Engine.compacts?(state.engine)
   end
 
-  # The idle document, saved as a new epoch that continues this one,
-  # without what only its past needed. No session has it open, so no page
-  # holds pending work on this epoch but one that was away, whose
-  # transactions still apply. At most once an idle period: the authority
-  # stops right after.
   defp compact(state) do
     started = System.monotonic_time()
     {result, sizes} = compaction(state)
@@ -650,8 +633,6 @@ defmodule Issho.Authority do
       {:error, %{}}
   end
 
-  # A store that answers :conflict has a newer document (saved from
-  # another node), or no longer takes this one: not an error.
   defp save_compacted(%{document: document} = state, compacted, sizes) do
     kept = state.content
 

@@ -189,7 +189,8 @@ defmodule Issho.CompatibilityTest do
     end
 
     close(instance, id, pid)
-    committed = V050.commit(document, Compacting, tx(epoch, revision, "0.5.0"), "user:ken")
+    legacy_transaction = tx(epoch, revision, "0.5.0")
+    committed = V050.commit(document, Compacting, legacy_transaction, "user:ken")
     {:ok, after_commit} = Engine.validate(Compacting, committed["state"], [])
     assert after_commit == Map.put(content, "n", "0.5.0")
     assert {:ok, ^after_commit} = V050.content_at(committed, Compacting, epoch, revision + 1)
@@ -200,6 +201,11 @@ defmodule Issho.CompatibilityTest do
 
     assert {:ok, %{"epoch" => ^epoch, "revision" => ^next, "content" => ^after_commit}} =
              Authority.content(pid)
+
+    assert {:ok, %{"duplicate" => true, "version" => version}} =
+             Authority.commit(pid, legacy_transaction, "user:ken")
+
+    assert version == Issho.Version.new(epoch, next)
 
     pid
   end

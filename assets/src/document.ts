@@ -223,7 +223,6 @@ export class SharedDocument {
     this.sending = null;
     this.acked.clear();
 
-    // Transactions of any other epoch can never apply: they are refused here.
     const remaining = this.queue.filter((tx) => !accepted.has(tx.id));
     const stale = remaining.filter((tx) => !carries(snapshot, tx));
     this.queue = remaining.filter((tx) => carries(snapshot, tx));
@@ -357,8 +356,6 @@ export class SharedDocument {
       this.persist();
       this.emit({ type: "refused", transaction, reason: error.reason });
       this.emit({ type: "change", state: this.view, origin: "reset" });
-      // The document has an epoch this copy did not hear of: the room opens
-      // it again, and its reset sends what can still go.
       if (error.reason === "epoch_mismatch") this.outOfStep("epoch_mismatch");
       else this.pump();
     }
