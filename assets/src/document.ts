@@ -13,7 +13,8 @@
 //
 // With `batch`, changes made close together go as one transaction: a
 // change joins the last transaction while it has not been sent, and the
-// state it was made on is still the accepted one. `hold()` keeps
+// state it was made on is still the accepted one: this browser's own
+// transactions, accepted, leave it so; another's does not. `hold()` keeps
 // transactions from going (while a person composes text with an input
 // method), and `release()` lets them go.
 
@@ -189,7 +190,10 @@ export class SharedDocument {
 
     this.accepted = { ...this.accepted, state: applied.state, revision: event.revision };
     const own = this.queue.findIndex((tx) => tx.id === event.id);
-    if (own >= 0) this.queue.splice(own, 1);
+    if (own >= 0) {
+      this.queue.splice(own, 1);
+      this.rebaseBatch(event.revision);
+    }
     this.acked.delete(event.id);
     this.sent.delete(event.id);
     if (this.sending === event.id) this.sending = null;
@@ -265,6 +269,13 @@ export class SharedDocument {
       this.batching = { id: transaction.id, timer };
     }
     return transaction;
+  }
+
+  private rebaseBatch(revision: number): void {
+    const last = this.queue[this.queue.length - 1];
+    if (!last || last.id !== this.batching?.id || this.sent.has(last.id) || last.if_revision != null) return;
+    if (last.epoch !== this.accepted.epoch || last.base_revision !== revision - 1) return;
+    this.queue[this.queue.length - 1] = { ...last, base_revision: revision };
   }
 
   private endBatch(): void {

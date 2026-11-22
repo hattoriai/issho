@@ -9,6 +9,16 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Authority snapshot and content reads return `{:error, :timeout}` or
+  `{:error, :unavailable}` when the authority is slow or gone. Revision
+  reads accept a `:timeout` option, including `Issho.content/5`.
+
+- A batch stays open when the server accepts this browser's own
+  transaction before it, and takes that revision as its base. Before, a
+  person who typed on through a round trip sent a transaction about once a
+  round trip, or with each change when the server answered faster than
+  they typed, whatever the `batch` delay.
+
 - `Issho.content/4` (and `Issho.Authority.content_at/3`) answers the
   current revision with the content the authority keeps, without replaying
   the journal. Publishing what a person saw replayed the whole epoch, so a
