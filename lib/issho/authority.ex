@@ -78,6 +78,7 @@ defmodule Issho.Authority do
 
   require Logger
 
+  @read_timeout 5_000
   @compact_share 4
   @compact_bytes 65_536
 
@@ -98,9 +99,13 @@ defmodule Issho.Authority do
   @spec leave(GenServer.server(), pid()) :: :ok
   def leave(server, pid), do: GenServer.cast(server, {:leave, pid})
 
-  @doc "The document as a browser receives it: epoch, revision and the engine's snapshot."
-  @spec snapshot(GenServer.server()) :: {:ok, map()}
-  def snapshot(server), do: GenServer.call(server, :snapshot)
+  @doc """
+  The document as a browser receives it: epoch, revision and the engine's
+  snapshot. `{:error, :timeout}` or `{:error, :unavailable}` when the
+  authority does not answer, rather than an exit.
+  """
+  @spec snapshot(GenServer.server()) :: {:ok, map()} | {:error, :timeout | :unavailable}
+  def snapshot(server), do: read(server, :snapshot)
 
   @doc """
   Commits a transaction of an author: its identity (`Issho.Identity`), or
@@ -124,15 +129,31 @@ defmodule Issho.Authority do
   @spec accepted(GenServer.server(), [String.t()], String.t()) :: [String.t()]
   def accepted(server, ids, author), do: GenServer.call(server, {:accepted, ids, author})
 
-  @doc "The content of the current revision, with its epoch and revision."
+  @doc """
+  The content of the current revision, with its epoch and revision.
+  `{:error, :timeout}` or `{:error, :unavailable}` when the authority does
+  not answer, rather than an exit.
+  """
   @spec content(GenServer.server()) :: {:ok, map()} | {:error, term()}
-  def content(server), do: GenServer.call(server, :content)
+  def content(server), do: read(server, :content)
 
-  @doc "The content of an accepted revision of the epoch."
-  @spec content_at(GenServer.server(), String.t(), non_neg_integer()) ::
+  @doc """
+  The content of an accepted revision of the epoch. `{:error, :timeout}`
+  when the authority does not answer within the `:timeout` option, in
+  milliseconds (5,000), and `{:error, :unavailable}` when it is gone,
+  rather than an exit.
+  """
+  @spec content_at(GenServer.server(), String.t(), non_neg_integer(), keyword()) ::
           {:ok, term()} | {:error, term()}
-  def content_at(server, epoch, revision),
-    do: GenServer.call(server, {:content_at, epoch, revision})
+  def content_at(server, epoch, revision, opts \\ []),
+    do: read(server, {:content_at, epoch, revision}, Keyword.get(opts, :timeout, @read_timeout))
+
+  defp read(server, request, timeout \\ @read_timeout) do
+    GenServer.call(server, request, timeout)
+  catch
+    :exit, {:timeout, _call} -> {:error, :timeout}
+    :exit, _reason -> {:error, :unavailable}
+  end
 
   @doc false
   @spec topic(String.t()) :: String.t()

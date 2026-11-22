@@ -90,6 +90,27 @@ defmodule Issho.AuthorityTest do
     assert {:error, :unknown_revision} = Authority.content_at(pid, "other", 1)
   end
 
+  test "a read of an authority that is gone is an error, not an exit", %{
+    pid: pid,
+    snapshot: snapshot
+  } do
+    :ok = GenServer.stop(pid)
+
+    assert {:error, :unavailable} = Authority.snapshot(pid)
+    assert {:error, :unavailable} = Authority.content(pid)
+    assert {:error, :unavailable} = Authority.content_at(pid, snapshot["epoch"], 0)
+  end
+
+  test "a read the authority does not answer in time is an error, and its late answer is dropped",
+       %{id: id, pid: pid, snapshot: snapshot} do
+    :ok = :sys.suspend(pid)
+    assert {:error, :timeout} = Issho.content(@instance, id, snapshot["epoch"], 0, timeout: 50)
+    :ok = :sys.resume(pid)
+
+    assert {:ok, %{"revision" => 0}} = Authority.snapshot(pid)
+    refute_received _
+  end
+
   test "tells a reconnecting author which of its transactions were accepted",
        %{pid: pid, snapshot: snapshot} do
     t = tx(snapshot, [set("a", 1)])
