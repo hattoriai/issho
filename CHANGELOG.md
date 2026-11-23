@@ -19,6 +19,11 @@ and Issho follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   round trip, or with each change when the server answered faster than
   they typed, whatever the `batch` delay.
 
+- `Issho.content/4` (and `Issho.Authority.content_at/3`) answers the
+  current revision with the content the authority keeps, without replaying
+  the journal. Publishing what a person saw replayed the whole epoch, so a
+  form on a document with a long history took seconds and could time out.
+
 ## [0.6.0] - 2026-11-03
 
 Issho's MCP servers run on Sake 0.6, whose `actors` let one connection

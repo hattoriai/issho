@@ -88,6 +88,7 @@ defmodule Issho.AuthorityTest do
     assert {:ok, %{"title" => "Untitled"}} = Authority.content_at(pid, snapshot["epoch"], 0)
     assert {:error, :unknown_revision} = Authority.content_at(pid, snapshot["epoch"], 3)
     assert {:error, :unknown_revision} = Authority.content_at(pid, "other", 1)
+    assert {:error, :unknown_revision} = Authority.content_at(pid, "other", 2)
   end
 
   test "a read of an authority that is gone is an error, not an exit", %{
