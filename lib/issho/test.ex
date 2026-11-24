@@ -71,9 +71,6 @@ defmodule Issho.Test do
   def replays?(instance, document_id) do
     {:ok, pid} = Documents.open(instance, document_id)
 
-    {:ok, %{"epoch" => epoch, "revision" => revision, "content" => content}} =
-      Authority.content(pid)
-
-    Authority.content_at(pid, epoch, revision) == {:ok, content}
+    Authority.replay_conforms?(pid)
   end
 end
