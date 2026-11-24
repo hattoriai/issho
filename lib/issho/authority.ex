@@ -19,8 +19,10 @@ defmodule Issho.Authority do
   engine's name and version, an epoch, a revision, the state the epoch
   began with, a journal of the accepted transactions, and their receipts.
   The journal can rebuild any revision of the epoch (`content_at/3`), so a
-  form can publish exactly the revision a person saw. (An upgraded document
-  that kept no journal rebuilds the revisions from its upgrade on.)
+  form can publish exactly the revision a person saw. The current revision
+  needs no rebuilding: its content is the one the authority keeps. (An
+  upgraded document that kept no journal rebuilds the revisions from its
+  upgrade on.)
 
   The instance's `:history` option bounds transaction receipts. The
   stored `"horizon"` is the revision before the retained receipts. A retry
@@ -134,6 +136,10 @@ defmodule Issho.Authority do
     :exit, {:timeout, _call} -> {:error, :timeout}
     :exit, _reason -> {:error, :unavailable}
   end
+
+  @doc false
+  @spec replay_conforms?(GenServer.server()) :: boolean()
+  def replay_conforms?(server), do: GenServer.call(server, :replay_conforms?)
 
   @doc false
   @spec topic(String.t()) :: String.t()
@@ -283,6 +289,11 @@ defmodule Issho.Authority do
 
   def handle_call({:content_at, epoch, revision}, _from, state) do
     {:reply, content_at_revision(state, epoch, revision), state}
+  end
+
+  def handle_call(:replay_conforms?, _from, state) do
+    %{"epoch" => epoch, "revision" => revision} = state.document
+    {:reply, replayed_content(state, epoch, revision) == {:ok, state.content}, state}
   end
 
   def handle_call({:accepted, ids, author}, _from, state),
@@ -519,7 +530,16 @@ defmodule Issho.Authority do
     end
   end
 
-  defp content_at_revision(state, epoch, revision) do
+  defp content_at_revision(
+         %{document: %{"epoch" => epoch, "revision" => revision}} = state,
+         epoch,
+         revision
+       ),
+       do: {:ok, state.content}
+
+  defp content_at_revision(state, epoch, revision), do: replayed_content(state, epoch, revision)
+
+  defp replayed_content(state, epoch, revision) do
     with {:ok, initial, events} <- Journal.rebuild(state.document, epoch, revision),
          {:ok, engine_state} <- replay(state, initial, events),
          do: Engine.validate(state.engine, engine_state, state.opts)
