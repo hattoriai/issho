@@ -14,7 +14,8 @@ class FakeTransport implements RoomTransport {
   statusCallbacks: ((status: "joined" | "closed") => void)[] = [];
   pushes: { event: string; payload: unknown }[] = [];
   connected = true;
-  docs = new Map<string, { epoch: string; revision: number; state: State; receipts: Map<string, number> }>();
+  refuse: string | null = null;
+  docs = new Map<string, { epoch: string; continues?: string; revision: number; state: State; receipts: Map<string, number> }>();
 
   async join() {
     return { session: "s1", can: "write" as const };
@@ -27,9 +28,11 @@ class FakeTransport implements RoomTransport {
     if (event === "open") {
       const { doc, pending } = payload as { doc: string; pending: string[] };
       const d = this.doc(doc);
-      return { id: doc, engine: "map", epoch: d.epoch, revision: d.revision, state: d.state, accepted: pending.filter((id) => d.receipts.has(id)) };
+      const continues = d.continues ? { continues: d.continues } : {};
+      return { id: doc, engine: "map", epoch: d.epoch, ...continues, revision: d.revision, state: d.state, accepted: pending.filter((id) => d.receipts.has(id)) };
     }
     if (event === "tx") {
+      if (this.refuse) throw new Refused(this.refuse);
       const { doc, tx } = payload as { doc: string; tx: Transaction };
       return this.commit(doc, tx, "ada", true);
     }
@@ -40,12 +43,13 @@ class FakeTransport implements RoomTransport {
     const d = this.doc(doc);
     const known = d.receipts.get(tx.id);
     if (known) return { id: tx.id, revision: known, duplicate: true };
+    if (tx.epoch !== d.epoch && tx.epoch !== d.continues) throw new Refused("epoch_mismatch");
     const applied = mapEngine.apply(d.state, tx.ops, author);
     if (!applied.ok) throw new Refused(applied.reason);
     d.state = applied.state;
     d.revision += 1;
     d.receipts.set(tx.id, d.revision);
-    const event: AcceptedTransaction = { ...tx, revision: d.revision, author };
+    const event: AcceptedTransaction = { ...tx, epoch: d.epoch, revision: d.revision, author };
     if (deliver) queueMicrotask(() => this.emit("tx", { doc, event }));
     return { id: tx.id, revision: d.revision };
   }
@@ -131,6 +135,30 @@ test("a reconnect opens documents again and sends only what the server lacks", a
   assert.equal(doc.pending.length, 0);
   assert.deepEqual(transport.doc("board:1").state, { n: 3 });
   assert.deepEqual(doc.state, { n: 3 });
+});
+
+test("a change refused for its epoch opens the document again, on the epoch the server has", async () => {
+  const transport = new FakeTransport();
+  const room = new Room(transport, { self: "ada" });
+  await room.connect();
+  const doc = await room.open("board:1");
+  const refused: string[] = [];
+  doc.on((event) => {
+    if (event.type === "refused") refused.push(event.reason);
+  });
+
+  // The document was replaced under a browser that did not hear of it.
+  transport.doc("board:1").epoch = "e2";
+  doc.change([{ op: "set", path: ["first"], value: 1 }]);
+  await tick();
+  assert.deepEqual(refused, ["epoch_mismatch"]);
+  assert.equal(doc.epoch, "e2");
+
+  doc.change([{ op: "set", path: ["second"], value: 2 }]);
+  await tick();
+  assert.deepEqual(refused, ["epoch_mismatch"]);
+  assert.deepEqual(transport.doc("board:1").state, { second: 2 });
+  assert.deepEqual(doc.state, { second: 2 });
 });
 
 test("awareness frames become peers; a dropped connection forgets them", async () => {
@@ -239,6 +267,108 @@ test("a draft of another epoch is reported and kept aside, never sent", async ()
 
   await after.discardStaleDraft("board:1");
   assert.equal([...drafts.drafts.keys()].filter((k) => k.endsWith(":stale")).length, 0);
+});
+
+test("expired edits survive later refusals and a reload until the app discards them", async () => {
+  const transport = new FakeTransport();
+  const drafts = new MemoryDraftStore();
+  const session = tab();
+  const room = new Room(transport, { self: "ada", room: "board:1", drafts, session });
+  const stale: string[][] = [];
+  room.onStaleDraft(({ draft, reason }) => {
+    assert.equal(reason, "expired");
+    stale.push(draft.pending.map((tx) => tx.id));
+  });
+  await room.connect();
+  const document = await room.open("board:1");
+  transport.drop();
+  document.change([{ op: "increment", path: ["n"], by: 1 }]);
+  document.change([{ op: "increment", path: ["n"], by: 2 }]);
+  const pending = document.pending.map((tx) => tx.id);
+  await room.flushDrafts();
+
+  transport.refuse = "expired";
+  transport.restore();
+  await tick();
+  await room.flushDrafts();
+  assert.equal(document.pending.length, 0);
+  assert.deepEqual(stale.at(-1), pending);
+  assert.deepEqual(transport.doc("board:1").state, {});
+
+  const after = new Room(transport, { self: "ada", room: "board:1", drafts, session: { ...session, locks: null } });
+  const recovered: string[][] = [];
+  after.onStaleDraft(({ draft, reason }) => {
+    assert.equal(reason, "expired");
+    recovered.push(draft.pending.map((tx) => tx.id));
+  });
+  await after.connect();
+  await after.open("board:1");
+  assert.deepEqual(recovered, [pending]);
+  await after.discardStaleDraft("board:1");
+  assert.equal(drafts.drafts.size, 0);
+});
+
+test("a draft of the epoch a compaction continues is sent once, not set aside", async () => {
+  const transport = new FakeTransport();
+  const drafts = new MemoryDraftStore();
+  const session = tab();
+  const before = new Room(transport, { self: "ada", room: "board:1", drafts, session });
+  await before.connect();
+  const doc = await before.open("board:1");
+  transport.drop();
+  doc.change([{ op: "increment", path: ["n"], by: 1 }]);
+  doc.change([{ op: "increment", path: ["n"], by: 2 }]);
+  // One reached the server before the drop; its reply was lost.
+  transport.commit("board:1", doc.pending[0], "ada", false);
+  await before.flushDrafts();
+
+  // No one had it open: the server compacted it.
+  const compacted = transport.doc("board:1");
+  compacted.continues = compacted.epoch;
+  compacted.epoch = "e2";
+
+  transport.connected = true;
+  const after = new Room(transport, { self: "ada", room: "board:1", drafts, session: { ...session, locks: null } });
+  const stale: string[] = [];
+  after.onStaleDraft(({ draft }) => stale.push(`${draft.pending.length}`));
+  await after.connect();
+  const reopened = await after.open("board:1");
+  assert.deepEqual(reopened.state, { n: 3 });
+  await tick();
+  await after.flushDrafts();
+
+  assert.deepEqual(stale, []);
+  assert.deepEqual(transport.doc("board:1").state, { n: 3 });
+  assert.equal(reopened.pending.length, 0);
+  assert.equal(reopened.epoch, "e2");
+  assert.equal(drafts.drafts.size, 0);
+});
+
+test("of a draft whose document began a new epoch, only what the server lacks is set aside", async () => {
+  const transport = new FakeTransport();
+  const drafts = new MemoryDraftStore();
+  const session = tab();
+  const before = new Room(transport, { self: "ada", room: "board:1", drafts, session });
+  await before.connect();
+  const doc = await before.open("board:1");
+  transport.drop();
+  doc.change([{ op: "set", path: ["sent"], value: true }]);
+  doc.change([{ op: "set", path: ["mine"], value: "draft" }]);
+  transport.commit("board:1", doc.pending[0], "ada", false);
+  const unsent = doc.pending[1].id;
+  await before.flushDrafts();
+
+  transport.connected = true;
+  transport.doc("board:1").epoch = "e2";
+  const after = new Room(transport, { self: "ada", room: "board:1", drafts, session: { ...session, locks: null } });
+  const stale: string[][] = [];
+  after.onStaleDraft(({ draft }) => stale.push(draft.pending.map((tx) => tx.id)));
+  await after.connect();
+  await after.open("board:1");
+  await tick();
+
+  assert.deepEqual(stale, [[unsent]]);
+  assert.deepEqual(transport.doc("board:1").state, { sent: true });
 });
 
 test("a tab keeps its session across reloads; a duplicated tab gets its own", async () => {

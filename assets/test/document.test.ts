@@ -19,6 +19,7 @@ registerEngine(mapEngine);
 // browser after the reply, as a channel does.
 class FakeServer {
   epoch = "e1";
+  continues: string | undefined;
   revision = 0;
   state: State;
   receipts = new Map<string, number>();
@@ -30,7 +31,15 @@ class FakeServer {
   }
 
   snapshot(accepted: string[] = []): Snapshot {
-    return { id: "d", engine: "map", epoch: this.epoch, revision: this.revision, state: this.state, accepted };
+    const continues = this.continues ? { continues: this.continues } : {};
+    return { id: "d", engine: "map", epoch: this.epoch, ...continues, revision: this.revision, state: this.state, accepted };
+  }
+
+  // A compaction while no browser has the document open: a new epoch that
+  // continues this one, with the same state and revision.
+  compact(epoch: string): void {
+    this.continues = this.epoch;
+    this.epoch = epoch;
   }
 
   connect(author: string): SharedDocument {
@@ -48,13 +57,13 @@ class FakeServer {
     if (!this.online) throw new Error("disconnected");
     const known = this.receipts.get(tx.id);
     if (known !== undefined) return { id: tx.id, revision: known, duplicate: true };
-    if (tx.epoch !== this.epoch) throw new Refused("epoch_mismatch");
+    if (tx.epoch !== this.epoch && tx.epoch !== this.continues) throw new Refused("epoch_mismatch");
     const applied = mapEngine.apply(this.state, tx.ops, author);
     if (!applied.ok) throw new Refused(applied.reason);
     this.state = applied.state;
     this.revision += 1;
     this.receipts.set(tx.id, this.revision);
-    const event: AcceptedTransaction = { ...tx, revision: this.revision, author };
+    const event: AcceptedTransaction = { ...tx, epoch: this.epoch, revision: this.revision, author };
     for (const browser of this.browsers) browser.inbox.push(event);
     return { id: tx.id, revision: this.revision };
   }
@@ -218,6 +227,98 @@ test("a reset to a new epoch refuses the pending transactions of the old one", (
   ada.reset({ ...server.snapshot(), epoch: "e2", state: { fresh: true } });
   assert.deepEqual(refused, ["ada-1"]);
   assert.deepEqual(ada.state, { fresh: true });
+});
+
+test("a reset to a new epoch drops what the server accepted, and refuses only the rest", async () => {
+  const server = new FakeServer();
+  const ada = server.connect("ada");
+  // Accepted, but the reply and event are lost; then one never sent.
+  ada.change([inc("n")]);
+  await Promise.resolve();
+  server.browsers[0].inbox.length = 0;
+  ada.setOnline(false);
+  ada.change([inc("n", 5)]);
+
+  const refused: string[] = [];
+  ada.on((event) => {
+    if (event.type === "refused") refused.push(event.transaction.id);
+  });
+
+  ada.reset({ ...server.snapshot(["ada-1"]), epoch: "e2" });
+  assert.deepEqual(refused, ["ada-2"]);
+  assert.deepEqual(ada.state, { n: 1 });
+  assert.equal(ada.pending.length, 0);
+});
+
+test("pending work of the epoch a compaction continues stays, and goes as it was made, once", async () => {
+  const server = new FakeServer();
+  const ada = server.connect("ada");
+  ada.change([inc("n")]);
+  await server.settle();
+
+  // Away: one change accepted with its reply and event lost, one never sent.
+  ada.change([inc("n", 2)]);
+  await Promise.resolve();
+  server.browsers[0].inbox.length = 0;
+  ada.setOnline(false);
+  ada.change([inc("n", 5)]);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  server.compact("e2");
+  const refused: string[] = [];
+  ada.on((event) => {
+    if (event.type === "refused") refused.push(event.reason);
+  });
+
+  // The reconnect, as the room makes it: the document opened again, then online.
+  const accepted = ada.pending.map((tx) => tx.id).filter((id) => server.receipts.has(id));
+  ada.reset(server.snapshot(accepted));
+  assert.deepEqual(ada.state, { n: 8 });
+  assert.deepEqual(ada.pending.map((tx) => tx.epoch), ["e1"]);
+  ada.setOnline(true);
+  await server.settle();
+
+  assert.deepEqual(refused, []);
+  assert.deepEqual(server.state, { n: 8 });
+  assert.deepEqual(ada.state, { n: 8 });
+  assert.equal(ada.epoch, "e2");
+  assert.equal(ada.pending.length, 0);
+  assert.equal(server.sends.filter((id) => id === "ada-3").length, 1);
+
+  ada.change([inc("n")]);
+  assert.equal(ada.pending[0].epoch, "e2");
+});
+
+test("a transaction refused for its epoch puts the copy out of step", async () => {
+  const server = new FakeServer();
+  const ada = server.connect("ada");
+  const reasons: string[] = [];
+  ada.on((event) => {
+    if (event.type === "out_of_step") reasons.push(event.reason);
+  });
+
+  server.epoch = "e2";
+  ada.change([inc("n")]);
+  await server.settle();
+  assert.deepEqual(reasons, ["epoch_mismatch"]);
+});
+
+test("pending work of an epoch before the one continued is refused", () => {
+  const server = new FakeServer();
+  const ada = server.connect("ada");
+  ada.setOnline(false);
+  ada.change([inc("n")]);
+  server.compact("e2");
+  server.compact("e3");
+
+  const refused: string[] = [];
+  ada.on((event) => {
+    if (event.type === "refused") refused.push(event.reason);
+  });
+
+  ada.reset(server.snapshot());
+  assert.deepEqual(refused, ["epoch_mismatch"]);
+  assert.equal(ada.pending.length, 0);
 });
 
 test("browsers that change at once converge on the server's state", async () => {
